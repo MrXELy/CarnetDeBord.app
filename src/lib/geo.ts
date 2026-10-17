@@ -132,6 +132,35 @@ export async function searchCities(query: string, europe: boolean, signal?: Abor
   return Promise.all(unique.map((p) => completeFrench(p, signal)));
 }
 
+/**
+ * Retrouve une ville lue sur un document dans la même base que l'autocomplétion, comme si
+ * on l'avait choisie dans les suggestions (vrai code postal, vrai département).
+ * Le département lu ne sert qu'à départager les homonymes : la base officielle fait foi.
+ * Renvoie null si aucune ville ne correspond au nom lu.
+ */
+export async function resolveCity(city: string, department: string | null): Promise<Place | null> {
+  const name = normalize(city);
+  if (!name) return null;
+  const french = await searchFrenchCities(city).catch(() => []);
+  const sameName = french.filter((p) => normalize(p.city) === name);
+  const found = sameName.find((p) => p.department === department) ?? sameName[0];
+  if (found) return found;
+  // Ville étrangère (Espagne, Italie…) : recherche européenne, nom identique exigé.
+  const european = await searchCities(city, true).catch(() => []);
+  return european.find((p) => normalize(p.city) === name) ?? null;
+}
+
+/** « Toulouse (31) » → ville + département ; « Barcelona (ES) » → ville + pays (inverse de formatPlace). */
+export function placeFromLabel(label: string): Place {
+  const empty = { postcode: null, department: null, country_code: null, lat: null, lon: null };
+  const match = /^(.+?)\s*\(([0-9]{2,3}|2[AB]|[A-Z]{2})\)$/.exec(label.trim());
+  if (!match) return { ...empty, city: label };
+  const [, city, code] = match;
+  return /^[A-Z]{2}$/.test(code) && !/^2[AB]$/.test(code)
+    ? { ...empty, city, country_code: code }
+    : { ...empty, city, department: code, country_code: 'FR' };
+}
+
 function currentPosition(): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error('Géolocalisation non disponible'));

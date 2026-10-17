@@ -1,6 +1,6 @@
 import { parseISO } from 'date-fns';
-import { Pencil, Plus, X } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { Camera, Pencil, Plus, X } from 'lucide-react';
+import { useRef, useState, type FormEvent } from 'react';
 import { toLocalInput } from '../lib/dates';
 import { formatPlace } from '../lib/geo';
 import { numText, parseNum } from '../lib/numbers';
@@ -27,7 +27,7 @@ interface Props {
   onClose: () => void;
 }
 
-type Editing = { waybill: Waybill; isNew: boolean; side: 'load' | 'delivery' } | null;
+type Editing = { waybill: Waybill; isNew: boolean; side: 'load' | 'delivery'; photo?: Blob } | null;
 
 /** Champs d'une LV qui comptent pour savoir si elle a changé (on ignore les dates de suivi). */
 const sameWaybill = (a: Waybill, b: Waybill | undefined) =>
@@ -60,6 +60,7 @@ export default function EventForm({ event, onClose }: Props) {
   const [checked, setChecked] = useState(() => new Set(originalDelivered.map((w) => w.id)));
   const [deliveryEdits, setDeliveryEdits] = useState<Map<string, Waybill>>(() => new Map());
   const [editing, setEditing] = useState<Editing>(null);
+  const scanInput = useRef<HTMLInputElement>(null);
 
   useModal(onClose);
 
@@ -313,20 +314,49 @@ export default function EventForm({ event, onClose }: Props) {
                     ))}
                   </div>
                 )}
-                <button
-                  type="button"
-                  className="btn-secondary btn-icon lv-add"
-                  onClick={() =>
-                    setEditing({
-                      waybill: newWaybill({ shipper: loads[0]?.shipper ?? null }),
-                      isNew: true,
-                      side: 'load',
-                    })
-                  }
-                >
-                  <Plus size={18} />
-                  Ajouter une lettre de voiture
-                </button>
+                <div className="lv-actions">
+                  <button
+                    type="button"
+                    className="btn-primary btn-icon lv-add"
+                    onClick={() => scanInput.current?.click()}
+                  >
+                    <Camera size={18} />
+                    Scanner une LV
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-icon lv-add"
+                    onClick={() =>
+                      setEditing({
+                        waybill: newWaybill({ shipper: loads[0]?.shipper ?? null }),
+                        isNew: true,
+                        side: 'load',
+                      })
+                    }
+                  >
+                    <Plus size={18} />
+                    Saisir
+                  </button>
+                </div>
+                <input
+                  ref={scanInput}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  hidden
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (file) {
+                      setEditing({
+                        waybill: newWaybill({ shipper: loads[0]?.shipper ?? null }),
+                        isNew: true,
+                        side: 'load',
+                        photo: file,
+                      });
+                    }
+                  }}
+                />
                 <span className="hint">Le numéro peut être complété plus tard.</span>
               </div>
             )}
@@ -429,6 +459,7 @@ export default function EventForm({ event, onClose }: Props) {
         <WaybillForm
           waybill={editing.waybill}
           isNew={editing.isNew}
+          initialPhoto={editing.photo}
           context={editingContext()}
           onSave={saveEditing}
           onDelete={editing.isNew ? undefined : deleteEditing}

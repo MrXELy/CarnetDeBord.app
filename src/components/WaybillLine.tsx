@@ -1,5 +1,5 @@
 import { format, parseISO } from 'date-fns';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Camera } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { formatPlace } from '../lib/geo';
 import { useStore } from '../lib/useEvents';
@@ -56,6 +56,7 @@ export default function WaybillLine({ waybill: w, loading, onClick, leading, tra
       <button type="button" className="lv-main" onClick={onClick}>
         <span className="lv-title">
           {w.number ? `LV ${w.number}` : <span className="badge">LV à compléter</span>}
+          {w.photo_paths.length > 0 && <Camera size={15} className="lv-photo" aria-label="Avec photo" />}
         </span>
         <Pair from={w.shipper} to={w.consignee} />
         <Pair from={from.place} to={toPlace} />

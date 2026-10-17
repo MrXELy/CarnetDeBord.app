@@ -1,5 +1,7 @@
 import { Download, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { downloadCsv, eventsToCsv, waybillsToCsv } from '../lib/csv';
+import { monthUsage } from '../lib/photos';
 import { updateSettings, useSettings } from '../lib/settings';
 import { useEvents } from '../lib/useEvents';
 import { useModal } from '../lib/useModal';
@@ -9,6 +11,12 @@ export default function Settings({ onClose }: { onClose: () => void }) {
   const { europe } = useSettings();
 
   useModal(onClose);
+
+  // Nombre et coût des lectures du mois (undefined : chargement ; null : hors ligne ou indisponible).
+  const [usage, setUsage] = useState<{ count: number; cost: number } | null | undefined>(undefined);
+  useEffect(() => {
+    monthUsage().then(setUsage, () => setUsage(null));
+  }, []);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -77,6 +85,26 @@ export default function Settings({ onClose }: { onClose: () => void }) {
                 <Download size={18} />
                 Exporter
               </button>
+            </div>
+          </section>
+
+          <section className="settings-group">
+            <h3>Lecture automatique des LV</h3>
+            <div className="setting-row">
+              <span className="setting-text">
+                <span className="setting-title">
+                  {usage === undefined
+                    ? 'Lectures ce mois-ci…'
+                    : usage === null
+                      ? 'Lectures ce mois-ci : indisponible'
+                      : `Lectures ce mois-ci : ${usage.count} · ≈ ${usage.cost.toLocaleString('fr-FR', {
+                          style: 'currency',
+                          currency: 'USD',
+                          maximumFractionDigits: 2,
+                        })}`}
+                </span>
+                <span className="hint">Limites : 2 lectures par photo, 30 par jour, 300 par mois.</span>
+              </span>
             </div>
           </section>
         </div>

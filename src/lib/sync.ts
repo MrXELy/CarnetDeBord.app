@@ -1,4 +1,5 @@
 import { isInTruck, type TripEvent, type Waybill } from '../types';
+import { uploadPending } from './photos';
 import { supabase } from './supabase';
 
 export interface SyncState {
@@ -39,7 +40,7 @@ export class Collection<T extends Row> {
   ) {}
 
   load(saved: Saved<T> | null) {
-    saved?.items.forEach((item) => this.items.set(item.id, item));
+    saved?.items.forEach((item) => this.items.set(item.id, this.normalize(item)));
     saved?.outbox.forEach((id) => this.outbox.add(id));
     this.cursor = saved?.cursor ?? null;
   }
@@ -95,7 +96,7 @@ export class EventStore {
   private syncing = false;
   private error: string | null = null;
 
-  constructor(private userId: string) {
+  constructor(readonly userId: string) {
     // « data » garde son ancien format ({ events, outbox, cursor }) pour relire le cache existant.
     const saved = this.read<{ events: TripEvent[]; outbox: string[]; cursor: string | null }>('data');
     this.events.load(saved && { items: saved.events, outbox: saved.outbox, cursor: saved.cursor });
@@ -236,6 +237,8 @@ export class EventStore {
           /waybills/.test(String(err)) ? 'Table des lettres de voiture absente dans Supabase' : String(err),
         );
       }
+      // Photos prises sans réseau : envoyées dès que possible.
+      await uploadPending();
       this.error = null;
     } catch (err) {
       this.error = err instanceof Error ? err.message : 'Erreur de synchronisation';
@@ -305,5 +308,5 @@ function normalizeEvent(e: TripEvent): TripEvent {
 }
 
 function normalizeWaybill(w: Waybill): Waybill {
-  return { ...w, weight_kg: num(w.weight_kg) };
+  return { ...w, weight_kg: num(w.weight_kg), photo_paths: w.photo_paths ?? [] };
 }

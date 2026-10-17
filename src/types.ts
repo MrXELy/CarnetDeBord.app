@@ -53,6 +53,8 @@ export interface Waybill {
   goods: string | null;
   weight_kg: number | null;
   notes: string | null;
+  /** Photos de la lettre, chemins dans le stockage Supabase (« <utilisateur>/<lv>/<photo>.jpg »). */
+  photo_paths: string[];
   updated_at: string;
   deleted_at: string | null;
 }
@@ -85,6 +87,7 @@ export function newWaybill(extra: Partial<Waybill> = {}): Waybill {
     goods: null,
     weight_kg: null,
     notes: null,
+    photo_paths: [],
     updated_at: '',
     deleted_at: null,
     ...extra,

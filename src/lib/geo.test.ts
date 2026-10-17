@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { departmentFromPostcode, formatPlace, placeFromPhoton, rankCommunes } from './geo';
+import { departmentFromPostcode, formatPlace, placeFromLabel, placeFromPhoton, rankCommunes } from './geo';
 
 describe('departmentFromPostcode', () => {
   it.each([
@@ -54,5 +54,21 @@ describe('rankCommunes', () => {
   it('ignore accents et tirets', () => {
     const ranked = rankCommunes([c('Saint-Étienne-du-Rouvray', 28000), c('Saint-Étienne', 173000)], 'saint etienne');
     expect(ranked[0].nom).toBe('Saint-Étienne');
+  });
+});
+
+describe('placeFromLabel', () => {
+  it('relit « Ville (département) » et « Ville (pays) »', () => {
+    expect(placeFromLabel('Lézignan-Corbières (11)')).toMatchObject({ city: 'Lézignan-Corbières', department: '11', country_code: 'FR' });
+    expect(placeFromLabel('Ajaccio (2A)')).toMatchObject({ city: 'Ajaccio', department: '2A', country_code: 'FR' });
+    expect(placeFromLabel('Saint-Denis (974)')).toMatchObject({ department: '974' });
+    expect(placeFromLabel('Barcelona (ES)')).toMatchObject({ city: 'Barcelona', department: null, country_code: 'ES' });
+    expect(placeFromLabel('Tours')).toMatchObject({ city: 'Tours', country_code: null });
+  });
+
+  it('est l’inverse de formatPlace', () => {
+    for (const label of ['Malemort (19)', 'Bastia (2B)', 'Barcelona (ES)']) {
+      expect(formatPlace(placeFromLabel(label))).toBe(label);
+    }
   });
 });
