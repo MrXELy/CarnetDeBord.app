@@ -5,7 +5,7 @@ import { toLocalInput } from '../lib/dates';
 import { formatPlace } from '../lib/geo';
 import { numText, parseNum } from '../lib/numbers';
 import { odometerMessage, readOdometerPhoto } from '../lib/odometer';
-import { locateLater, placeOf } from '../lib/places';
+import { applyStepChanges, locateLater, placeOf, type LinkedSteps, type StepChanges } from '../lib/places';
 import { useModal } from '../lib/useModal';
 import { useEvents } from '../lib/useEvents';
 import { isBlankWaybill, stepLabel } from '../lib/waybills';
@@ -212,28 +212,37 @@ export default function EventForm({ event, onClose }: Props) {
   }
 
   /**
-   * Lieu du chargement de la LV ouverte, modifiable depuis sa fiche :
-   * celui du formulaire pour un chargement en cours de saisie, sinon celui de son étape enregistrée.
+   * Étapes de la LV ouverte, modifiables depuis sa fiche. L'étape en cours de saisie (ce chargement,
+   * ou cette livraison si la LV y est cochée) change dans le formulaire ; les autres sont enregistrées tout de suite.
    */
-  function editingLoading(): { place: Place; apply: (p: Place) => void } | undefined {
+  function editingSteps(): { steps: LinkedSteps; apply: (changes: StepChanges) => void } | undefined {
     if (!editing) return;
+    const w = editing.waybill;
+    const setFormTime = (iso: string) => setWhen(toLocalInput(new Date(iso)));
     if (editing.side === 'load') {
+      const delivery = store.event(w.delivery_event_id);
       return {
-        place,
-        apply: (p) => {
-          setPlace(p);
-          setPlaceKey((k) => k + 1);
-          setPlaceFromDayEnd(false);
+        steps: { loading: { place, at: whenIso }, delivery: delivery ? { at: delivery.occurred_at } : undefined },
+        apply: (changes) => {
+          if (changes.loadingPlace) {
+            setPlace(changes.loadingPlace);
+            setPlaceKey((k) => k + 1);
+            setPlaceFromDayEnd(false);
+          }
+          if (changes.loadingAt) setFormTime(changes.loadingAt);
+          applyStepChanges(store, null, delivery?.id, changes);
         },
       };
     }
-    const loading = store.event(editing.waybill.loading_event_id);
-    if (!loading) return;
+    const loading = store.event(w.loading_event_id);
     return {
-      place: placeOf(loading),
-      apply: (p) => {
-        store.setEventPlace(loading.id, p);
-        locateLater(store, loading.id, p);
+      steps: {
+        loading: loading ? { place: placeOf(loading), at: loading.occurred_at } : undefined,
+        delivery: checked.has(w.id) ? { at: whenIso } : undefined,
+      },
+      apply: (changes) => {
+        applyStepChanges(store, loading?.id, null, changes);
+        if (changes.deliveryAt) setFormTime(changes.deliveryAt);
       },
     };
   }
@@ -552,10 +561,10 @@ export default function EventForm({ event, onClose }: Props) {
           isNew={editing.isNew}
           initialPhoto={editing.photo}
           context={editingContext()}
-          loadingPlace={editingLoading()?.place}
-          onSave={(w, loadingPlace) => {
+          steps={editingSteps()?.steps}
+          onSave={(w, changes) => {
             saveEditing(w);
-            if (loadingPlace) editingLoading()?.apply(loadingPlace);
+            editingSteps()?.apply(changes);
           }}
           onDelete={editing.isNew ? undefined : deleteEditing}
           onClose={() => setEditing(null)}

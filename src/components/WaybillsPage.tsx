@@ -1,6 +1,6 @@
 import { Search, X } from 'lucide-react';
 import { useState } from 'react';
-import { locateLater, placeOf } from '../lib/places';
+import { applyStepChanges, placeOf } from '../lib/places';
 import { useModal } from '../lib/useModal';
 import { useEvents } from '../lib/useEvents';
 import { stepLabel } from '../lib/waybills';
@@ -68,6 +68,7 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
   }
 
   const editingLoading = editing ? store.event(editing.loading_event_id) : null;
+  const editingDelivery = editing ? store.event(editing.delivery_event_id) : null;
 
   return (
     <>
@@ -131,14 +132,14 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
           waybill={editing}
           isNew={false}
           context={context(editing)}
-          loadingPlace={editingLoading ? placeOf(editingLoading) : undefined}
-          onSave={(w, loadingPlace) => {
+          steps={{
+            loading: editingLoading ? { place: placeOf(editingLoading), at: editingLoading.occurred_at } : undefined,
+            delivery: editingDelivery ? { at: editingDelivery.occurred_at } : undefined,
+          }}
+          onSave={(w, changes) => {
             store.saveWaybill(w);
-            // Lieu du chargement changé depuis la fiche : l'étape et ses autres LV suivent.
-            if (loadingPlace && editingLoading) {
-              store.setEventPlace(editingLoading.id, loadingPlace);
-              locateLater(store, editingLoading.id, loadingPlace);
-            }
+            // Lieu ou dates changés depuis la fiche : les étapes, et leurs autres LV, suivent.
+            applyStepChanges(store, editingLoading?.id, editingDelivery?.id, changes);
           }}
           onDelete={(w) => store.removeWaybill(w)}
           onClose={() => setEditing(null)}

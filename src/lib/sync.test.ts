@@ -124,6 +124,15 @@ describe('cartes des semaines et lieux complétés', () => {
     expect(store.isPending('a')).toBe(true);
   });
 
+  it('change la date d’une étape depuis une de ses LV', () => {
+    const store = new EventStore('u');
+    store.save(ev('a', 'livraison', '2026-01-30T08:00'));
+    const iso = new Date('2026-01-30T09:15').toISOString();
+    store.setEventTime('a', iso);
+    expect(store.getState().events[0].occurred_at).toBe(iso);
+    expect(store.isPending('a')).toBe(true);
+  });
+
   it('complète les coordonnées d’une étape sans changer sa ville', () => {
     const store = new EventStore('u');
     store.save({ ...ev('a', 'livraison', '2026-01-30T08:00'), city: 'Tours' });

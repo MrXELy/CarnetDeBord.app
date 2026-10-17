@@ -1,5 +1,6 @@
 import { Camera, LoaderCircle, ScanSearch, ScanText, X } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { toLocalInput } from '../lib/dates';
 import { formatPlace, placeFromLabel, resolveCity } from '../lib/geo';
 import { parseNum, numText } from '../lib/numbers';
 import { FIELD_LABELS, applyReading, type ReadableFields } from '../lib/ocr';
@@ -12,7 +13,7 @@ import {
   uploadPending,
   type LetterKind,
 } from '../lib/photos';
-import { placeChanged } from '../lib/places';
+import { placeChanged, type LinkedSteps, type StepChanges } from '../lib/places';
 import { useModal } from '../lib/useModal';
 import { useStore } from '../lib/useEvents';
 import type { Place, Waybill } from '../types';
@@ -26,10 +27,10 @@ interface Props {
   context?: string;
   /** Photo prise juste avant d'ouvrir la fiche (« Scanner une LV »). */
   initialPhoto?: Blob;
-  /** Lieu de l'étape de chargement, modifiable depuis la fiche (absent si la LV n'a pas de chargement). */
-  loadingPlace?: Place;
-  /** `loadingPlace` n'est fourni que si le lieu du chargement a été changé. */
-  onSave: (waybill: Waybill, loadingPlace?: Place) => void;
+  /** Étapes de chargement et de livraison, modifiables depuis la fiche (absentes si la LV n'en a pas). */
+  steps?: LinkedSteps;
+  /** `changes` ne contient que ce qui a été modifié sur les étapes. */
+  onSave: (waybill: Waybill, changes: StepChanges) => void;
   onDelete?: (waybill: Waybill) => void;
   onClose: () => void;
 }
@@ -41,8 +42,18 @@ const clean = (s: string) => s.trim() || null;
 
 const plannedText = (p: Place) => (p.country_code ? formatPlace(p) : p.city);
 
+/** Date ISO → valeur d'un champ « date et heure » (vide si absente). */
+const localTime = (iso: string | null | undefined) => (iso ? toLocalInput(new Date(iso)) : '');
+
+/** Nouvelle date ISO si le champ a été changé et reste valide, sinon rien. */
+function changedTime(value: string, iso: string | null | undefined): string | undefined {
+  if (!iso || !value || value === localTime(iso)) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
 export default function WaybillForm(props: Props) {
-  const { waybill, isNew, context, initialPhoto, loadingPlace, onSave, onDelete, onClose } = props;
+  const { waybill, isNew, context, initialPhoto, steps = {}, onSave, onDelete, onClose } = props;
   const store = useStore();
   const [names] = useState(() => store.knownNames());
   const [number, setNumber] = useState(waybill.number ?? '');
@@ -50,7 +61,9 @@ export default function WaybillForm(props: Props) {
   const [consignee, setConsignee] = useState(waybill.consignee ?? '');
   const [planned, setPlanned] = useState<Place>(() => placeFromLabel(waybill.planned_city ?? ''));
   const [plannedKey, setPlannedKey] = useState(0);
-  const [loading, setLoading] = useState<Place | null>(loadingPlace ?? null);
+  const [loading, setLoading] = useState<Place | null>(steps.loading?.place ?? null);
+  const [loadingWhen, setLoadingWhen] = useState(() => localTime(steps.loading?.at));
+  const [deliveryWhen, setDeliveryWhen] = useState(() => localTime(steps.delivery?.at));
   const [goods, setGoods] = useState(waybill.goods ?? '');
   const [weight, setWeight] = useState(numText(waybill.weight_kg));
   const [notes, setNotes] = useState(waybill.notes ?? '');
@@ -165,7 +178,11 @@ export default function WaybillForm(props: Props) {
         notes: clean(notes),
         photo_paths: photos,
       },
-      loading && loadingPlace && placeChanged(loading, loadingPlace) ? loading : undefined,
+      {
+        loadingPlace: loading && steps.loading && placeChanged(loading, steps.loading.place) ? loading : undefined,
+        loadingAt: changedTime(loadingWhen, steps.loading?.at),
+        deliveryAt: changedTime(deliveryWhen, steps.delivery?.at),
+      },
     );
     onClose();
   }
@@ -272,6 +289,12 @@ export default function WaybillForm(props: Props) {
                   <PlaceField value={loading} onChange={setLoading} />
                 </div>
               )}
+              {steps.loading?.at && (
+                <label>
+                  Date et heure de chargement
+                  <input type="datetime-local" value={loadingWhen} onChange={(e) => setLoadingWhen(e.target.value)} />
+                </label>
+              )}
             </div>
 
             <div className="form-block">
@@ -285,6 +308,12 @@ export default function WaybillForm(props: Props) {
                 </span>
                 <PlaceField key={plannedKey} value={planned} onChange={setPlanned} />
               </div>
+              {steps.delivery?.at && (
+                <label>
+                  Date et heure de livraison
+                  <input type="datetime-local" value={deliveryWhen} onChange={(e) => setDeliveryWhen(e.target.value)} />
+                </label>
+              )}
             </div>
 
             <div className="form-block">

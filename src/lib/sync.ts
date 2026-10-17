@@ -177,6 +177,14 @@ export class EventStore {
     this.commit();
   }
 
+  /** Change la date et l'heure d'une étape (ISO), par exemple depuis la fiche d'une de ses LV. */
+  setEventTime(eventId: string, occurredAt: string) {
+    const event = this.event(eventId);
+    if (!event) return;
+    this.events.save({ ...event, occurred_at: occurredAt });
+    this.commit();
+  }
+
   saveWaybill(waybill: Waybill) {
     this.waybills.save(waybill);
     this.commit();

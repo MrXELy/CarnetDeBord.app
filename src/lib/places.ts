@@ -28,3 +28,31 @@ export function locateLater(store: EventStore, eventId: string, place: Place) {
       .catch(() => {});
   }
 }
+
+/** Étapes d'une LV modifiables depuis sa fiche : lieu et date du chargement, date de la livraison (ISO). */
+export interface LinkedSteps {
+  loading?: { place: Place; at: string | null };
+  delivery?: { at: string | null };
+}
+
+/** Ce qui a été changé sur ces étapes depuis la fiche LV (dates en ISO). */
+export interface StepChanges {
+  loadingPlace?: Place;
+  loadingAt?: string;
+  deliveryAt?: string;
+}
+
+/** Enregistre sur des étapes déjà enregistrées les changements faits depuis une fiche LV. */
+export function applyStepChanges(
+  store: EventStore,
+  loadingId: string | null | undefined,
+  deliveryId: string | null | undefined,
+  changes: StepChanges,
+) {
+  if (loadingId && changes.loadingPlace) {
+    store.setEventPlace(loadingId, changes.loadingPlace);
+    locateLater(store, loadingId, changes.loadingPlace);
+  }
+  if (loadingId && changes.loadingAt) store.setEventTime(loadingId, changes.loadingAt);
+  if (deliveryId && changes.deliveryAt) store.setEventTime(deliveryId, changes.deliveryAt);
+}
