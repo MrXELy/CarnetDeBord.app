@@ -1,24 +1,28 @@
 import { addWeeks, isSameDay } from 'date-fns';
-import { ChevronLeft, ChevronRight, LogOut, Plus, Settings as SettingsIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, LogOut, Plus, Settings as SettingsIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { groupWeek, summarizeWeek, weekLabel, weekStart } from '../lib/dates';
 import { supabase } from '../lib/supabase';
 import { useEvents } from '../lib/useEvents';
-import type { TripEvent } from '../types';
+import { waybillStatus, type TripEvent } from '../types';
 import DaySection from './DaySection';
 import EventForm from './EventForm';
 import Settings from './Settings';
+import WaybillsPage, { type WaybillFilter } from './WaybillsPage';
 
 type Editing = { event: TripEvent | null } | null;
 
 export default function WeekView() {
-  const { events, pending, syncing, online, error, store } = useEvents();
+  const { events, waybills, pending, syncing, online, error, store } = useEvents();
   const [start, setStart] = useState(() => weekStart(new Date()));
   const [editing, setEditing] = useState<Editing>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [waybillFilter, setWaybillFilter] = useState<WaybillFilter | null>(null);
   const days = useMemo(() => groupWeek(events, start), [events, start]);
   const week = useMemo(() => summarizeWeek(days.flatMap((d) => d.events)), [days]);
   const isCurrentWeek = isSameDay(start, weekStart(new Date()));
+  const toComplete = waybills.filter((w) => waybillStatus(w) === 'a_completer').length;
+  const inTruck = store.inTruck(new Date()).length;
 
   return (
     <div className="app">
@@ -26,6 +30,15 @@ export default function WeekView() {
         <div className="topbar-row">
           <span className="brand">CarnetDeBord</span>
           <SyncBadge pending={pending} syncing={syncing} online={online} error={error} onRetry={() => store.sync()} />
+          <button
+            className="icon-btn has-badge"
+            title="Lettres de voiture"
+            aria-label={toComplete ? `Lettres de voiture, ${toComplete} à compléter` : 'Lettres de voiture'}
+            onClick={() => setWaybillFilter(toComplete ? 'a_completer' : 'dans_camion')}
+          >
+            <FileText size={20} />
+            {toComplete > 0 && <span className="icon-badge">{toComplete}</span>}
+          </button>
           <button className="icon-btn" title="Options" aria-label="Options" onClick={() => setShowSettings(true)}>
             <SettingsIcon size={20} />
           </button>
@@ -59,6 +72,14 @@ export default function WeekView() {
           ) : (
             'Aucun kilométrage cette semaine'
           )}
+          {isCurrentWeek && inTruck > 0 && (
+            <>
+              {' · '}
+              <button className="recap-link" onClick={() => setWaybillFilter('dans_camion')}>
+                {inTruck} LV dans le camion
+              </button>
+            </>
+          )}
         </p>
       </header>
 
@@ -81,6 +102,7 @@ export default function WeekView() {
 
       {editing && <EventForm event={editing.event} onClose={() => setEditing(null)} />}
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
+      {waybillFilter && <WaybillsPage initialFilter={waybillFilter} onClose={() => setWaybillFilter(null)} />}
     </div>
   );
 }

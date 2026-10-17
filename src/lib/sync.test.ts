@@ -1,0 +1,91 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { newWaybill, waybillStatus, type TripEvent } from '../types';
+
+vi.mock('./supabase', () => ({ supabase: {} }));
+
+const { EventStore } = await import('./sync');
+
+// Environnement « navigateur » minimal : hors ligne, pour ne jamais appeler Supabase.
+const storage = new Map<string, string>();
+vi.stubGlobal('window', { addEventListener() {}, removeEventListener() {} });
+vi.stubGlobal('navigator', { onLine: false });
+vi.stubGlobal('localStorage', {
+  getItem: (k: string) => storage.get(k) ?? null,
+  setItem: (k: string, v: string) => storage.set(k, v),
+});
+
+function ev(id: string, type: TripEvent['type'], occurred: string): TripEvent {
+  return {
+    id, type, occurred_at: new Date(occurred).toISOString(), tractor_plate: '', trailer_plate: '',
+    odometer_km: null, notes: null, client: null, cmr_number: null, station: null, diesel_l: null,
+    adblue_l: null, city: '', postcode: null, department: null, country_code: null, lat: null, lon: null,
+    updated_at: '', deleted_at: null,
+  };
+}
+
+describe('waybillStatus', () => {
+  it('à compléter sans numéro, puis dans le camion, puis livrée', () => {
+    expect(waybillStatus(newWaybill())).toBe('a_completer');
+    expect(waybillStatus(newWaybill({ number: '  ' }))).toBe('a_completer');
+    expect(waybillStatus(newWaybill({ number: '458712' }))).toBe('dans_camion');
+    expect(waybillStatus(newWaybill({ number: '458712', delivery_event_id: 'x' }))).toBe('livree');
+  });
+});
+
+describe('EventStore et lettres de voiture', () => {
+  beforeEach(() => storage.clear());
+
+  it('relit l’ancien cache local des étapes', () => {
+    storage.set('cdb.u.data', JSON.stringify({ events: [ev('a', 'chargement', '2026-10-12T08:00')], outbox: [], cursor: null }));
+    const store = new EventStore('u');
+    expect(store.getState().events.map((e) => e.id)).toEqual(['a']);
+    expect(store.getState().waybills).toEqual([]);
+  });
+
+  it('donne les LV dans le camion à une date', () => {
+    const store = new EventStore('u');
+    const loadA = ev('loadA', 'chargement', '2026-10-12T08:00');
+    const loadB = ev('loadB', 'chargement', '2026-10-13T08:00');
+    const drop = ev('drop', 'livraison', '2026-10-12T15:00');
+    store.save(loadA, [
+      newWaybill({ id: 'w1', loading_event_id: 'loadA' }),
+      newWaybill({ id: 'w2', loading_event_id: 'loadA', delivery_event_id: 'drop' }),
+    ]);
+    store.save(loadB, [newWaybill({ id: 'w3', loading_event_id: 'loadB' })]);
+    store.save(drop, [newWaybill({ id: 'w4' })]); // chargement inconnu
+
+    const ids = (at: string) => store.inTruck(new Date(at)).map((w) => w.id).sort();
+    expect(ids('2026-10-12T16:00')).toEqual(['w1', 'w4']); // w2 livrée, w3 pas encore chargée
+    expect(ids('2026-10-13T09:00')).toEqual(['w1', 'w3', 'w4']);
+  });
+
+  it('supprime les LV d’un chargement et remet celles d’une livraison dans le camion', () => {
+    const store = new EventStore('u');
+    const load = ev('load', 'chargement', '2026-10-12T08:00');
+    const drop = ev('drop', 'livraison', '2026-10-12T15:00');
+    store.save(load, [
+      newWaybill({ id: 'w1', loading_event_id: 'load', delivery_event_id: 'drop' }),
+      newWaybill({ id: 'w2', loading_event_id: 'load' }),
+    ]);
+    store.save(drop);
+
+    store.remove(drop);
+    expect(store.getState().waybills.map((w) => [w.id, w.delivery_event_id])).toEqual([
+      ['w1', null],
+      ['w2', null],
+    ]);
+
+    store.remove(load);
+    expect(store.getState().waybills).toEqual([]);
+    expect(store.getState().pending).toBe(4); // 2 étapes + 2 LV à envoyer
+  });
+
+  it('propose les noms déjà saisis, du plus fréquent au moins fréquent', () => {
+    const store = new EventStore('u');
+    store.save(ev('load', 'chargement', '2026-10-12T08:00'), [
+      newWaybill({ consignee: 'Knauf', shipper: 'Placoplâtre' }),
+      newWaybill({ consignee: 'Placoplâtre' }),
+    ]);
+    expect(store.knownNames()).toEqual(['Placoplâtre', 'Knauf']);
+  });
+});

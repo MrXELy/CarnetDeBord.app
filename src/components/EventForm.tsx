@@ -1,26 +1,42 @@
 import { parseISO } from 'date-fns';
-import { X } from 'lucide-react';
-import { useEffect, useState, type FormEvent } from 'react';
+import { Pencil, Plus, X } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
 import { toLocalInput } from '../lib/dates';
+import { formatPlace } from '../lib/geo';
+import { numText, parseNum } from '../lib/numbers';
+import { useModal } from '../lib/useModal';
 import { useStore } from '../lib/useEvents';
-import { EVENT_TYPES, STATIONS, type EventType, type Place, type Station, type TripEvent } from '../types';
+import { stepLabel } from '../lib/waybills';
+import {
+  EVENT_TYPES,
+  STATIONS,
+  newWaybill,
+  type EventType,
+  type Place,
+  type Station,
+  type TripEvent,
+  type Waybill,
+} from '../types';
 import EventIcon from './EventIcon';
 import PlaceField, { EMPTY_PLACE } from './PlaceField';
+import WaybillForm from './WaybillForm';
+import WaybillLine from './WaybillLine';
 
 interface Props {
   event: TripEvent | null;
   onClose: () => void;
 }
 
-const numText = (n: number | null) => (n == null ? '' : String(n).replace('.', ','));
-const parseNum = (s: string) => {
-  const n = Number(s.replace(',', '.').replace(/\s/g, ''));
-  return s.trim() === '' || Number.isNaN(n) ? null : n;
-};
+type Editing = { waybill: Waybill; isNew: boolean; side: 'load' | 'delivery' } | null;
+
+/** Champs d'une LV qui comptent pour savoir si elle a changé (on ignore les dates de suivi). */
+const sameWaybill = (a: Waybill, b: Waybill | undefined) =>
+  !!b && JSON.stringify({ ...a, updated_at: '' }) === JSON.stringify({ ...b, updated_at: '' });
 
 export default function EventForm({ event, onClose }: Props) {
   const store = useStore();
   const isNew = !event;
+  const [eventId] = useState(() => event?.id ?? crypto.randomUUID());
   const [plates] = useState(() => store.lastPlates());
 
   const [type, setType] = useState<EventType | null>(event?.type ?? null);
@@ -29,8 +45,6 @@ export default function EventForm({ event, onClose }: Props) {
   const [km, setKm] = useState(event?.odometer_km?.toString() ?? '');
   const [place, setPlace] = useState<Place>(event ?? EMPTY_PLACE);
   const [when, setWhen] = useState(toLocalInput(event ? parseISO(event.occurred_at) : new Date()));
-  const [client, setClient] = useState(event?.client ?? '');
-  const [cmr, setCmr] = useState(event?.cmr_number ?? '');
   const [station, setStation] = useState<Station | null>(event?.station ?? null);
   const [diesel, setDiesel] = useState(numText(event?.diesel_l ?? null));
   const [adblue, setAdblue] = useState(numText(event?.adblue_l ?? null));
@@ -39,20 +53,57 @@ export default function EventForm({ event, onClose }: Props) {
   // Change quand le lieu est prérempli, pour réafficher le champ avec la nouvelle valeur.
   const [placeKey, setPlaceKey] = useState(0);
 
+  // Lettres de voiture : tout reste en brouillon jusqu'à « Enregistrer ».
+  const [originalLoads] = useState(() => (event ? store.loadedAt(event.id) : []));
+  const [originalDelivered] = useState(() => (event ? store.deliveredAt(event.id) : []));
+  const [loads, setLoads] = useState<Waybill[]>(originalLoads);
+  const [checked, setChecked] = useState(() => new Set(originalDelivered.map((w) => w.id)));
+  const [deliveryEdits, setDeliveryEdits] = useState<Map<string, Waybill>>(() => new Map());
+  const [editing, setEditing] = useState<Editing>(null);
+
+  useModal(onClose);
+
   const lastKm = store.lastOdometer(tractor.trim(), new Date(when), event?.id);
   const kmValue = parseNum(km);
-  const isStop = type === 'chargement' || type === 'livraison';
   const isFuel = type === 'carburant';
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    document.body.classList.add('no-scroll');
-    window.addEventListener('keydown', onKey);
-    return () => {
-      document.body.classList.remove('no-scroll');
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [onClose]);
+  // LV livrables ici : celles du camion à cette heure, celles déjà livrées ici, et celles créées ici.
+  const pool = new Map<string, Waybill>();
+  const at = new Date(when);
+  const whenIso = Number.isNaN(at.getTime()) ? null : at.toISOString();
+  for (const w of [...store.inTruck(Number.isNaN(at.getTime()) ? new Date() : at), ...originalDelivered]) {
+    pool.set(w.id, w);
+  }
+  deliveryEdits.forEach((w, id) => pool.set(id, w));
+  const deliveryPool = [...pool.values()];
+  const candidates = deliveryPool.filter((w) => !w.deleted_at);
+
+  function waybillChanges(now: string): Waybill[] {
+    const changes: Waybill[] = [];
+    if (type === 'chargement') {
+      for (const w of originalLoads) {
+        if (!loads.some((l) => l.id === w.id)) changes.push({ ...w, deleted_at: now });
+      }
+      for (const w of loads) changes.push({ ...w, loading_event_id: eventId });
+    } else {
+      // L'étape n'est plus un chargement : ses LV gardent leur trace mais sans lieu de chargement.
+      for (const w of originalLoads) changes.push({ ...w, loading_event_id: null });
+    }
+
+    if (type === 'livraison') {
+      for (const w of deliveryPool) {
+        if (w.deleted_at) changes.push(w);
+        else if (checked.has(w.id)) changes.push({ ...w, delivery_event_id: eventId });
+        else if (w.delivery_event_id === eventId) changes.push({ ...w, delivery_event_id: null });
+        else if (deliveryEdits.has(w.id)) changes.push(w);
+      }
+    } else {
+      for (const w of originalDelivered) changes.push({ ...w, delivery_event_id: null });
+    }
+
+    // N'envoie que ce qui a réellement changé.
+    return changes.filter((w) => !sameWaybill(w, store.waybill(w.id)));
+  }
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -61,24 +112,32 @@ export default function EventForm({ event, onClose }: Props) {
     if (!place.city.trim()) return setError('Indique le lieu.');
     if (isFuel && !station) return setError('Choisis la station.');
 
-    store.save({
-      ...place,
-      id: event?.id ?? crypto.randomUUID(),
-      type,
-      occurred_at: new Date(when).toISOString(),
-      tractor_plate: tractor.trim(),
-      trailer_plate: trailer.trim(),
-      odometer_km: kmValue,
-      city: place.city.trim(),
-      notes: notes.trim() || null,
-      client: isStop ? client.trim() || null : null,
-      cmr_number: isStop ? cmr.trim() || null : null,
-      station: isFuel ? station : null,
-      diesel_l: isFuel ? parseNum(diesel) : null,
-      adblue_l: isFuel ? parseNum(adblue) : null,
-      updated_at: '',
-      deleted_at: null,
-    });
+    const now = new Date().toISOString();
+    const changes = waybillChanges(now);
+    const hasWaybills = (type === 'chargement' && loads.length > 0) || (type === 'livraison' && checked.size > 0);
+
+    store.save(
+      {
+        ...place,
+        id: eventId,
+        type,
+        occurred_at: new Date(when).toISOString(),
+        tractor_plate: tractor.trim(),
+        trailer_plate: trailer.trim(),
+        odometer_km: kmValue,
+        city: place.city.trim(),
+        notes: notes.trim() || null,
+        // Anciens champs : remplacés par les LV dès qu'il y en a.
+        client: hasWaybills ? null : (event?.client ?? null),
+        cmr_number: hasWaybills ? null : (event?.cmr_number ?? null),
+        station: isFuel ? station : null,
+        diesel_l: isFuel ? parseNum(diesel) : null,
+        adblue_l: isFuel ? parseNum(adblue) : null,
+        updated_at: '',
+        deleted_at: null,
+      },
+      changes,
+    );
     onClose();
   }
 
@@ -105,149 +164,277 @@ export default function EventForm({ event, onClose }: Props) {
   }
 
   function remove() {
-    if (event && confirm('Supprimer cette étape ?')) {
+    if (!event) return;
+    const n = originalLoads.length;
+    const message =
+      event.type === 'chargement' && n > 0
+        ? `Supprimer ce chargement et ${n > 1 ? `ses ${n} lettres de voiture` : 'sa lettre de voiture'} ?`
+        : 'Supprimer cette étape ?';
+    if (confirm(message)) {
       store.remove(event);
       onClose();
     }
   }
 
+  function toggle(id: string) {
+    const next = new Set(checked);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setChecked(next);
+  }
+
+  function saveEditing(w: Waybill) {
+    if (!editing) return;
+    if (editing.side === 'load') {
+      setLoads(editing.isNew ? [...loads, w] : loads.map((l) => (l.id === w.id ? w : l)));
+    } else {
+      setDeliveryEdits(new Map(deliveryEdits).set(w.id, w));
+      if (editing.isNew) setChecked(new Set(checked).add(w.id));
+    }
+  }
+
+  function deleteEditing(w: Waybill) {
+    if (!editing) return;
+    if (editing.side === 'load') setLoads(loads.filter((l) => l.id !== w.id));
+    else setDeliveryEdits(new Map(deliveryEdits).set(w.id, { ...w, deleted_at: new Date().toISOString() }));
+  }
+
+  function editingContext(): string | undefined {
+    if (!editing) return;
+    if (editing.side === 'load') return place.city ? `Chargée à ${place.city}` : undefined;
+    const loading = store.event(editing.waybill.loading_event_id);
+    return loading ? `Chargée : ${stepLabel(loading)}` : 'Chargement non renseigné';
+  }
+
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <form className="modal" onSubmit={submit} onClick={(e) => e.stopPropagation()}>
-        <header className="modal-header">
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Fermer">
-            <X size={22} />
-          </button>
-          <h2>{isNew ? 'Nouvelle étape' : 'Modifier l’étape'}</h2>
-          <button className="btn-primary btn-small">Enregistrer</button>
-        </header>
+    <>
+      <div className="modal-backdrop" onClick={onClose}>
+        <form className="modal" onSubmit={submit} onClick={(e) => e.stopPropagation()}>
+          <header className="modal-header">
+            <button type="button" className="icon-btn" onClick={onClose} aria-label="Fermer">
+              <X size={22} />
+            </button>
+            <h2>{isNew ? 'Nouvelle étape' : 'Modifier l’étape'}</h2>
+            <button className="btn-primary btn-small">Enregistrer</button>
+          </header>
 
-        <div className="modal-body">
-          <fieldset>
-            <legend>Type d’opération</legend>
-            <div className="type-grid">
-              {EVENT_TYPES.map((t) => (
-                <button
-                  type="button"
-                  key={t.value}
-                  className={`type-btn tone-${t.value}${type === t.value ? ' selected' : ''}`}
-                  onClick={() => chooseType(t.value)}
-                  title={t.label}
-                >
-                  <EventIcon type={t.value} className="event-icon" />
-                  {t.short}
-                </button>
-              ))}
-            </div>
-          </fieldset>
+          <div className="modal-body">
+            <fieldset>
+              <legend>Type d’opération</legend>
+              <div className="type-grid">
+                {EVENT_TYPES.map((t) => (
+                  <button
+                    type="button"
+                    key={t.value}
+                    className={`type-btn tone-${t.value}${type === t.value ? ' selected' : ''}`}
+                    onClick={() => chooseType(t.value)}
+                    title={t.label}
+                  >
+                    <EventIcon type={t.value} className="event-icon" />
+                    {t.short}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
 
-          <div className="row">
-            <label>
-              Tracteur
-              <input
-                className="plate"
-                value={tractor}
-                onChange={(e) => setTractor(e.target.value.toUpperCase())}
-                placeholder="AB-123-CD"
-              />
-            </label>
-            <label>
-              Remorque
-              <input
-                className="plate"
-                value={trailer}
-                onChange={(e) => setTrailer(e.target.value.toUpperCase())}
-                placeholder="EF-456-GH"
-              />
-            </label>
-          </div>
-
-          <label>
-            Kilométrage
-            <input
-              type="text"
-              inputMode="numeric"
-              value={km}
-              onChange={(e) => setKm(e.target.value.replace(/\D/g, ''))}
-              placeholder="km au compteur"
-            />
-            {lastKm != null && (
-              <span className="hint">
-                Dernier relevé : {lastKm.toLocaleString('fr-FR')} km
-                {kmValue != null && kmValue < lastKm && <strong className="hint-err"> · inférieur au précédent</strong>}
-              </span>
-            )}
-          </label>
-
-          <div className="label">
-            Lieu
-            <PlaceField key={placeKey} value={place} onChange={setPlace} autoLocate={isNew && placeKey === 0} />
-            {placeKey > 0 && <span className="hint">Repris de la dernière fin de journée</span>}
-          </div>
-
-          <label>
-            Date et heure
-            <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} required />
-          </label>
-
-          {isStop && (
             <div className="row">
               <label>
-                Client
-                <input value={client} onChange={(e) => setClient(e.target.value)} />
+                Tracteur
+                <input
+                  className="plate"
+                  value={tractor}
+                  onChange={(e) => setTractor(e.target.value.toUpperCase())}
+                  placeholder="AB-123-CD"
+                />
               </label>
               <label>
-                N° lettre de voiture
-                <input value={cmr} onChange={(e) => setCmr(e.target.value)} />
+                Remorque
+                <input
+                  className="plate"
+                  value={trailer}
+                  onChange={(e) => setTrailer(e.target.value.toUpperCase())}
+                  placeholder="EF-456-GH"
+                />
               </label>
             </div>
-          )}
 
-          {isFuel && (
-            <>
-              <fieldset>
-                <legend>Station</legend>
-                <div className="segmented">
-                  {STATIONS.map((s) => (
-                    <button
-                      type="button"
-                      key={s}
-                      className={station === s ? 'selected' : ''}
-                      onClick={() => setStation(s)}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
-              <div className="row">
-                <label>
-                  Gasoil (L)
-                  <input type="text" inputMode="decimal" value={diesel} onChange={(e) => setDiesel(e.target.value)} />
-                </label>
-                <label>
-                  AdBlue (L)
-                  <input type="text" inputMode="decimal" value={adblue} onChange={(e) => setAdblue(e.target.value)} />
-                </label>
+            <label>
+              Kilométrage
+              <input
+                type="text"
+                inputMode="numeric"
+                value={km}
+                onChange={(e) => setKm(e.target.value.replace(/\D/g, ''))}
+                placeholder="km au compteur"
+              />
+              {lastKm != null && (
+                <span className="hint">
+                  Dernier relevé : {lastKm.toLocaleString('fr-FR')} km
+                  {kmValue != null && kmValue < lastKm && (
+                    <strong className="hint-err"> · inférieur au précédent</strong>
+                  )}
+                </span>
+              )}
+            </label>
+
+            <div className="label">
+              Lieu
+              <PlaceField key={placeKey} value={place} onChange={setPlace} autoLocate={isNew && placeKey === 0} />
+              {placeKey > 0 && <span className="hint">Repris de la dernière fin de journée</span>}
+            </div>
+
+            <label>
+              Date et heure
+              <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} required />
+            </label>
+
+            {type === 'chargement' && (
+              <div className="label">
+                Lettres de voiture
+                {loads.length > 0 && (
+                  <div className="lv-list">
+                    {loads.map((w) => (
+                      <WaybillLine
+                        key={w.id}
+                        waybill={w}
+                        loading={{ place: formatPlace(place), at: whenIso }}
+                        onClick={() => setEditing({ waybill: w, isNew: false, side: 'load' })}
+                        trailing={
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            aria-label="Retirer la lettre"
+                            onClick={() => setLoads(loads.filter((l) => l.id !== w.id))}
+                          >
+                            <X size={18} />
+                          </button>
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className="btn-secondary btn-icon lv-add"
+                  onClick={() =>
+                    setEditing({
+                      waybill: newWaybill({ shipper: loads[0]?.shipper ?? null }),
+                      isNew: true,
+                      side: 'load',
+                    })
+                  }
+                >
+                  <Plus size={18} />
+                  Ajouter une lettre de voiture
+                </button>
+                <span className="hint">Le numéro peut être complété plus tard.</span>
               </div>
-            </>
-          )}
+            )}
 
-          <label>
-            Remarques
-            <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </label>
+            {type === 'livraison' && (
+              <div className="label">
+                Lettres de voiture livrées
+                {candidates.length === 0 ? (
+                  <span className="hint">Aucune lettre de voiture dans le camion.</span>
+                ) : (
+                  <div className="lv-list">
+                    {candidates.map((w) => (
+                      <WaybillLine
+                        key={w.id}
+                        waybill={w}
+                        selected={checked.has(w.id)}
+                        onClick={() => toggle(w.id)}
+                        leading={
+                          <input
+                            type="checkbox"
+                            className="lv-check"
+                            checked={checked.has(w.id)}
+                            onChange={() => toggle(w.id)}
+                            aria-label={`Livrée : ${w.consignee ?? w.number ?? 'lettre'}`}
+                          />
+                        }
+                        trailing={
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            aria-label="Modifier la lettre"
+                            onClick={() => setEditing({ waybill: w, isNew: false, side: 'delivery' })}
+                          >
+                            <Pencil size={16} />
+                          </button>
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className="btn-secondary btn-icon lv-add"
+                  onClick={() => setEditing({ waybill: newWaybill(), isNew: true, side: 'delivery' })}
+                >
+                  <Plus size={18} />
+                  Nouvelle lettre de voiture
+                </button>
+              </div>
+            )}
 
-          {error && <p className="form-message">{error}</p>}
+            {isFuel && (
+              <>
+                <fieldset>
+                  <legend>Station</legend>
+                  <div className="segmented">
+                    {STATIONS.map((s) => (
+                      <button
+                        type="button"
+                        key={s}
+                        className={station === s ? 'selected' : ''}
+                        onClick={() => setStation(s)}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+                <div className="row">
+                  <label>
+                    Gasoil (L)
+                    <input type="text" inputMode="decimal" value={diesel} onChange={(e) => setDiesel(e.target.value)} />
+                  </label>
+                  <label>
+                    AdBlue (L)
+                    <input type="text" inputMode="decimal" value={adblue} onChange={(e) => setAdblue(e.target.value)} />
+                  </label>
+                </div>
+              </>
+            )}
 
-          <button className="btn-primary btn-block">Enregistrer</button>
-          {!isNew && (
-            <button type="button" className="btn-danger btn-block" onClick={remove}>
-              Supprimer
-            </button>
-          )}
-        </div>
-      </form>
-    </div>
+            <label>
+              Remarques
+              <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+            </label>
+
+            {error && <p className="form-message">{error}</p>}
+
+            <button className="btn-primary btn-block">Enregistrer</button>
+            {!isNew && (
+              <button type="button" className="btn-danger btn-block" onClick={remove}>
+                Supprimer
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+
+      {editing && (
+        <WaybillForm
+          waybill={editing.waybill}
+          isNew={editing.isNew}
+          context={editingContext()}
+          onSave={saveEditing}
+          onDelete={editing.isNew ? undefined : deleteEditing}
+          onClose={() => setEditing(null)}
+        />
+      )}
+    </>
   );
 }

@@ -28,13 +28,67 @@ export interface TripEvent extends Place {
   trailer_plate: string;
   odometer_km: number | null;
   notes: string | null;
+  /** Ancien champ, remplacé par les lettres de voiture (conservé pour les anciennes données). */
   client: string | null;
+  /** Ancien champ, remplacé par les lettres de voiture (conservé pour les anciennes données). */
   cmr_number: string | null;
   station: Station | null;
   diesel_l: number | null;
   adblue_l: number | null;
   updated_at: string;
   deleted_at: string | null;
+}
+
+/** Lettre de voiture : un chargement → une livraison. */
+export interface Waybill {
+  id: string;
+  /** Étape de chargement (vide si la LV a été créée depuis une livraison). */
+  loading_event_id: string | null;
+  /** Étape de livraison (vide tant que la LV est dans le camion). */
+  delivery_event_id: string | null;
+  number: string | null;
+  shipper: string | null;
+  consignee: string | null;
+  planned_city: string | null;
+  goods: string | null;
+  weight_kg: number | null;
+  notes: string | null;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export type WaybillStatus = 'a_completer' | 'dans_camion' | 'livree';
+
+export const WAYBILL_STATUS_LABEL: Record<WaybillStatus, string> = {
+  a_completer: 'À compléter',
+  dans_camion: 'Dans le camion',
+  livree: 'Livrée',
+};
+
+/** « À compléter » tant qu'il manque le numéro, puis « dans le camion » jusqu'à la livraison. */
+export function waybillStatus(w: Waybill): WaybillStatus {
+  if (!w.number?.trim()) return 'a_completer';
+  return w.delivery_event_id ? 'livree' : 'dans_camion';
+}
+
+export const isInTruck = (w: Waybill) => !w.delivery_event_id;
+
+export function newWaybill(extra: Partial<Waybill> = {}): Waybill {
+  return {
+    id: crypto.randomUUID(),
+    loading_event_id: null,
+    delivery_event_id: null,
+    number: null,
+    shipper: null,
+    consignee: null,
+    planned_city: null,
+    goods: null,
+    weight_kg: null,
+    notes: null,
+    updated_at: '',
+    deleted_at: null,
+    ...extra,
+  };
 }
 
 export function eventTypeInfo(type: EventType) {

@@ -24,7 +24,7 @@ React + Vite + TypeScript, données dans [Supabase](https://supabase.com), lieux
 ## Mise en place (une seule fois)
 
 1. Créer un projet gratuit sur [supabase.com](https://supabase.com).
-2. Dans **SQL Editor**, coller le contenu de [supabase/schema.sql](supabase/schema.sql) et cliquer sur **Run**.
+2. Dans **SQL Editor**, coller le contenu de [supabase/schema.sql](supabase/schema.sql) et cliquer sur **Run**, puis faire de même avec [supabase/migrations/002_waybills.sql](supabase/migrations/002_waybills.sql) (lettres de voiture).
 3. Copier l'URL du projet (bouton **Connect**) et la clé **publishable** (**Settings → API Keys**) dans [src/config.ts](src/config.ts).
 4. Dans **Authentication → Sign In / Providers → Email**, désactiver **Confirm email**.
 5. Sur GitHub, dans **Settings → Pages**, choisir **Source : GitHub Actions**.

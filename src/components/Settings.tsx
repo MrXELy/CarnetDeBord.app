@@ -1,22 +1,14 @@
 import { Download, X } from 'lucide-react';
-import { useEffect } from 'react';
-import { downloadCsv } from '../lib/csv';
+import { downloadCsv, eventsToCsv, waybillsToCsv } from '../lib/csv';
 import { updateSettings, useSettings } from '../lib/settings';
 import { useEvents } from '../lib/useEvents';
+import { useModal } from '../lib/useModal';
 
 export default function Settings({ onClose }: { onClose: () => void }) {
-  const { events } = useEvents();
+  const { events, waybills } = useEvents();
   const { europe } = useSettings();
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    document.body.classList.add('no-scroll');
-    window.addEventListener('keydown', onKey);
-    return () => {
-      document.body.classList.remove('no-scroll');
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [onClose]);
+  useModal(onClose);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -54,7 +46,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
             <h3>Données</h3>
             <div className="setting-row">
               <span className="setting-text">
-                <span className="setting-title">Exporter en CSV</span>
+                <span className="setting-title">Exporter les étapes</span>
                 <span className="hint">
                   {events.length} étape{events.length > 1 ? 's' : ''}, à ouvrir avec Excel ou LibreOffice.
                 </span>
@@ -62,8 +54,25 @@ export default function Settings({ onClose }: { onClose: () => void }) {
               <button
                 type="button"
                 className="btn-secondary btn-icon"
-                onClick={() => downloadCsv(events)}
+                onClick={() => downloadCsv(eventsToCsv(events, waybills), 'carnetdebord-etapes')}
                 disabled={events.length === 0}
+              >
+                <Download size={18} />
+                Exporter
+              </button>
+            </div>
+            <div className="setting-row">
+              <span className="setting-text">
+                <span className="setting-title">Exporter les lettres de voiture</span>
+                <span className="hint">
+                  {waybills.length} lettre{waybills.length > 1 ? 's' : ''} de voiture, une ligne par lettre.
+                </span>
+              </span>
+              <button
+                type="button"
+                className="btn-secondary btn-icon"
+                onClick={() => downloadCsv(waybillsToCsv(waybills, events), 'carnetdebord-lettres-de-voiture')}
+                disabled={waybills.length === 0}
               >
                 <Download size={18} />
                 Exporter

@@ -1,8 +1,9 @@
-import type { TripEvent } from '../types';
+import { isInTruck, type TripEvent, type Waybill } from '../types';
 import { supabase } from './supabase';
 
 export interface SyncState {
   events: TripEvent[];
+  waybills: Waybill[];
   pending: number;
   syncing: boolean;
   online: boolean;
@@ -11,24 +12,94 @@ export interface SyncState {
 
 const PAGE = 1000;
 
+interface Row {
+  id: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+interface Saved<T> {
+  items: T[];
+  outbox: string[];
+  cursor: string | null;
+}
+
 /**
- * Cache local des événements + file d'envoi.
- * Tout est d'abord enregistré dans le téléphone, puis envoyé à Supabase dès que le réseau le permet.
+ * Une table Supabase recopiée dans le téléphone : cache local + file d'envoi.
+ * Tout est d'abord enregistré localement, puis envoyé dès que le réseau le permet.
  */
+export class Collection<T extends Row> {
+  readonly items = new Map<string, T>();
+  readonly outbox = new Set<string>();
+  cursor: string | null = null;
+
+  constructor(
+    private table: string,
+    private normalize: (row: T) => T = (row) => row,
+  ) {}
+
+  load(saved: Saved<T> | null) {
+    saved?.items.forEach((item) => this.items.set(item.id, item));
+    saved?.outbox.forEach((id) => this.outbox.add(id));
+    this.cursor = saved?.cursor ?? null;
+  }
+
+  dump(): Saved<T> {
+    return { items: [...this.items.values()], outbox: [...this.outbox], cursor: this.cursor };
+  }
+
+  save(item: T) {
+    this.items.set(item.id, { ...item, updated_at: new Date().toISOString() });
+    this.outbox.add(item.id);
+  }
+
+  alive(): T[] {
+    return [...this.items.values()].filter((item) => !item.deleted_at);
+  }
+
+  async push() {
+    if (!this.outbox.size) return;
+    const sent = [...this.outbox].map((id) => this.items.get(id)!);
+    // updated_at est fixé par le serveur.
+    const rows: Record<string, unknown>[] = sent.map(({ updated_at: _ignored, ...row }) => row);
+    const { error } = await supabase.from(this.table).upsert(rows);
+    if (error) throw new Error(error.message);
+    // Ne retire de la file que ce qui n'a pas été modifié pendant l'envoi.
+    for (const item of sent) {
+      if (this.items.get(item.id)?.updated_at === item.updated_at) this.outbox.delete(item.id);
+    }
+  }
+
+  async pull() {
+    for (;;) {
+      let query = supabase.from(this.table).select('*').order('updated_at').limit(PAGE);
+      if (this.cursor) query = query.gt('updated_at', this.cursor);
+      const { data, error } = await query;
+      if (error) throw new Error(error.message);
+      for (const row of data as (T & { user_id: string; created_at: string })[]) {
+        const { user_id: _u, created_at: _c, ...item } = row;
+        if (!this.outbox.has(item.id)) this.items.set(item.id, this.normalize(item as unknown as T));
+        this.cursor = row.updated_at;
+      }
+      if (data.length < PAGE) return;
+    }
+  }
+}
+
+/** Étapes et lettres de voiture de l'utilisateur, avec leur synchronisation. */
 export class EventStore {
-  private events = new Map<string, TripEvent>();
-  private outbox = new Set<string>();
-  private cursor: string | null = null;
+  private events = new Collection<TripEvent>('events', normalizeEvent);
+  private waybills = new Collection<Waybill>('waybills', normalizeWaybill);
   private listeners = new Set<() => void>();
   private state: SyncState;
   private syncing = false;
   private error: string | null = null;
 
   constructor(private userId: string) {
+    // « data » garde son ancien format ({ events, outbox, cursor }) pour relire le cache existant.
     const saved = this.read<{ events: TripEvent[]; outbox: string[]; cursor: string | null }>('data');
-    saved?.events.forEach((e) => this.events.set(e.id, e));
-    saved?.outbox.forEach((id) => this.outbox.add(id));
-    this.cursor = saved?.cursor ?? null;
+    this.events.load(saved && { items: saved.events, outbox: saved.outbox, cursor: saved.cursor });
+    this.waybills.load(this.read<Saved<Waybill>>('waybills'));
     this.state = this.snapshot();
     window.addEventListener('online', this.handleOnline);
     window.addEventListener('offline', this.emit);
@@ -47,22 +118,83 @@ export class EventStore {
 
   getState = () => this.state;
 
-  save(event: TripEvent) {
-    this.events.set(event.id, { ...event, updated_at: new Date().toISOString() });
-    this.outbox.add(event.id);
+  /** Enregistre une étape et, éventuellement, les lettres de voiture modifiées avec elle. */
+  save(event: TripEvent, waybills: Waybill[] = []) {
+    this.events.save(event);
+    waybills.forEach((w) => this.waybills.save(w));
     if (!event.deleted_at) {
       this.write('plates', { tractor: event.tractor_plate, trailer: event.trailer_plate });
     }
-    this.persist();
-    void this.sync();
+    this.commit();
   }
 
+  /**
+   * Supprime une étape. Les LV d'un chargement sont supprimées avec lui ;
+   * celles d'une livraison retournent « dans le camion ».
+   */
   remove(event: TripEvent) {
-    this.save({ ...event, deleted_at: new Date().toISOString() });
+    const now = new Date().toISOString();
+    this.events.save({ ...event, deleted_at: now });
+    for (const w of this.waybills.alive()) {
+      if (w.loading_event_id === event.id) this.waybills.save({ ...w, deleted_at: now });
+      else if (w.delivery_event_id === event.id) this.waybills.save({ ...w, delivery_event_id: null });
+    }
+    this.commit();
+  }
+
+  saveWaybill(waybill: Waybill) {
+    this.waybills.save(waybill);
+    this.commit();
+  }
+
+  removeWaybill(waybill: Waybill) {
+    this.saveWaybill({ ...waybill, deleted_at: new Date().toISOString() });
   }
 
   isPending(id: string) {
-    return this.outbox.has(id);
+    return this.events.outbox.has(id) || this.waybills.outbox.has(id);
+  }
+
+  event(id: string | null): TripEvent | null {
+    const e = id ? this.events.items.get(id) : undefined;
+    return e && !e.deleted_at ? e : null;
+  }
+
+  /** Version enregistrée d'une LV (y compris supprimée), pour comparer avec un brouillon. */
+  waybill(id: string): Waybill | undefined {
+    return this.waybills.items.get(id);
+  }
+
+  /** LV chargées à cette étape. */
+  loadedAt(eventId: string): Waybill[] {
+    return this.state.waybills.filter((w) => w.loading_event_id === eventId);
+  }
+
+  /** LV livrées à cette étape. */
+  deliveredAt(eventId: string): Waybill[] {
+    return this.state.waybills.filter((w) => w.delivery_event_id === eventId);
+  }
+
+  /** LV dans le camion à cette date : pas encore livrées, et chargées avant (ou chargement inconnu). */
+  inTruck(at: Date): Waybill[] {
+    const iso = at.toISOString();
+    return this.state.waybills.filter((w) => {
+      if (!isInTruck(w)) return false;
+      const loading = this.event(w.loading_event_id);
+      return !loading || loading.occurred_at <= iso;
+    });
+  }
+
+  /** Clients et expéditeurs déjà saisis, du plus fréquent au moins fréquent. */
+  knownNames(): string[] {
+    const counts = new Map<string, number>();
+    for (const w of this.state.waybills) {
+      for (const name of [w.consignee, w.shipper]) {
+        const n = name?.trim();
+        if (n) counts.set(n, (counts.get(n) ?? 0) + 1);
+      }
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => name);
   }
 
   /** Immatriculations de la dernière saisie, ou à défaut de l'événement le plus récent. */
@@ -93,8 +225,17 @@ export class EventStore {
     this.syncing = true;
     this.emit();
     try {
-      await this.push();
-      await this.pull();
+      // Les étapes d'abord : une LV fait référence à ses étapes de chargement et de livraison.
+      await this.events.push();
+      await this.events.pull();
+      try {
+        await this.waybills.push();
+        await this.waybills.pull();
+      } catch (err) {
+        throw new Error(
+          /waybills/.test(String(err)) ? 'Table des lettres de voiture absente dans Supabase' : String(err),
+        );
+      }
       this.error = null;
     } catch (err) {
       this.error = err instanceof Error ? err.message : 'Erreur de synchronisation';
@@ -104,41 +245,18 @@ export class EventStore {
     }
   }
 
-  private async push() {
-    if (!this.outbox.size) return;
-    const sent = [...this.outbox].map((id) => this.events.get(id)!);
-    const rows = sent.map(({ updated_at: _ignored, ...row }) => row);
-    const { error } = await supabase.from('events').upsert(rows);
-    if (error) throw new Error(error.message);
-    // Ne retire de la file que ce qui n'a pas été modifié pendant l'envoi.
-    for (const e of sent) {
-      if (this.events.get(e.id)?.updated_at === e.updated_at) this.outbox.delete(e.id);
-    }
-  }
-
-  private async pull() {
-    for (;;) {
-      let query = supabase.from('events').select('*').order('updated_at').limit(PAGE);
-      if (this.cursor) query = query.gt('updated_at', this.cursor);
-      const { data, error } = await query;
-      if (error) throw new Error(error.message);
-      for (const row of data as (TripEvent & { user_id: string; created_at: string })[]) {
-        const { user_id: _u, created_at: _c, ...event } = row;
-        if (!this.outbox.has(event.id)) this.events.set(event.id, normalize(event));
-        this.cursor = row.updated_at;
-      }
-      if (data.length < PAGE) return;
-    }
+  private commit() {
+    this.persist();
+    void this.sync();
   }
 
   private handleOnline = () => void this.sync();
 
   private snapshot(): SyncState {
     return {
-      events: [...this.events.values()]
-        .filter((e) => !e.deleted_at)
-        .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)),
-      pending: this.outbox.size,
+      events: this.events.alive().sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)),
+      waybills: this.waybills.alive(),
+      pending: this.events.outbox.size + this.waybills.outbox.size,
       syncing: this.syncing,
       online: navigator.onLine,
       error: this.error,
@@ -151,7 +269,9 @@ export class EventStore {
   };
 
   private persist() {
-    this.write('data', { events: [...this.events.values()], outbox: [...this.outbox], cursor: this.cursor });
+    const events = this.events.dump();
+    this.write('data', { events: events.items, outbox: events.outbox, cursor: events.cursor });
+    this.write('waybills', this.waybills.dump());
     this.emit();
   }
 
@@ -178,7 +298,12 @@ export class EventStore {
 }
 
 /** Supabase renvoie les colonnes « numeric » sous forme de texte. */
-function normalize(e: TripEvent): TripEvent {
-  const num = (v: unknown) => (v == null ? null : Number(v));
+const num = (v: unknown) => (v == null ? null : Number(v));
+
+function normalizeEvent(e: TripEvent): TripEvent {
   return { ...e, diesel_l: num(e.diesel_l), adblue_l: num(e.adblue_l) };
+}
+
+function normalizeWaybill(w: Waybill): Waybill {
+  return { ...w, weight_kg: num(w.weight_kg) };
 }
