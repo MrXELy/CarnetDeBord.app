@@ -35,7 +35,7 @@ React 19, Vite, TypeScript, vite-plugin-pwa, date-fns (locale fr), lucide-react,
 
 - **Étapes** : début et fin de journée, chargement, livraison, carburant (Doumen, AS24, DKV ; gasoil, AdBlue). Immatriculations reprises automatiquement ; le début de journée reprend le km de la fin de journée précédente. Lieu par GPS ou autocomplétion (Photon, geo.api.gouv.fr).
 - **Vue semaine** avec récap des km, navigation par glissement, liste « Choisir une semaine » groupée par mois et saut à une date.
-- **Lettres de voiture (LV)** : plusieurs par chargement, à compléter plus tard, choix des LV « dans le camion » à la livraison, page LV.
+- **Lettres de voiture (LV)** : plusieurs par chargement, à compléter plus tard, choix des LV « dans le camion » à la livraison, page LV. Un nouveau chargement reçoit d'office une LV vide (Scanner/Saisir la remplissent). La « Ville de chargement » d'une LV est le lieu de son étape de chargement : la modifier depuis la fiche change l'étape (`EventStore.setEventPlace`), donc aussi ses autres LV.
 - **Photos des LV et lecture automatique** par la fonction Edge `read-waybill`.
 - **Kilométrage en photo** : bouton appareil photo à côté du km ; la même fonction `read-waybill` (`kind: 'odometer'`, Haiku) lit l'écran du chrono (VDO DTCO à l'arrêt : « 123456.7km ») ou le compteur. Photo envoyée directement, non stockée, comptée dans les mêmes limites. Alerte si le km est inférieur au dernier relevé ou s'il y a plus de 2000 km d'écart.
 - **Cartes** de la semaine et du mois (accès au mois par « Carte du mois » dans la liste des semaines).

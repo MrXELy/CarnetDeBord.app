@@ -1,5 +1,6 @@
 import { Search, X } from 'lucide-react';
 import { useState } from 'react';
+import { locateLater, placeOf } from '../lib/places';
 import { useModal } from '../lib/useModal';
 import { useEvents } from '../lib/useEvents';
 import { stepLabel } from '../lib/waybills';
@@ -66,6 +67,8 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
       .join(' — ');
   }
 
+  const editingLoading = editing ? store.event(editing.loading_event_id) : null;
+
   return (
     <>
       <div className="modal-backdrop" onClick={onClose}>
@@ -128,7 +131,15 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
           waybill={editing}
           isNew={false}
           context={context(editing)}
-          onSave={(w) => store.saveWaybill(w)}
+          loadingPlace={editingLoading ? placeOf(editingLoading) : undefined}
+          onSave={(w, loadingPlace) => {
+            store.saveWaybill(w);
+            // Lieu du chargement changé depuis la fiche : l'étape et ses autres LV suivent.
+            if (loadingPlace && editingLoading) {
+              store.setEventPlace(editingLoading.id, loadingPlace);
+              locateLater(store, editingLoading.id, loadingPlace);
+            }
+          }}
           onDelete={(w) => store.removeWaybill(w)}
           onClose={() => setEditing(null)}
         />

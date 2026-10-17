@@ -169,6 +169,14 @@ export class EventStore {
     this.commit();
   }
 
+  /** Change le lieu d'une étape, par exemple depuis la fiche d'une de ses lettres de voiture. */
+  setEventPlace(eventId: string, place: Place) {
+    const event = this.event(eventId);
+    if (!event) return;
+    this.events.save({ ...event, ...place, city: place.city.trim() });
+    this.commit();
+  }
+
   saveWaybill(waybill: Waybill) {
     this.waybills.save(waybill);
     this.commit();

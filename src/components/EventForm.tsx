@@ -2,12 +2,13 @@ import { parseISO } from 'date-fns';
 import { Camera, LoaderCircle, Pencil, Plus, X } from 'lucide-react';
 import { useRef, useState, type FormEvent } from 'react';
 import { toLocalInput } from '../lib/dates';
-import { formatPlace, resolveCity } from '../lib/geo';
+import { formatPlace } from '../lib/geo';
 import { numText, parseNum } from '../lib/numbers';
 import { odometerMessage, readOdometerPhoto } from '../lib/odometer';
+import { locateLater, placeOf } from '../lib/places';
 import { useModal } from '../lib/useModal';
 import { useEvents } from '../lib/useEvents';
-import { stepLabel } from '../lib/waybills';
+import { isBlankWaybill, stepLabel } from '../lib/waybills';
 import {
   EVENT_TYPES,
   STATIONS,
@@ -55,6 +56,7 @@ export default function EventForm({ event, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   // Change quand le lieu est prérempli, pour réafficher le champ avec la nouvelle valeur.
   const [placeKey, setPlaceKey] = useState(0);
+  const [placeFromDayEnd, setPlaceFromDayEnd] = useState(false);
 
   // Lettres de voiture : tout reste en brouillon jusqu'à « Enregistrer ».
   const [originalLoads] = useState(() => (event ? store.loadedAt(event.id) : []));
@@ -144,13 +146,7 @@ export default function EventForm({ event, onClose }: Props) {
       },
       changes,
     );
-    // Ville tapée sans choisir de suggestion : on retrouve sa position (centre de la commune) pour la carte.
-    const city = place.city.trim();
-    if ((place.lat == null || place.lon == null) && city && navigator.onLine) {
-      resolveCity(city, place.department)
-        .then((found) => found?.lat != null && found.lon != null && store.completePlace(eventId, found))
-        .catch(() => {});
-    }
+    locateLater(store, eventId, place);
     onClose();
   }
 
@@ -177,9 +173,13 @@ export default function EventForm({ event, onClose }: Props) {
     }
   }
 
-  /** Un début de journée repart de la dernière fin de journée : le camion n'a normalement pas bougé. */
+  /**
+   * Un chargement saisi reçoit d'office une LV vide, à compléter plus tard.
+   * Un début de journée repart de la dernière fin de journée : le camion n'a normalement pas bougé.
+   */
   function chooseType(value: EventType) {
     setType(value);
+    if (isNew && value === 'chargement' && loads.length === 0) setLoads([newWaybill()]);
     if (!isNew || value !== 'debut_journee') return;
     const end = store.lastDayEnd(new Date(when));
     if (!end) return;
@@ -196,7 +196,46 @@ export default function EventForm({ event, onClose }: Props) {
         lon: end.lon,
       });
       setPlaceKey((k) => k + 1);
+      setPlaceFromDayEnd(true);
     }
+  }
+
+  /** LV à ouvrir pour « Scanner » ou « Saisir » : la LV vide du chargement s'il y en a une, sinon une nouvelle. */
+  function editLoad(photo?: Blob) {
+    const blank = loads.find(isBlankWaybill);
+    const shipper = loads.find((l) => l.shipper)?.shipper ?? null;
+    setEditing(
+      blank
+        ? { waybill: { ...blank, shipper }, isNew: false, side: 'load', photo }
+        : { waybill: newWaybill({ shipper }), isNew: true, side: 'load', photo },
+    );
+  }
+
+  /**
+   * Lieu du chargement de la LV ouverte, modifiable depuis sa fiche :
+   * celui du formulaire pour un chargement en cours de saisie, sinon celui de son étape enregistrée.
+   */
+  function editingLoading(): { place: Place; apply: (p: Place) => void } | undefined {
+    if (!editing) return;
+    if (editing.side === 'load') {
+      return {
+        place,
+        apply: (p) => {
+          setPlace(p);
+          setPlaceKey((k) => k + 1);
+          setPlaceFromDayEnd(false);
+        },
+      };
+    }
+    const loading = store.event(editing.waybill.loading_event_id);
+    if (!loading) return;
+    return {
+      place: placeOf(loading),
+      apply: (p) => {
+        store.setEventPlace(loading.id, p);
+        locateLater(store, loading.id, p);
+      },
+    };
   }
 
   function remove() {
@@ -346,7 +385,7 @@ export default function EventForm({ event, onClose }: Props) {
             <div className="label">
               Lieu
               <PlaceField key={placeKey} value={place} onChange={setPlace} autoLocate={isNew && placeKey === 0} />
-              {placeKey > 0 && <span className="hint">Repris de la dernière fin de journée</span>}
+              {placeFromDayEnd && <span className="hint">Repris de la dernière fin de journée</span>}
             </div>
 
             <label>
@@ -391,13 +430,7 @@ export default function EventForm({ event, onClose }: Props) {
                   <button
                     type="button"
                     className="btn-secondary btn-icon lv-add"
-                    onClick={() =>
-                      setEditing({
-                        waybill: newWaybill({ shipper: loads[0]?.shipper ?? null }),
-                        isNew: true,
-                        side: 'load',
-                      })
-                    }
+                    onClick={() => editLoad()}
                   >
                     <Plus size={18} />
                     Saisir
@@ -412,14 +445,7 @@ export default function EventForm({ event, onClose }: Props) {
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     e.target.value = '';
-                    if (file) {
-                      setEditing({
-                        waybill: newWaybill({ shipper: loads[0]?.shipper ?? null }),
-                        isNew: true,
-                        side: 'load',
-                        photo: file,
-                      });
-                    }
+                    if (file) editLoad(file);
                   }}
                 />
                 <span className="hint">Le numéro peut être complété plus tard.</span>
@@ -526,7 +552,11 @@ export default function EventForm({ event, onClose }: Props) {
           isNew={editing.isNew}
           initialPhoto={editing.photo}
           context={editingContext()}
-          onSave={saveEditing}
+          loadingPlace={editingLoading()?.place}
+          onSave={(w, loadingPlace) => {
+            saveEditing(w);
+            if (loadingPlace) editingLoading()?.apply(loadingPlace);
+          }}
           onDelete={editing.isNew ? undefined : deleteEditing}
           onClose={() => setEditing(null)}
         />

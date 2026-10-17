@@ -12,6 +12,7 @@ import {
   uploadPending,
   type LetterKind,
 } from '../lib/photos';
+import { placeChanged } from '../lib/places';
 import { useModal } from '../lib/useModal';
 import { useStore } from '../lib/useEvents';
 import type { Place, Waybill } from '../types';
@@ -25,7 +26,10 @@ interface Props {
   context?: string;
   /** Photo prise juste avant d'ouvrir la fiche (« Scanner une LV »). */
   initialPhoto?: Blob;
-  onSave: (waybill: Waybill) => void;
+  /** Lieu de l'étape de chargement, modifiable depuis la fiche (absent si la LV n'a pas de chargement). */
+  loadingPlace?: Place;
+  /** `loadingPlace` n'est fourni que si le lieu du chargement a été changé. */
+  onSave: (waybill: Waybill, loadingPlace?: Place) => void;
   onDelete?: (waybill: Waybill) => void;
   onClose: () => void;
 }
@@ -37,7 +41,8 @@ const clean = (s: string) => s.trim() || null;
 
 const plannedText = (p: Place) => (p.country_code ? formatPlace(p) : p.city);
 
-export default function WaybillForm({ waybill, isNew, context, initialPhoto, onSave, onDelete, onClose }: Props) {
+export default function WaybillForm(props: Props) {
+  const { waybill, isNew, context, initialPhoto, loadingPlace, onSave, onDelete, onClose } = props;
   const store = useStore();
   const [names] = useState(() => store.knownNames());
   const [number, setNumber] = useState(waybill.number ?? '');
@@ -45,6 +50,7 @@ export default function WaybillForm({ waybill, isNew, context, initialPhoto, onS
   const [consignee, setConsignee] = useState(waybill.consignee ?? '');
   const [planned, setPlanned] = useState<Place>(() => placeFromLabel(waybill.planned_city ?? ''));
   const [plannedKey, setPlannedKey] = useState(0);
+  const [loading, setLoading] = useState<Place | null>(loadingPlace ?? null);
   const [goods, setGoods] = useState(waybill.goods ?? '');
   const [weight, setWeight] = useState(numText(waybill.weight_kg));
   const [notes, setNotes] = useState(waybill.notes ?? '');
@@ -146,18 +152,21 @@ export default function WaybillForm({ waybill, isNew, context, initialPhoto, onS
     e.stopPropagation(); // ne pas valider le formulaire d'étape situé derrière
     // Photos retirées de la fiche : supprimées du stockage.
     for (const path of waybill.photo_paths) if (!photos.includes(path)) void deletePhoto(path).catch(() => {});
-    onSave({
-      ...waybill,
-      number: clean(number),
-      shipper: clean(shipper),
-      consignee: clean(consignee),
-      // Ville choisie dans les suggestions : « Toulouse (31) » ; saisie libre : tel quel.
-      planned_city: clean(plannedText(planned)),
-      goods: clean(goods),
-      weight_kg: parseNum(weight),
-      notes: clean(notes),
-      photo_paths: photos,
-    });
+    onSave(
+      {
+        ...waybill,
+        number: clean(number),
+        shipper: clean(shipper),
+        consignee: clean(consignee),
+        // Ville choisie dans les suggestions : « Toulouse (31) » ; saisie libre : tel quel.
+        planned_city: clean(plannedText(planned)),
+        goods: clean(goods),
+        weight_kg: parseNum(weight),
+        notes: clean(notes),
+        photo_paths: photos,
+      },
+      loading && loadingPlace && placeChanged(loading, loadingPlace) ? loading : undefined,
+    );
     onClose();
   }
 
@@ -245,49 +254,59 @@ export default function WaybillForm({ waybill, isNew, context, initialPhoto, onS
               )}
             </div>
 
-            <label>
-              <span className="label-line">N° lettre de voiture{readTag('number', number)}</span>
-              <input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="À compléter plus tard" />
-            </label>
-
             <datalist id="known-names">
               {names.map((n) => (
                 <option key={n} value={n} />
               ))}
             </datalist>
 
-            <label>
-              <span className="label-line">Client chargeur (expéditeur){readTag('shipper', shipper)}</span>
-              <input list="known-names" value={shipper} onChange={(e) => setShipper(e.target.value)} />
-            </label>
-
-            <label>
-              <span className="label-line">Client destinataire{readTag('consignee', consignee)}</span>
-              <input list="known-names" value={consignee} onChange={(e) => setConsignee(e.target.value)} />
-            </label>
-
-            <div className="label">
-              <span className="label-line">
-                Ville de livraison prévue{readTag('planned_city', plannedText(planned))}
-              </span>
-              <PlaceField key={plannedKey} value={planned} onChange={setPlanned} />
+            {/* Fiche en blocs : côté chargeur, côté destinataire, puis numéro et marchandise. */}
+            <div className="form-block">
+              <label>
+                <span className="label-line">Client chargeur (expéditeur){readTag('shipper', shipper)}</span>
+                <input list="known-names" value={shipper} onChange={(e) => setShipper(e.target.value)} />
+              </label>
+              {loading && (
+                <div className="label">
+                  Ville de chargement
+                  <PlaceField value={loading} onChange={setLoading} />
+                </div>
+              )}
             </div>
 
-            <div className="row">
+            <div className="form-block">
               <label>
-                <span className="label-line">Marchandise{readTag('goods', goods)}</span>
-                <input value={goods} onChange={(e) => setGoods(e.target.value)} placeholder="Palettes de plâtre…" />
+                <span className="label-line">Client destinataire{readTag('consignee', consignee)}</span>
+                <input list="known-names" value={consignee} onChange={(e) => setConsignee(e.target.value)} />
               </label>
-              <label>
-                <span className="label-line">Poids (kg){readTag('weight_kg', weight)}</span>
-                <input type="text" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} />
-              </label>
+              <div className="label">
+                <span className="label-line">
+                  Ville de livraison prévue{readTag('planned_city', plannedText(planned))}
+                </span>
+                <PlaceField key={plannedKey} value={planned} onChange={setPlanned} />
+              </div>
             </div>
 
-            <label>
-              Remarque
-              <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
-            </label>
+            <div className="form-block">
+              <label>
+                <span className="label-line">N° lettre de voiture{readTag('number', number)}</span>
+                <input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="À compléter plus tard" />
+              </label>
+              <div className="row">
+                <label>
+                  <span className="label-line">Marchandise{readTag('goods', goods)}</span>
+                  <input value={goods} onChange={(e) => setGoods(e.target.value)} placeholder="Palettes de plâtre…" />
+                </label>
+                <label>
+                  <span className="label-line">Poids (kg){readTag('weight_kg', weight)}</span>
+                  <input type="text" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} />
+                </label>
+              </div>
+              <label>
+                Remarque
+                <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+              </label>
+            </div>
 
             <button className="btn-primary btn-block">OK</button>
             {onDelete && (

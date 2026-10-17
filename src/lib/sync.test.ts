@@ -4,6 +4,7 @@ import { newWaybill, waybillStatus, type TripEvent } from '../types';
 vi.mock('./supabase', () => ({ supabase: {} }));
 
 const { EventStore } = await import('./sync');
+const { isBlankWaybill } = await import('./waybills');
 
 // Environnement « navigateur » minimal : hors ligne, pour ne jamais appeler Supabase.
 const storage = new Map<string, string>();
@@ -22,6 +23,16 @@ function ev(id: string, type: TripEvent['type'], occurred: string): TripEvent {
     updated_at: '', deleted_at: null,
   };
 }
+
+describe('isBlankWaybill', () => {
+  it('reconnaît une LV vide, et plus dès qu’un champ ou une photo est ajouté', () => {
+    expect(isBlankWaybill(newWaybill())).toBe(true);
+    expect(isBlankWaybill(newWaybill({ shipper: '  ' }))).toBe(true);
+    expect(isBlankWaybill(newWaybill({ goods: 'Palettes' }))).toBe(false);
+    expect(isBlankWaybill(newWaybill({ weight_kg: 0 }))).toBe(false);
+    expect(isBlankWaybill(newWaybill({ photo_paths: ['u/lv/p.jpg'] }))).toBe(false);
+  });
+});
 
 describe('waybillStatus', () => {
   it('à compléter sans numéro, puis dans le camion, puis livrée', () => {
@@ -103,6 +114,14 @@ describe('cartes des semaines et lieux complétés', () => {
     });
     expect(new EventStore('u').weekMap(start)?.stops_hash).toBe('4-abc'); // relue depuis le cache local
     expect(store.weekMap(new Date(2026, 0, 18, 22))).toBeNull();
+  });
+
+  it('change le lieu d’une étape depuis une de ses LV et le met en file d’envoi', () => {
+    const store = new EventStore('u');
+    store.save({ ...ev('a', 'chargement', '2026-01-30T08:00'), city: 'Tours', lat: 47.39, lon: 0.69 });
+    store.setEventPlace('a', { city: 'Toulouse ', postcode: '31000', department: '31', country_code: 'FR', lat: 43.6, lon: 1.44 });
+    expect(store.getState().events[0]).toMatchObject({ city: 'Toulouse', department: '31', lat: 43.6, lon: 1.44 });
+    expect(store.isPending('a')).toBe(true);
   });
 
   it('complète les coordonnées d’une étape sans changer sa ville', () => {
