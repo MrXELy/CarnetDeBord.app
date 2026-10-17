@@ -1,11 +1,11 @@
 export type EventType = 'debut_journee' | 'chargement' | 'livraison' | 'carburant' | 'fin_journee';
 
-export const EVENT_TYPES: { value: EventType; label: string; icon: string }[] = [
-  { value: 'debut_journee', label: 'Début de journée', icon: '☀️' },
-  { value: 'chargement', label: 'Chargement', icon: '📦' },
-  { value: 'livraison', label: 'Livraison', icon: '🏁' },
-  { value: 'carburant', label: 'Carburant', icon: '⛽' },
-  { value: 'fin_journee', label: 'Fin de journée', icon: '🌙' },
+export const EVENT_TYPES: { value: EventType; label: string; short: string }[] = [
+  { value: 'debut_journee', label: 'Début de journée', short: 'Début' },
+  { value: 'chargement', label: 'Chargement', short: 'Chargement' },
+  { value: 'livraison', label: 'Livraison', short: 'Livraison' },
+  { value: 'carburant', label: 'Carburant', short: 'Carburant' },
+  { value: 'fin_journee', label: 'Fin de journée', short: 'Fin' },
 ];
 
 export const STATIONS = ['Doumen', 'AS24', 'DKV'] as const;
@@ -40,3 +40,5 @@ export interface TripEvent extends Place {
 export function eventTypeInfo(type: EventType) {
   return EVENT_TYPES.find((t) => t.value === type)!;
 }
+
+export const isDayBoundary = (type: EventType) => type === 'debut_journee' || type === 'fin_journee';

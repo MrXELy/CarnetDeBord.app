@@ -238,7 +238,41 @@ textarea { resize: vertical; }
 
 .card:hover { background: var(--surface-2); }
 
-.card-icon { font-size: 1.3rem; line-height: 1.6; }
+/* Icônes sobres, toutes de la même couleur */
+.event-icon { flex: none; color: var(--muted); }
+.type-btn.selected .event-icon { color: inherit; }
+.card-icon { margin-top: 2px; }
+
+/* Début / fin de journée : simple ligne de repère */
+.marker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 12px;
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-align: left;
+}
+
+.marker:hover { background: var(--surface); }
+.marker-type { font-weight: 600; color: var(--tone); }
+.marker-time { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+
+.marker-place {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.marker-km { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.marker .card-pending { top: 4px; right: 4px; }
 
 .card-body {
   flex: 1;
@@ -371,29 +405,30 @@ legend { margin-bottom: 6px; }
 
 .type-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
 }
 
 .type-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 12px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 2px 8px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 10px;
+  font-size: 0.68rem;
   font-weight: 600;
-  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .type-btn.selected {
-  border-color: var(--tone);
-  background: color-mix(in srgb, var(--tone) 18%, var(--surface));
-  color: var(--tone);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
+  color: var(--accent);
 }
-
-.type-btn:last-child:nth-child(odd) { grid-column: span 2; }
 
 .segmented {
   display: grid;

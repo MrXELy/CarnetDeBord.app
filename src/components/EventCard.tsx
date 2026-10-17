@@ -1,13 +1,30 @@
 import { timeLabel } from '../lib/dates';
 import { formatPlace } from '../lib/geo';
 import { useStore } from '../lib/useEvents';
-import { eventTypeInfo, type TripEvent } from '../types';
+import { eventTypeInfo, isDayBoundary, type TripEvent } from '../types';
+import EventIcon from './EventIcon';
 
 const litres = (n: number) => `${n.toLocaleString('fr-FR')} L`;
 
 export default function EventCard({ event: e, onOpen }: { event: TripEvent; onOpen: () => void }) {
   const store = useStore();
   const info = eventTypeInfo(e.type);
+  const pending = store.isPending(e.id) && <span className="card-pending" title="Pas encore synchronisé" />;
+
+  // Début et fin de journée : simple ligne de repère, plus discrète qu'une tuile.
+  if (isDayBoundary(e.type)) {
+    return (
+      <button className={`marker tone-${e.type}`} onClick={onOpen}>
+        <EventIcon type={e.type} size={16} className="event-icon" />
+        <span className="marker-type">{info.short}</span>
+        <span className="marker-time">{timeLabel(e.occurred_at)}</span>
+        <span className="marker-place">{formatPlace(e)}</span>
+        {e.odometer_km != null && <span className="marker-km">{e.odometer_km.toLocaleString('fr-FR')} km</span>}
+        {pending}
+      </button>
+    );
+  }
+
   const details: string[] = [];
   if (e.client) details.push(e.client);
   if (e.cmr_number) details.push(`LV ${e.cmr_number}`);
@@ -17,9 +34,7 @@ export default function EventCard({ event: e, onOpen }: { event: TripEvent; onOp
 
   return (
     <button className={`card tone-${e.type}`} onClick={onOpen}>
-      <span className="card-icon" aria-hidden>
-        {info.icon}
-      </span>
+      <EventIcon type={e.type} className="event-icon card-icon" />
       <span className="card-body">
         <span className="card-top">
           <span className="card-type">{info.label}</span>
@@ -32,7 +47,7 @@ export default function EventCard({ event: e, onOpen }: { event: TripEvent; onOp
         {details.length > 0 && <span className="card-details">{details.join(' · ')}</span>}
         {e.notes && <span className="card-notes">{e.notes}</span>}
       </span>
-      {store.isPending(e.id) && <span className="card-pending" title="Pas encore synchronisé" />}
+      {pending}
     </button>
   );
 }

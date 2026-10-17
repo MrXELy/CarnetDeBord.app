@@ -18,12 +18,22 @@ export default function PlaceField({ value, onChange, autoLocate }: Props) {
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const typed = useRef(false);
+  const alive = useRef(true);
+
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
 
   async function locate() {
     setLocating(true);
     setError(null);
     try {
       const place = await locateMe();
+      // Le champ a pu être remplacé entre-temps (lieu prérempli) : on ignore alors la position.
+      if (!alive.current) return;
       typed.current = false;
       setQuery(place.city);
       setSuggestions([]);

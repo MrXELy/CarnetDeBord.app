@@ -73,10 +73,19 @@ export class EventStore {
     return { tractor: latest?.tractor_plate ?? '', trailer: latest?.trailer_plate ?? '' };
   }
 
-  /** Dernier kilométrage relevé pour ce tracteur. */
-  lastOdometer(tractor: string, excludeId?: string): number | null {
-    const e = this.state.events.find((e) => e.id !== excludeId && e.tractor_plate === tractor && e.odometer_km != null);
+  /** Dernier kilométrage relevé pour ce tracteur avant cette date. */
+  lastOdometer(tractor: string, before: Date, excludeId?: string): number | null {
+    const iso = before.toISOString();
+    const e = this.state.events.find(
+      (e) => e.id !== excludeId && e.tractor_plate === tractor && e.odometer_km != null && e.occurred_at <= iso,
+    );
     return e?.odometer_km ?? null;
+  }
+
+  /** Dernière « fin de journée » avant cette date : point de départ de la journée suivante. */
+  lastDayEnd(before: Date): TripEvent | null {
+    const iso = before.toISOString();
+    return this.state.events.find((e) => e.type === 'fin_journee' && e.occurred_at <= iso) ?? null;
   }
 
   async sync() {

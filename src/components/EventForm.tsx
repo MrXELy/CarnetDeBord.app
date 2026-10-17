@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { toLocalInput } from '../lib/dates';
 import { useStore } from '../lib/useEvents';
 import { EVENT_TYPES, STATIONS, type EventType, type Place, type Station, type TripEvent } from '../types';
+import EventIcon from './EventIcon';
 import PlaceField, { EMPTY_PLACE } from './PlaceField';
 
 interface Props {
@@ -34,8 +35,10 @@ export default function EventForm({ event, onClose }: Props) {
   const [adblue, setAdblue] = useState(numText(event?.adblue_l ?? null));
   const [notes, setNotes] = useState(event?.notes ?? '');
   const [error, setError] = useState<string | null>(null);
+  // Change quand le lieu est prérempli, pour réafficher le champ avec la nouvelle valeur.
+  const [placeKey, setPlaceKey] = useState(0);
 
-  const lastKm = store.lastOdometer(tractor.trim(), event?.id);
+  const lastKm = store.lastOdometer(tractor.trim(), new Date(when), event?.id);
   const kmValue = parseNum(km);
   const isStop = type === 'chargement' || type === 'livraison';
   const isFuel = type === 'carburant';
@@ -78,6 +81,28 @@ export default function EventForm({ event, onClose }: Props) {
     onClose();
   }
 
+  /** Un début de journée repart de la dernière fin de journée : le camion n'a normalement pas bougé. */
+  function chooseType(value: EventType) {
+    setType(value);
+    if (!isNew || value !== 'debut_journee') return;
+    const end = store.lastDayEnd(new Date(when));
+    if (!end) return;
+    setTractor(end.tractor_plate);
+    setTrailer(end.trailer_plate);
+    if (end.odometer_km != null) setKm(String(end.odometer_km));
+    if (end.city) {
+      setPlace({
+        city: end.city,
+        postcode: end.postcode,
+        department: end.department,
+        country_code: end.country_code,
+        lat: end.lat,
+        lon: end.lon,
+      });
+      setPlaceKey((k) => k + 1);
+    }
+  }
+
   function remove() {
     if (event && confirm('Supprimer cette étape ?')) {
       store.remove(event);
@@ -105,10 +130,11 @@ export default function EventForm({ event, onClose }: Props) {
                   type="button"
                   key={t.value}
                   className={`type-btn tone-${t.value}${type === t.value ? ' selected' : ''}`}
-                  onClick={() => setType(t.value)}
+                  onClick={() => chooseType(t.value)}
+                  title={t.label}
                 >
-                  <span aria-hidden>{t.icon}</span>
-                  {t.label}
+                  <EventIcon type={t.value} className="event-icon" />
+                  {t.short}
                 </button>
               ))}
             </div>
@@ -154,7 +180,8 @@ export default function EventForm({ event, onClose }: Props) {
 
           <div className="label">
             Lieu
-            <PlaceField value={place} onChange={setPlace} autoLocate={isNew} />
+            <PlaceField key={placeKey} value={place} onChange={setPlace} autoLocate={isNew && placeKey === 0} />
+            {placeKey > 0 && <span className="hint">Repris de la dernière fin de journée</span>}
           </div>
 
           <label>
