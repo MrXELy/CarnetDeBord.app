@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TripEvent } from '../types';
-import { durationLabel, groupWeek, summarizeDay, weekLabel, weekStart } from './dates';
+import { durationLabel, groupWeek, summarizeDay, summarizeWeek, weekLabel, weekStart } from './dates';
 
 function ev(id: string, occurred: string, extra: Partial<TripEvent> = {}): TripEvent {
   return {
@@ -12,27 +12,77 @@ function ev(id: string, occurred: string, extra: Partial<TripEvent> = {}): TripE
 }
 
 describe('weekStart / weekLabel', () => {
-  it('commence le lundi', () => {
-    const start = weekStart(new Date(2026, 9, 17)); // vendredi 17 oct. 2026
-    expect(start).toEqual(new Date(2026, 9, 12));
-    expect(weekLabel(start)).toBe('Semaine 42 · 12 – 18 oct.');
+  it('commence le dimanche à 22h', () => {
+    expect(weekStart(new Date(2026, 9, 17))).toEqual(new Date(2026, 9, 11, 22)); // vendredi 17 oct.
+    expect(weekStart(new Date(2026, 9, 18, 21, 59))).toEqual(new Date(2026, 9, 11, 22)); // dimanche 21h59
+    expect(weekStart(new Date(2026, 9, 18, 22, 0))).toEqual(new Date(2026, 9, 18, 22)); // dimanche 22h00
+  });
+
+  it('affiche la semaine du lundi au dimanche', () => {
+    expect(weekLabel(new Date(2026, 9, 11, 22))).toBe('Semaine 42 · 12 – 18 oct.');
   });
 });
 
 describe('groupWeek', () => {
+  const start = new Date(2026, 9, 11, 22);
+
   it('regroupe par jour, le plus récent en premier, et ignore le reste', () => {
-    const start = new Date(2026, 9, 12);
     const days = groupWeek(
       [
         ev('a', '2026-10-12T06:00'),
         ev('b', '2026-10-13T07:00'),
         ev('c', '2026-10-13T15:00'),
-        ev('d', '2026-10-19T08:00'), // semaine suivante
+        ev('d', '2026-10-18T22:30'), // semaine suivante
         ev('e', '2026-10-14T08:00', { deleted_at: '2026-10-14T09:00:00Z' }),
       ],
       start,
     );
     expect(days.map((d) => d.events.map((e) => e.id))).toEqual([['c', 'b'], ['a']]);
+  });
+
+  it('rattache le dimanche soir au lundi', () => {
+    const days = groupWeek(
+      [
+        ev('dim', '2026-10-11T22:30', { type: 'debut_journee' }),
+        ev('lun', '2026-10-12T06:00'),
+        ev('avant', '2026-10-11T21:00'), // semaine précédente
+        ev('fin', '2026-10-18T21:00'), // dimanche 21h : encore cette semaine
+      ],
+      start,
+    );
+    expect(days.map((d) => [d.date.getDate(), d.events.map((e) => e.id)])).toEqual([
+      [18, ['fin']],
+      [12, ['lun', 'dim']],
+    ]);
+  });
+});
+
+describe('summarizeWeek', () => {
+  it('compte du premier début à la dernière fin', () => {
+    expect(
+      summarizeWeek([
+        ev('f2', '2026-10-16T17:00', { type: 'fin_journee', odometer_km: 101300 }),
+        ev('d2', '2026-10-16T05:00', { type: 'debut_journee', odometer_km: 100700 }),
+        ev('f1', '2026-10-12T17:00', { type: 'fin_journee', odometer_km: 100700 }),
+        ev('c1', '2026-10-12T09:00', { odometer_km: 100200 }),
+        ev('d1', '2026-10-11T22:30', { type: 'debut_journee', odometer_km: 100000 }),
+      ]),
+    ).toEqual({ km: 1300, inProgress: false });
+  });
+
+  it('compte jusqu’au dernier relevé si la semaine est en cours', () => {
+    expect(
+      summarizeWeek([
+        ev('c', '2026-10-13T10:00', { odometer_km: 100900 }),
+        ev('d', '2026-10-13T05:00', { type: 'debut_journee', odometer_km: 100700 }),
+        ev('f', '2026-10-12T17:00', { type: 'fin_journee', odometer_km: 100700 }),
+        ev('d0', '2026-10-12T05:00', { type: 'debut_journee', odometer_km: 100000 }),
+      ]),
+    ).toEqual({ km: 900, inProgress: true });
+  });
+
+  it('ne donne rien sans début de journée', () => {
+    expect(summarizeWeek([ev('c', '2026-10-13T10:00', { odometer_km: 100900 })]).km).toBeNull();
   });
 });
 

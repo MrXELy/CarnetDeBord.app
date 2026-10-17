@@ -1,7 +1,7 @@
 import { addWeeks, isSameDay } from 'date-fns';
 import { ChevronLeft, ChevronRight, LogOut, Plus, Settings as SettingsIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { groupWeek, weekLabel, weekStart } from '../lib/dates';
+import { groupWeek, summarizeWeek, weekLabel, weekStart } from '../lib/dates';
 import { supabase } from '../lib/supabase';
 import { useEvents } from '../lib/useEvents';
 import type { TripEvent } from '../types';
@@ -17,6 +17,7 @@ export default function WeekView() {
   const [editing, setEditing] = useState<Editing>(null);
   const [showSettings, setShowSettings] = useState(false);
   const days = useMemo(() => groupWeek(events, start), [events, start]);
+  const week = useMemo(() => summarizeWeek(days.flatMap((d) => d.events)), [days]);
   const isCurrentWeek = isSameDay(start, weekStart(new Date()));
 
   return (
@@ -49,6 +50,16 @@ export default function WeekView() {
             <ChevronRight size={24} />
           </button>
         </nav>
+        <p className="week-recap">
+          {week.km != null ? (
+            <>
+              <strong>{week.km.toLocaleString('fr-FR')} km</strong> parcourus
+              {week.inProgress && isCurrentWeek && ' · en cours'}
+            </>
+          ) : (
+            'Aucun kilométrage cette semaine'
+          )}
+        </p>
       </header>
 
       <main className="days">
@@ -80,7 +91,7 @@ function SyncBadge(props: { pending: number; syncing: boolean; online: boolean; 
   if (props.error)
     return (
       <button className="sync sync-err" onClick={props.onRetry} title={props.error}>
-        Erreur de synchro · réessayer
+        Erreur · réessayer
       </button>
     );
   if (props.pending) return <span className="sync sync-off">{props.pending} en attente</span>;

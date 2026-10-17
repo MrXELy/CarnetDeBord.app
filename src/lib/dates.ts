@@ -1,13 +1,35 @@
-import { addDays, differenceInMinutes, format, getISOWeek, isSameMonth, parseISO, startOfDay, startOfWeek } from 'date-fns';
+import {
+  addDays,
+  addHours,
+  differenceInMinutes,
+  format,
+  getISOWeek,
+  isSameMonth,
+  isSunday,
+  parseISO,
+  startOfDay,
+  startOfWeek,
+  subHours,
+} from 'date-fns';
 import { fr } from 'date-fns/locale';
 import type { TripEvent } from '../types';
 
+/** La semaine de travail commence le dimanche à 22h, soit 2 heures avant le lundi. */
+const WEEK_LEAD_HOURS = 2;
+
+/** Début de la semaine de travail contenant cette date : le dimanche à 22h. */
 export function weekStart(date: Date): Date {
-  return startOfWeek(date, { weekStartsOn: 1 });
+  return subHours(startOfWeek(addHours(date, WEEK_LEAD_HOURS), { weekStartsOn: 1 }), WEEK_LEAD_HOURS);
 }
 
-/** « Semaine 42 · 13 – 19 oct. » */
-export function weekLabel(start: Date): string {
+/** Jour auquel rattacher une étape : le dimanche à partir de 22h compte comme le lundi. */
+export function workDay(date: Date): Date {
+  return isSunday(date) && date.getHours() >= 24 - WEEK_LEAD_HOURS ? startOfDay(addDays(date, 1)) : startOfDay(date);
+}
+
+/** « Semaine 42 · 12 – 18 oct. » (du lundi au dimanche). */
+export function weekLabel(weekStartDate: Date): string {
+  const start = addHours(weekStartDate, WEEK_LEAD_HOURS);
   const end = addDays(start, 6);
   const range = isSameMonth(start, end)
     ? `${format(start, 'd')} – ${format(end, 'd MMM', { locale: fr })}`
@@ -41,7 +63,7 @@ export function groupWeek(events: TripEvent[], start: Date): Day[] {
   for (const e of events) {
     const d = parseISO(e.occurred_at);
     if (e.deleted_at || d < start || d >= end) continue;
-    const key = startOfDay(d).getTime();
+    const key = workDay(d).getTime();
     byDay.set(key, [...(byDay.get(key) ?? []), e]);
   }
   return [...byDay.entries()]
@@ -66,6 +88,26 @@ export function summarizeDay(events: TripEvent[]): DaySummary {
     km: kms.length >= 2 ? Math.max(...kms) - Math.min(...kms) : null,
     amplitude: start && end ? differenceInMinutes(parseISO(end.occurred_at), parseISO(start.occurred_at)) : null,
   };
+}
+
+export interface WeekSummary {
+  km: number | null;
+  /** Vrai si la semaine n'est pas terminée par une fin de journée. */
+  inProgress: boolean;
+}
+
+/**
+ * Km de la semaine : du premier « début de journée » à la dernière « fin de journée ».
+ * Si des étapes ont suivi cette fin (ou s'il n'y en a pas), on compte jusqu'au dernier relevé.
+ */
+export function summarizeWeek(events: TripEvent[]): WeekSummary {
+  const withKm = events
+    .filter((e) => e.odometer_km != null)
+    .sort((a, b) => a.occurred_at.localeCompare(b.occurred_at));
+  const first = withKm.find((e) => e.type === 'debut_journee');
+  if (!first) return { km: null, inProgress: false };
+  const last = withKm[withKm.length - 1];
+  return { km: last.odometer_km! - first.odometer_km!, inProgress: last.type !== 'fin_journee' };
 }
 
 export function durationLabel(minutes: number): string {

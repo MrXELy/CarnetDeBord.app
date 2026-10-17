@@ -10,7 +10,7 @@
   --danger: #f87171;
   --ok: #34d399;
   --radius: 14px;
-  --topbar-h: 104px;
+  --topbar-h: 128px;
 
   color-scheme: dark;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -157,6 +157,7 @@ textarea { resize: vertical; }
 .brand { font-weight: 700; letter-spacing: 0.02em; margin-right: auto; }
 
 .sync {
+  white-space: nowrap;
   font-size: 0.78rem;
   padding: 4px 10px;
   border-radius: 999px;
@@ -591,3 +592,12 @@ legend { margin-bottom: 6px; }
 
 .switch:checked { background: var(--accent); border-color: var(--accent); }
 .switch:checked::after { transform: translateX(20px); background: var(--accent-text); }
+
+.week-recap {
+  margin: 2px 0 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.week-recap strong { color: var(--text); font-variant-numeric: tabular-nums; }
