@@ -2,7 +2,7 @@ import { parseISO } from 'date-fns';
 import { Camera, Pencil, Plus, X } from 'lucide-react';
 import { useRef, useState, type FormEvent } from 'react';
 import { toLocalInput } from '../lib/dates';
-import { formatPlace } from '../lib/geo';
+import { formatPlace, resolveCity } from '../lib/geo';
 import { numText, parseNum } from '../lib/numbers';
 import { useModal } from '../lib/useModal';
 import { useStore } from '../lib/useEvents';
@@ -139,6 +139,13 @@ export default function EventForm({ event, onClose }: Props) {
       },
       changes,
     );
+    // Ville tapée sans choisir de suggestion : on retrouve sa position (centre de la commune) pour la carte.
+    const city = place.city.trim();
+    if ((place.lat == null || place.lon == null) && city && navigator.onLine) {
+      resolveCity(city, place.department)
+        .then((found) => found?.lat != null && found.lon != null && store.completePlace(eventId, found))
+        .catch(() => {});
+    }
     onClose();
   }
 

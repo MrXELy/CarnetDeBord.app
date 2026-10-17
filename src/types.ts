@@ -99,3 +99,23 @@ export function eventTypeInfo(type: EventType) {
 }
 
 export const isDayBoundary = (type: EventType) => type === 'debut_journee' || type === 'fin_journee';
+
+/** Tronçon de la carte : le trajet d'un jour, en points [latitude, longitude]. */
+export interface MapLeg {
+  /** Jour (« 2026-01-26 »). */
+  day: string;
+  coords: [number, number][];
+}
+
+/** Carte d'une semaine : itinéraires calculés une fois puis enregistrés. */
+export interface WeekMap {
+  id: string;
+  /** Début de la semaine de travail (dimanche 22h). */
+  week_start: string;
+  /** Empreinte des étapes utilisées : si elle change, la carte est à régénérer. */
+  stops_hash: string;
+  legs: MapLeg[];
+  generated_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}

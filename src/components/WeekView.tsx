@@ -1,6 +1,15 @@
 import { addWeeks, isSameDay } from 'date-fns';
-import { ChevronDown, ChevronLeft, ChevronRight, FileText, LogOut, Plus, Settings as SettingsIcon } from 'lucide-react';
-import { useMemo, useRef, useState, type TouchEvent } from 'react';
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  LogOut,
+  Map as MapIcon,
+  Plus,
+  Settings as SettingsIcon,
+} from 'lucide-react';
+import { Suspense, lazy, useMemo, useRef, useState, type TouchEvent } from 'react';
 import { groupWeek, summarizeWeek, weekLabel, weekStart } from '../lib/dates';
 import { supabase } from '../lib/supabase';
 import { useEvents } from '../lib/useEvents';
@@ -11,6 +20,9 @@ import Settings from './Settings';
 import WaybillsPage, { type WaybillFilter } from './WaybillsPage';
 import WeekPicker from './WeekPicker';
 
+// Carte chargée seulement à son ouverture : ses contours de la France pèsent une centaine de Ko.
+const WeekMap = lazy(() => import('./WeekMap'));
+
 type Editing = { event: TripEvent | null } | null;
 
 export default function WeekView() {
@@ -20,6 +32,7 @@ export default function WeekView() {
   const [showSettings, setShowSettings] = useState(false);
   const [waybillFilter, setWaybillFilter] = useState<WaybillFilter | null>(null);
   const [pickingWeek, setPickingWeek] = useState(false);
+  const [showMap, setShowMap] = useState(false);
   const touch = useRef<{ x: number; y: number } | null>(null);
   const days = useMemo(() => groupWeek(events, start), [events, start]);
   const week = useMemo(() => summarizeWeek(days.flatMap((d) => d.events)), [days]);
@@ -104,6 +117,15 @@ export default function WeekView() {
           ) : (
             'Aucun kilométrage cette semaine'
           )}
+          {days.length > 0 && (
+            <>
+              {' · '}
+              <button className="recap-link recap-map" onClick={() => setShowMap(true)}>
+                <MapIcon size={14} aria-hidden />
+                Carte
+              </button>
+            </>
+          )}
           {isCurrentWeek && inTruck > 0 && (
             <>
               {' · '}
@@ -136,6 +158,19 @@ export default function WeekView() {
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
       {waybillFilter && <WaybillsPage initialFilter={waybillFilter} onClose={() => setWaybillFilter(null)} />}
       {pickingWeek && <WeekPicker current={start} onPick={setStart} onClose={() => setPickingWeek(false)} />}
+      {showMap && (
+        <Suspense fallback={null}>
+          <WeekMap
+            start={start}
+            events={days.flatMap((d) => d.events)}
+            onEdit={(event) => {
+              setShowMap(false);
+              setEditing({ event });
+            }}
+            onClose={() => setShowMap(false)}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

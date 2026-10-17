@@ -3,10 +3,16 @@ import { useSyncExternalStore } from 'react';
 export interface Settings {
   /** Autocomplétion des villes dans toute l'Europe (sinon France uniquement). */
   europe: boolean;
+  /** Carte de la semaine : vrais itinéraires (sinon lignes droites entre les étapes). */
+  mapRoutes: boolean;
+  /** Carte de la semaine : villes repères affichées. */
+  mapCities: boolean;
+  /** Carte de la semaine : frontières des départements affichées. */
+  mapDepartments: boolean;
 }
 
 const KEY = 'cdb.settings';
-const DEFAULTS: Settings = { europe: false };
+const DEFAULTS: Settings = { europe: false, mapRoutes: true, mapCities: true, mapDepartments: true };
 const listeners = new Set<() => void>();
 
 let current = read();

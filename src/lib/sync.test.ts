@@ -89,3 +89,26 @@ describe('EventStore et lettres de voiture', () => {
     expect(store.knownNames()).toEqual(['Placoplâtre', 'Knauf']);
   });
 });
+
+describe('cartes des semaines et lieux complétés', () => {
+  beforeEach(() => storage.clear());
+
+  it('enregistre la carte d’une semaine et la relit', () => {
+    const store = new EventStore('u');
+    const start = new Date(2026, 0, 25, 22);
+    expect(store.weekMap(start)).toBeNull();
+    store.saveWeekMap({
+      id: 'm1', week_start: start.toISOString(), stops_hash: '4-abc', generated_at: '',
+      legs: [{ day: '2026-01-30', coords: [[43.2, 3.07], [43.17, 2.75]] }], updated_at: '', deleted_at: null,
+    });
+    expect(new EventStore('u').weekMap(start)?.stops_hash).toBe('4-abc'); // relue depuis le cache local
+    expect(store.weekMap(new Date(2026, 0, 18, 22))).toBeNull();
+  });
+
+  it('complète les coordonnées d’une étape sans changer sa ville', () => {
+    const store = new EventStore('u');
+    store.save({ ...ev('a', 'livraison', '2026-01-30T08:00'), city: 'Tours' });
+    store.completePlace('a', { city: 'Tours', postcode: '37000', department: '37', country_code: 'FR', lat: 47.39, lon: 0.69 });
+    expect(store.getState().events[0]).toMatchObject({ city: 'Tours', postcode: '37000', lat: 47.39, lon: 0.69 });
+  });
+});

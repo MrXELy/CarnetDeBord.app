@@ -1,4 +1,4 @@
-import { isInTruck, type TripEvent, type Waybill } from '../types';
+import { isInTruck, type Place, type TripEvent, type Waybill, type WeekMap } from '../types';
 import { uploadPending } from './photos';
 import { supabase } from './supabase';
 
@@ -93,6 +93,7 @@ export class Collection<T extends Row> {
 export class EventStore {
   private events = new Collection<TripEvent>('events', normalizeEvent);
   private waybills = new Collection<Waybill>('waybills', normalizeWaybill);
+  private weekMaps = new Collection<WeekMap>('week_maps');
   private listeners = new Set<() => void>();
   private state: SyncState;
   private syncing = false;
@@ -106,6 +107,7 @@ export class EventStore {
     const saved = this.read<{ events: TripEvent[]; outbox: string[]; cursor: string | null }>('data');
     this.events.load(saved && { items: saved.events, outbox: saved.outbox, cursor: saved.cursor });
     this.waybills.load(this.read<Saved<Waybill>>('waybills'));
+    this.weekMaps.load(this.read<Saved<WeekMap>>('week_maps'));
     this.state = this.snapshot();
     window.addEventListener('online', this.handleOnline);
     window.addEventListener('offline', this.emit);
@@ -145,6 +147,25 @@ export class EventStore {
       if (w.loading_event_id === event.id) this.waybills.save({ ...w, deleted_at: now });
       else if (w.delivery_event_id === event.id) this.waybills.save({ ...w, delivery_event_id: null });
     }
+    this.commit();
+  }
+
+  /** Carte enregistrée d'une semaine (identifiée par son début, le dimanche 22h). */
+  weekMap(weekStart: Date): WeekMap | null {
+    const iso = weekStart.toISOString();
+    return this.weekMaps.alive().find((m) => new Date(m.week_start).toISOString() === iso) ?? null;
+  }
+
+  saveWeekMap(map: WeekMap) {
+    this.weekMaps.save(map);
+    this.commit();
+  }
+
+  /** Complète le lieu d'une étape (coordonnées retrouvées d'après le nom de la ville). */
+  completePlace(eventId: string, place: Place) {
+    const event = this.event(eventId);
+    if (!event) return;
+    this.events.save({ ...event, ...place, city: event.city || place.city });
     this.commit();
   }
 
@@ -245,6 +266,13 @@ export class EventStore {
       // Photos prises sans réseau : envoyées dès que possible.
       await uploadPending();
       this.error = null;
+      // Cartes des semaines : un échec ne bloque pas le reste.
+      try {
+        await this.weekMaps.push();
+        await this.weekMaps.pull();
+      } catch (err) {
+        this.error = /week_maps/.test(String(err)) ? 'Table des cartes absente dans Supabase' : String(err);
+      }
     } catch (err) {
       this.error = err instanceof Error ? err.message : 'Erreur de synchronisation';
     } finally {
@@ -264,7 +292,7 @@ export class EventStore {
     return {
       events: this.events.alive().sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)),
       waybills: this.waybills.alive(),
-      pending: this.events.outbox.size + this.waybills.outbox.size,
+      pending: this.events.outbox.size + this.waybills.outbox.size + this.weekMaps.outbox.size,
       syncing: this.syncing,
       online: navigator.onLine,
       error: this.error,
@@ -281,6 +309,7 @@ export class EventStore {
     const events = this.events.dump();
     this.write('data', { events: events.items, outbox: events.outbox, cursor: events.cursor });
     this.write('waybills', this.waybills.dump());
+    this.write('week_maps', this.weekMaps.dump());
     this.emit();
   }
 

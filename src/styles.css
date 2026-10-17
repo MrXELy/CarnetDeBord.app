@@ -871,3 +871,96 @@ legend { margin-bottom: 6px; }
   .week-title:hover { background: var(--surface-2); }
   .week-row:hover { background: var(--surface-2); }
 }
+
+/* ---------- Carte de la semaine ---------- */
+.recap-map { display: inline-flex; align-items: center; gap: 3px; vertical-align: -2px; }
+
+.week-map {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #0b0d11;
+}
+
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.map-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.map-legend i { width: 12px; height: 12px; border-radius: 50%; }
+.map-legend b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.map-stops {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.map-stops li { display: flex; gap: 10px; align-items: flex-start; }
+
+.map-stop-number {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #0b0d11;
+}
+
+.map-stop-body { display: grid; gap: 1px; font-size: 0.9rem; }
+.map-stop-event { font-size: 0.82rem; color: var(--muted); }
+
+.map-missing { display: grid; gap: 6px; }
+.map-missing-row { display: flex; justify-content: space-between; gap: 8px; font-size: 0.85rem; }
+.map-missing-row .btn-link { flex: none; }
+
+/* Réglages de la carte : tracé, villes, départements */
+.map-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.map-mode {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.map-mode button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.map-mode button.selected { background: var(--surface-2); color: var(--accent); }
+.map-mode button:disabled { opacity: 0.45; }
+
+.map-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.map-toggle input { width: 18px; height: 18px; padding: 0; accent-color: var(--accent); }
