@@ -1,5 +1,5 @@
 import { isSameDay } from 'date-fns';
-import { CalendarDays, CalendarCheck, X } from 'lucide-react';
+import { CalendarDays, CalendarCheck, Map as MapIcon, X } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import { listWeeks, monthLabel, weekLabel, weekStart } from '../lib/dates';
 import { useEvents } from '../lib/useEvents';
@@ -9,11 +9,13 @@ interface Props {
   /** Semaine affichée actuellement (mise en évidence dans la liste). */
   current: Date;
   onPick: (start: Date) => void;
+  /** Ouvre la carte d'un mois (« Janvier 2026 »). */
+  onMonthMap: (month: string) => void;
   onClose: () => void;
 }
 
 /** Liste des semaines travaillées, groupées par mois, et saut à une date. */
-export default function WeekPicker({ current, onPick, onClose }: Props) {
+export default function WeekPicker({ current, onPick, onMonthMap, onClose }: Props) {
   const { events } = useEvents();
   const weeks = useMemo(() => listWeeks(events), [events]);
   const selected = useRef<HTMLButtonElement>(null);
@@ -86,7 +88,18 @@ export default function WeekPicker({ current, onPick, onClose }: Props) {
           ) : (
             months.map((m) => (
               <section key={m.label} className="settings-group">
-                <h3>{m.label}</h3>
+                <div className="month-head">
+                  <h3>{m.label}</h3>
+                  <button
+                    type="button"
+                    className="btn-link btn-icon month-map-btn"
+                    onClick={() => onMonthMap(m.label)}
+                    aria-label={`Carte de ${m.label.toLowerCase()}`}
+                  >
+                    <MapIcon size={16} />
+                    Carte du mois
+                  </button>
+                </div>
                 {m.weeks.map((w) => {
                   const isCurrent = isSameDay(w.start, current);
                   return (

@@ -131,6 +131,21 @@ export function listWeeks(events: TripEvent[]): WeekEntry[] {
     .map(([key, list]) => ({ start: new Date(key), count: list.length, km: summarizeWeek(list).km }));
 }
 
+/**
+ * Semaines d'un mois, telles que groupées dans la liste des semaines (mois de leur lundi),
+ * de la plus ancienne à la plus récente, avec leurs étapes.
+ */
+export function monthWeeks(events: TripEvent[], label: string): { start: Date; events: TripEvent[] }[] {
+  const byWeek = new Map<number, TripEvent[]>();
+  for (const e of events) {
+    if (e.deleted_at) continue;
+    const start = weekStart(parseISO(e.occurred_at));
+    if (monthLabel(start) !== label) continue;
+    byWeek.set(start.getTime(), [...(byWeek.get(start.getTime()) ?? []), e]);
+  }
+  return [...byWeek.entries()].sort(([a], [b]) => a - b).map(([key, list]) => ({ start: new Date(key), events: list }));
+}
+
 /** Mois d'une semaine, d'après son lundi : « Janvier 2026 ». */
 export function monthLabel(weekStartDate: Date): string {
   const s = format(addHours(weekStartDate, WEEK_LEAD_HOURS), 'MMMM yyyy', { locale: fr });

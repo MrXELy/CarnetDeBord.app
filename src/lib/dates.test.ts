@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { TripEvent } from '../types';
-import { durationLabel, groupWeek, listWeeks, monthLabel, summarizeDay, summarizeWeek, weekLabel, weekStart } from './dates';
+import {
+  durationLabel,
+  groupWeek,
+  listWeeks,
+  monthLabel,
+  monthWeeks,
+  summarizeDay,
+  summarizeWeek,
+  weekLabel,
+  weekStart,
+} from './dates';
 
 function ev(id: string, occurred: string, extra: Partial<TripEvent> = {}): TripEvent {
   return {
@@ -116,5 +126,29 @@ describe('listWeeks / monthLabel', () => {
   it('donne le mois du lundi', () => {
     expect(monthLabel(new Date(2026, 0, 25, 22))).toBe('Janvier 2026');
     expect(monthLabel(new Date(2025, 10, 30, 22))).toBe('Décembre 2025'); // semaine du lundi 1er décembre
+  });
+});
+
+describe('monthWeeks', () => {
+  const events = [
+    ev('a', '2026-02-03T08:00'), // semaine du lundi 2 février
+    ev('b', '2026-01-26T07:00'), // semaine du lundi 26 janvier…
+    ev('c', '2026-02-01T10:00'), // … qui finit le dimanche 1er février
+    ev('d', '2026-01-25T22:30'), // dimanche 22h30 : déjà la semaine du 26
+    ev('e', '2026-01-14T08:00'),
+    ev('f', '2026-01-07T08:00', { deleted_at: '2026-01-07T09:00:00Z' }),
+    ev('g', '2025-12-31T08:00'), // semaine du lundi 29 décembre : rattachée à décembre
+  ];
+
+  it('garde les semaines du mois de leur lundi, entières, de la plus ancienne à la plus récente', () => {
+    const weeks = monthWeeks(events, 'Janvier 2026');
+    expect(weeks.map((w) => w.start)).toEqual([new Date(2026, 0, 11, 22), new Date(2026, 0, 25, 22)]);
+    expect(weeks[1].events.map((e) => e.id).sort()).toEqual(['b', 'c', 'd']);
+  });
+
+  it('ignore les étapes supprimées et les autres mois', () => {
+    expect(monthWeeks(events, 'Février 2026').map((w) => w.events.map((e) => e.id))).toEqual([['a']]);
+    expect(monthWeeks(events, 'Décembre 2025').map((w) => w.start)).toEqual([new Date(2025, 11, 28, 22)]);
+    expect(monthWeeks(events, 'Mars 2026')).toEqual([]);
   });
 });

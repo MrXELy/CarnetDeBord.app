@@ -854,6 +854,14 @@ legend { margin-bottom: 6px; }
 }
 
 .week-row-title { font-weight: 600; color: var(--text); }
+
+.month-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.month-map-btn { font-size: 0.85rem; color: var(--accent); text-decoration: none; padding: 4px 6px; }
+
+/* Semaines sous la carte du mois. */
+.month-weeks { display: grid; gap: 6px; }
+.month-week-title { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text); }
+.month-week-title i { width: 12px; height: 12px; border-radius: 50%; flex: none; }
 .week-row-meta { font-size: 0.82rem; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* Champ de date invisible : seul son calendrier s'affiche. */

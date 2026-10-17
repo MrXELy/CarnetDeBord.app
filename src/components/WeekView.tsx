@@ -22,6 +22,7 @@ import WeekPicker from './WeekPicker';
 
 // Carte chargée seulement à son ouverture : ses contours de la France pèsent une centaine de Ko.
 const WeekMap = lazy(() => import('./WeekMap'));
+const MonthMap = lazy(() => import('./MonthMap'));
 
 type Editing = { event: TripEvent | null } | null;
 
@@ -33,6 +34,7 @@ export default function WeekView() {
   const [waybillFilter, setWaybillFilter] = useState<WaybillFilter | null>(null);
   const [pickingWeek, setPickingWeek] = useState(false);
   const [showMap, setShowMap] = useState(false);
+  const [monthMap, setMonthMap] = useState<string | null>(null);
   const touch = useRef<{ x: number; y: number } | null>(null);
   const days = useMemo(() => groupWeek(events, start), [events, start]);
   const week = useMemo(() => summarizeWeek(days.flatMap((d) => d.events)), [days]);
@@ -157,7 +159,33 @@ export default function WeekView() {
       {editing && <EventForm event={editing.event} onClose={() => setEditing(null)} />}
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
       {waybillFilter && <WaybillsPage initialFilter={waybillFilter} onClose={() => setWaybillFilter(null)} />}
-      {pickingWeek && <WeekPicker current={start} onPick={setStart} onClose={() => setPickingWeek(false)} />}
+      {pickingWeek && (
+        <WeekPicker
+          current={start}
+          onPick={setStart}
+          onMonthMap={(month) => {
+            setPickingWeek(false);
+            setMonthMap(month);
+          }}
+          onClose={() => setPickingWeek(false)}
+        />
+      )}
+      {monthMap && (
+        <Suspense fallback={null}>
+          <MonthMap
+            month={monthMap}
+            onPickWeek={(week) => {
+              setMonthMap(null);
+              setStart(week);
+            }}
+            onEdit={(event) => {
+              setMonthMap(null);
+              setEditing({ event });
+            }}
+            onClose={() => setMonthMap(null)}
+          />
+        </Suspense>
+      )}
       {showMap && (
         <Suspense fallback={null}>
           <WeekMap

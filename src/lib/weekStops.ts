@@ -1,9 +1,13 @@
 import { format, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import type { Place, TripEvent } from '../types';
 import { workDay } from './dates';
 
 /** Couleur de chaque jour, du lundi au dimanche (lisibles sur fond sombre). */
 export const DAY_COLORS = ['#60a5fa', '#34d399', '#fbbf24', '#f472b6', '#a78bfa', '#fb923c', '#94a3b8'];
+
+/** Couleur de chaque semaine sur la carte du mois (distinctes des couleurs des jours). */
+export const WEEK_COLORS = ['#60a5fa', '#fbbf24', '#f472b6', '#34d399', '#a78bfa'];
 
 /** Lieu de la carte : une ou plusieurs étapes consécutives au même endroit. */
 export interface Stop {
@@ -42,6 +46,12 @@ export const dayKey = (iso: string) => format(workDay(parseISO(iso)), 'yyyy-MM-d
 /** Couleur d'un jour : lundi bleu, mardi vert… */
 export function dayColor(day: string): string {
   return DAY_COLORS[(parseISO(day).getDay() + 6) % 7];
+}
+
+/** « Lun 26 » */
+export function shortDay(day: string): string {
+  const s = format(parseISO(day), 'EEE d', { locale: fr }).replace('.', '');
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 /**
