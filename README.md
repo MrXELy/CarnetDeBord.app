@@ -48,3 +48,12 @@ npm run build   # compiler la version de production
 
 - Gestion des numéros de lettre de voiture
 - Export des données
+
+## Mode démo (tests en local)
+
+Pour tester avec un historique réaliste sans toucher aux vraies données :
+
+1. Convertir une sauvegarde de l'ancien projet : `node scripts/import-legacy.mjs <truck-manager-backup.json>`. Le résultat va dans `data/demo-events.json`, dossier jamais publié.
+2. Lancer `npm run dev` et ouvrir `http://localhost:5173/CarnetDeBord.app/?demo`. Ajouter `?demo=reset` pour recharger les données d'origine.
+
+En mode démo, tout reste dans le navigateur : rien n'est envoyé à Supabase. Ce mode n'existe pas dans la version en ligne.

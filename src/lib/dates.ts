@@ -110,6 +110,33 @@ export function summarizeWeek(events: TripEvent[]): WeekSummary {
   return { km: last.odometer_km! - first.odometer_km!, inProgress: last.type !== 'fin_journee' };
 }
 
+export interface WeekEntry {
+  /** Début de la semaine de travail (dimanche 22h). */
+  start: Date;
+  /** Nombre d'étapes de la semaine. */
+  count: number;
+  km: number | null;
+}
+
+/** Semaines contenant au moins une étape, de la plus récente à la plus ancienne. */
+export function listWeeks(events: TripEvent[]): WeekEntry[] {
+  const byWeek = new Map<number, TripEvent[]>();
+  for (const e of events) {
+    if (e.deleted_at) continue;
+    const key = weekStart(parseISO(e.occurred_at)).getTime();
+    byWeek.set(key, [...(byWeek.get(key) ?? []), e]);
+  }
+  return [...byWeek.entries()]
+    .sort(([a], [b]) => b - a)
+    .map(([key, list]) => ({ start: new Date(key), count: list.length, km: summarizeWeek(list).km }));
+}
+
+/** Mois d'une semaine, d'après son lundi : « Janvier 2026 ». */
+export function monthLabel(weekStartDate: Date): string {
+  const s = format(addHours(weekStartDate, WEEK_LEAD_HOURS), 'MMMM yyyy', { locale: fr });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 export function durationLabel(minutes: number): string {
   return `${Math.floor(minutes / 60)}h${String(minutes % 60).padStart(2, '0')}`;
 }

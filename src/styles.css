@@ -186,7 +186,6 @@ textarea { resize: vertical; }
   text-align: center;
 }
 
-.week-title small { font-size: 0.75rem; font-weight: 400; color: var(--accent); }
 
 /* ---------- Jours ---------- */
 .days { padding: 0 12px; }
@@ -820,4 +819,55 @@ legend { margin-bottom: 6px; }
   right: 8px;
   display: flex;
   justify-content: space-between;
+}
+
+/* ---------- Choix de la semaine ---------- */
+.week-center { display: grid; justify-items: center; }
+
+.week-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  color: var(--text);
+}
+
+.week-title-chevron { color: var(--muted); flex: none; }
+
+.week-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: left;
+}
+
+.week-row.selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+
+.week-row-title { font-weight: 600; color: var(--text); }
+.week-row-meta { font-size: 0.82rem; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Champ de date invisible : seul son calendrier s'affiche. */
+.date-jump {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (hover: hover) {
+  .week-title:hover { background: var(--surface-2); }
+  .week-row:hover { background: var(--surface-2); }
 }

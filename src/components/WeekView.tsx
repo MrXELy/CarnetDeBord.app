@@ -1,6 +1,6 @@
 import { addWeeks, isSameDay } from 'date-fns';
-import { ChevronLeft, ChevronRight, FileText, LogOut, Plus, Settings as SettingsIcon } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { ChevronDown, ChevronLeft, ChevronRight, FileText, LogOut, Plus, Settings as SettingsIcon } from 'lucide-react';
+import { useMemo, useRef, useState, type TouchEvent } from 'react';
 import { groupWeek, summarizeWeek, weekLabel, weekStart } from '../lib/dates';
 import { supabase } from '../lib/supabase';
 import { useEvents } from '../lib/useEvents';
@@ -9,27 +9,53 @@ import DaySection from './DaySection';
 import EventForm from './EventForm';
 import Settings from './Settings';
 import WaybillsPage, { type WaybillFilter } from './WaybillsPage';
+import WeekPicker from './WeekPicker';
 
 type Editing = { event: TripEvent | null } | null;
 
 export default function WeekView() {
-  const { events, waybills, pending, syncing, online, error, store } = useEvents();
+  const { events, waybills, pending, syncing, online, error, demo, store } = useEvents();
   const [start, setStart] = useState(() => weekStart(new Date()));
   const [editing, setEditing] = useState<Editing>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [waybillFilter, setWaybillFilter] = useState<WaybillFilter | null>(null);
+  const [pickingWeek, setPickingWeek] = useState(false);
+  const touch = useRef<{ x: number; y: number } | null>(null);
   const days = useMemo(() => groupWeek(events, start), [events, start]);
   const week = useMemo(() => summarizeWeek(days.flatMap((d) => d.events)), [days]);
   const isCurrentWeek = isSameDay(start, weekStart(new Date()));
   const toComplete = waybills.filter((w) => waybillStatus(w) === 'a_completer').length;
   const inTruck = store.inTruck(new Date()).length;
 
+  // Glisser du doigt sur les jours : vers la droite → semaine précédente, vers la gauche → suivante.
+  function onTouchStart(e: TouchEvent) {
+    const t = e.touches[0];
+    touch.current = e.touches.length === 1 ? { x: t.clientX, y: t.clientY } : null;
+  }
+
+  function onTouchEnd(e: TouchEvent) {
+    const from = touch.current;
+    touch.current = null;
+    if (!from) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - from.x;
+    const dy = t.clientY - from.y;
+    // Geste nettement horizontal, pour ne pas changer de semaine en faisant défiler la page.
+    if (Math.abs(dx) > 60 && Math.abs(dx) > 1.5 * Math.abs(dy)) setStart(addWeeks(start, dx > 0 ? -1 : 1));
+  }
+
   return (
     <div className="app">
       <header className="topbar">
         <div className="topbar-row">
           <span className="brand">CarnetDeBord</span>
-          <SyncBadge pending={pending} syncing={syncing} online={online} error={error} onRetry={() => store.sync()} />
+          {demo ? (
+            <span className="sync sync-off" title="Données de test dans ce navigateur, jamais envoyées en ligne">
+              Démo locale
+            </span>
+          ) : (
+            <SyncBadge pending={pending} syncing={syncing} online={online} error={error} onRetry={() => store.sync()} />
+          )}
           <button
             className="icon-btn has-badge"
             title="Lettres de voiture"
@@ -46,7 +72,11 @@ export default function WeekView() {
             className="icon-btn"
             title="Se déconnecter"
             aria-label="Se déconnecter"
-            onClick={() => confirm('Se déconnecter ?') && supabase.auth.signOut()}
+            onClick={() =>
+              demo
+                ? location.assign(location.pathname) // quitte le mode démo
+                : confirm('Se déconnecter ?') && supabase.auth.signOut()
+            }
           >
             <LogOut size={20} />
           </button>
@@ -55,10 +85,12 @@ export default function WeekView() {
           <button className="icon-btn" aria-label="Semaine précédente" onClick={() => setStart(addWeeks(start, -1))}>
             <ChevronLeft size={24} />
           </button>
-          <button className="week-title" onClick={() => setStart(weekStart(new Date()))} disabled={isCurrentWeek}>
-            {weekLabel(start)}
-            {!isCurrentWeek && <small>Revenir à cette semaine</small>}
-          </button>
+          <div className="week-center">
+            <button className="week-title" onClick={() => setPickingWeek(true)} aria-label="Choisir une semaine">
+              {weekLabel(start)}
+              <ChevronDown size={18} className="week-title-chevron" aria-hidden />
+            </button>
+          </div>
           <button className="icon-btn" aria-label="Semaine suivante" onClick={() => setStart(addWeeks(start, 1))}>
             <ChevronRight size={24} />
           </button>
@@ -83,7 +115,7 @@ export default function WeekView() {
         </p>
       </header>
 
-      <main className="days">
+      <main className="days" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         {days.length === 0 ? (
           <div className="empty">
             <p>Aucune étape cette semaine.</p>
@@ -103,6 +135,7 @@ export default function WeekView() {
       {editing && <EventForm event={editing.event} onClose={() => setEditing(null)} />}
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
       {waybillFilter && <WaybillsPage initialFilter={waybillFilter} onClose={() => setWaybillFilter(null)} />}
+      {pickingWeek && <WeekPicker current={start} onPick={setStart} onClose={() => setPickingWeek(false)} />}
     </div>
   );
 }

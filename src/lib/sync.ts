@@ -9,6 +9,8 @@ export interface SyncState {
   syncing: boolean;
   online: boolean;
   error: string | null;
+  /** Mode démo local : données dans le navigateur uniquement, jamais envoyées à Supabase. */
+  demo: boolean;
 }
 
 const PAGE = 1000;
@@ -96,7 +98,10 @@ export class EventStore {
   private syncing = false;
   private error: string | null = null;
 
-  constructor(readonly userId: string) {
+  constructor(
+    readonly userId: string,
+    private options: { offline?: boolean } = {},
+  ) {
     // « data » garde son ancien format ({ events, outbox, cursor }) pour relire le cache existant.
     const saved = this.read<{ events: TripEvent[]; outbox: string[]; cursor: string | null }>('data');
     this.events.load(saved && { items: saved.events, outbox: saved.outbox, cursor: saved.cursor });
@@ -222,7 +227,7 @@ export class EventStore {
   }
 
   async sync() {
-    if (this.syncing || !navigator.onLine) return this.emit();
+    if (this.options.offline || this.syncing || !navigator.onLine) return this.emit();
     this.syncing = true;
     this.emit();
     try {
@@ -263,6 +268,7 @@ export class EventStore {
       syncing: this.syncing,
       online: navigator.onLine,
       error: this.error,
+      demo: !!this.options.offline,
     };
   }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TripEvent } from '../types';
-import { durationLabel, groupWeek, summarizeDay, summarizeWeek, weekLabel, weekStart } from './dates';
+import { durationLabel, groupWeek, listWeeks, monthLabel, summarizeDay, summarizeWeek, weekLabel, weekStart } from './dates';
 
 function ev(id: string, occurred: string, extra: Partial<TripEvent> = {}): TripEvent {
   return {
@@ -95,5 +95,26 @@ describe('summarizeDay', () => {
     ]);
     expect(s).toEqual({ km: 450, amplitude: 675 });
     expect(durationLabel(675)).toBe('11h15');
+  });
+});
+
+describe('listWeeks / monthLabel', () => {
+  it('liste les semaines travaillées, la plus récente en premier', () => {
+    const weeks = listWeeks([
+      ev('a', '2026-01-26T07:00', { type: 'debut_journee', odometer_km: 1000 }),
+      ev('b', '2026-01-30T17:00', { type: 'fin_journee', odometer_km: 1400 }),
+      ev('c', '2026-01-25T22:30', { type: 'debut_journee', odometer_km: 900 }), // dimanche 22h30 : semaine du 26
+      ev('d', '2026-01-14T08:00'),
+      ev('e', '2026-01-07T08:00', { deleted_at: '2026-01-07T09:00:00Z' }),
+    ]);
+    expect(weeks.map((w) => [w.start, w.count, w.km])).toEqual([
+      [new Date(2026, 0, 25, 22), 3, 500],
+      [new Date(2026, 0, 11, 22), 1, null],
+    ]);
+  });
+
+  it('donne le mois du lundi', () => {
+    expect(monthLabel(new Date(2026, 0, 25, 22))).toBe('Janvier 2026');
+    expect(monthLabel(new Date(2025, 10, 30, 22))).toBe('Décembre 2025'); // semaine du lundi 1er décembre
   });
 });
