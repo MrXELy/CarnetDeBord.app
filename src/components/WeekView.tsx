@@ -1,5 +1,5 @@
 import { addWeeks, isSameDay } from 'date-fns';
-import { ChevronLeft, ChevronRight, LogOut, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LogOut, Plus, Settings as SettingsIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { groupWeek, weekLabel, weekStart } from '../lib/dates';
 import { supabase } from '../lib/supabase';
@@ -7,6 +7,7 @@ import { useEvents } from '../lib/useEvents';
 import type { TripEvent } from '../types';
 import DaySection from './DaySection';
 import EventForm from './EventForm';
+import Settings from './Settings';
 
 type Editing = { event: TripEvent | null } | null;
 
@@ -14,6 +15,7 @@ export default function WeekView() {
   const { events, pending, syncing, online, error, store } = useEvents();
   const [start, setStart] = useState(() => weekStart(new Date()));
   const [editing, setEditing] = useState<Editing>(null);
+  const [showSettings, setShowSettings] = useState(false);
   const days = useMemo(() => groupWeek(events, start), [events, start]);
   const isCurrentWeek = isSameDay(start, weekStart(new Date()));
 
@@ -23,6 +25,9 @@ export default function WeekView() {
         <div className="topbar-row">
           <span className="brand">CarnetDeBord</span>
           <SyncBadge pending={pending} syncing={syncing} online={online} error={error} onRetry={() => store.sync()} />
+          <button className="icon-btn" title="Options" aria-label="Options" onClick={() => setShowSettings(true)}>
+            <SettingsIcon size={20} />
+          </button>
           <button
             className="icon-btn"
             title="Se déconnecter"
@@ -64,6 +69,7 @@ export default function WeekView() {
       </button>
 
       {editing && <EventForm event={editing.event} onClose={() => setEditing(null)} />}
+      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
     </div>
   );
 }

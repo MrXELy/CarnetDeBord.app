@@ -1,6 +1,7 @@
 import { LoaderCircle, LocateFixed } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { formatPlace, locateMe, searchCities } from '../lib/geo';
+import { useSettings } from '../lib/settings';
 import type { Place } from '../types';
 
 const countryNames = new Intl.DisplayNames(['fr'], { type: 'region' });
@@ -18,6 +19,7 @@ export default function PlaceField({ value, onChange, autoLocate }: Props) {
   const [suggestions, setSuggestions] = useState<Place[]>([]);
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { europe } = useSettings();
   const typed = useRef(false);
   const alive = useRef(true);
 
@@ -61,7 +63,7 @@ export default function PlaceField({ value, onChange, autoLocate }: Props) {
     if (!typed.current || query.trim().length < 2) return setSuggestions([]);
     const ctrl = new AbortController();
     const timer = setTimeout(() => {
-      searchCities(query.trim(), ctrl.signal)
+      searchCities(query.trim(), europe, ctrl.signal)
         .then(setSuggestions)
         .catch(() => {});
     }, 300);
@@ -69,7 +71,7 @@ export default function PlaceField({ value, onChange, autoLocate }: Props) {
       clearTimeout(timer);
       ctrl.abort();
     };
-  }, [query]);
+  }, [query, europe]);
 
   function type(text: string) {
     typed.current = true;
@@ -90,7 +92,7 @@ export default function PlaceField({ value, onChange, autoLocate }: Props) {
       <div className="place-input">
         <input
           type="text"
-          placeholder="Ville"
+          placeholder={europe ? 'Ville' : 'Ville ou code postal'}
           autoComplete="off"
           value={query}
           onChange={(e) => type(e.target.value)}

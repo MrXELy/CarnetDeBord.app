@@ -62,8 +62,67 @@ async function completeFrench(place: Place, signal?: AbortSignal): Promise<Place
   }
 }
 
-export async function searchCities(query: string, signal?: AbortSignal): Promise<Place[]> {
-  const url = `${PHOTON}/api/?q=${encodeURIComponent(query)}&lang=fr&limit=6&layer=city`;
+export interface Commune {
+  nom: string;
+  codeDepartement: string;
+  codesPostaux: string[];
+  centre?: { coordinates: [number, number] };
+  population?: number;
+}
+
+export function placeFromCommune(c: Commune, postcode?: string): Place {
+  return {
+    city: c.nom,
+    postcode: postcode ?? c.codesPostaux[0] ?? null,
+    department: c.codeDepartement,
+    country_code: 'FR',
+    lat: c.centre?.coordinates[1] ?? null,
+    lon: c.centre?.coordinates[0] ?? null,
+  };
+}
+
+/** « Saint-Étienne » → « saint etienne », pour comparer sans accents ni tirets. */
+const normalize = (s: string) =>
+  s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[-'’\s]+/g, ' ')
+    .trim();
+
+/**
+ * Classe les communes : nom exact d'abord, puis celles dont le nom commence par la saisie,
+ * puis les autres ; à égalité, la plus peuplée d'abord.
+ */
+export function rankCommunes(communes: Commune[], query: string): Commune[] {
+  const q = normalize(query);
+  const rank = (c: Commune) => {
+    const name = normalize(c.nom);
+    return name === q ? 0 : name.startsWith(q) ? 1 : 2;
+  };
+  return [...communes].sort((a, b) => rank(a) - rank(b) || (b.population ?? 0) - (a.population ?? 0));
+}
+
+/** Communes françaises (base officielle), par nom ou par code postal. */
+async function searchFrenchCities(query: string, signal?: AbortSignal): Promise<Place[]> {
+  const isPostcode = /^\d{5}$/.test(query);
+  // L'API favorise les noms courts : on demande large, puis on classe nous-mêmes.
+  const filter = isPostcode ? `codePostal=${query}` : `nom=${encodeURIComponent(query)}&boost=population&limit=50`;
+  const url = `https://geo.api.gouv.fr/communes?${filter}&fields=nom,codeDepartement,codesPostaux,centre,population`;
+  const res = await fetch(url, { signal });
+  if (!res.ok) throw new Error('Recherche de lieu impossible');
+  const communes: Commune[] = await res.json();
+  return rankCommunes(communes, query)
+    .slice(0, 6)
+    .map((c) => placeFromCommune(c, isPostcode ? query : undefined));
+}
+
+/** Rectangle couvrant l'Europe (ouest, sud, est, nord), pour écarter les homonymes du reste du monde. */
+const EUROPE_BBOX = '-25,34,45,72';
+
+export async function searchCities(query: string, europe: boolean, signal?: AbortSignal): Promise<Place[]> {
+  if (!europe) return searchFrenchCities(query, signal);
+  const url = `${PHOTON}/api/?q=${encodeURIComponent(query)}&lang=fr&limit=6&layer=city&bbox=${EUROPE_BBOX}`;
   const res = await fetch(url, { signal });
   if (!res.ok) throw new Error('Recherche de lieu impossible');
   const data: { features: PhotonFeature[] } = await res.json();

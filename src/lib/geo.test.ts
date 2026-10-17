@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { departmentFromPostcode, formatPlace, placeFromPhoton } from './geo';
+import { departmentFromPostcode, formatPlace, placeFromPhoton, rankCommunes } from './geo';
 
 describe('departmentFromPostcode', () => {
   it.each([
@@ -37,5 +37,22 @@ describe('placeFromPhoton', () => {
     });
     expect(p).toMatchObject({ city: 'Barcelona', department: null, country_code: 'ES' });
     expect(formatPlace(p)).toBe('Barcelona (ES)');
+  });
+});
+
+describe('rankCommunes', () => {
+  const c = (nom: string, population: number) => ({ nom, population, codeDepartement: '', codesPostaux: [] });
+
+  it('met le nom exact, puis les plus peuplées commençant par la saisie', () => {
+    const ranked = rankCommunes(
+      [c('Saint-Juvat', 663), c('Sainte-Julie', 1094), c('Saint-Junien', 11415), c('Saint-Just-Saint-Rambert', 15764)],
+      'saint-ju',
+    );
+    expect(ranked.map((x) => x.nom)).toEqual(['Saint-Just-Saint-Rambert', 'Saint-Junien', 'Saint-Juvat', 'Sainte-Julie']);
+  });
+
+  it('ignore accents et tirets', () => {
+    const ranked = rankCommunes([c('Saint-Étienne-du-Rouvray', 28000), c('Saint-Étienne', 173000)], 'saint etienne');
+    expect(ranked[0].nom).toBe('Saint-Étienne');
   });
 });
