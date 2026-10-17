@@ -6,7 +6,8 @@ Webapp PWA pour un chauffeur routier : noter les étapes de ses trajets (début 
 
 - **Réponds toujours en français.** L'utilisateur débute en développement : explique simplement.
 - **Avant tout `git push`** : lance le serveur de test local, donne l'adresse pour tester (PC et téléphone), puis **demande l'accord**. Ne jamais pousser sans accord explicite.
-- **Le dépôt GitHub est public** : aucune donnée personnelle dans les fichiers commités, tests compris (positions GPS réelles, lieux de base, noms de clients, immatriculations, nom de l'utilisateur). Dans les tests, utiliser des centres de villes publiques (Narbonne, Toulouse, Périgueux…) et des noms génériques. Vérifier le diff avant chaque commit.
+- **Le dépôt GitHub est public** : aucune donnée personnelle dans les fichiers commités, tests compris (positions GPS réelles, lieux de base, noms de clients, immatriculations, nom de l'utilisateur). Dans les tests, utiliser des centres de villes publiques (Narbonne, Toulouse, Périgueux…) et des noms génériques.
+- **Fuites vérifiées avec gitleaks** pour les secrets : avant chaque commit `gitleaks git --pre-commit --staged -v`, avant chaque push `gitleaks git --log-opts="origin/main..HEAD" -v`. Si gitleaks trouve quelque chose : ne pas commiter ni pousser, prévenir l'utilisateur. La clé publishable Supabase est ignorée via `.gitleaksignore` (normale, publique). gitleaks ne voit que les secrets : **relire aussi le diff** avant chaque commit pour les données personnelles (GPS, lieux, clients, immatriculations, nom).
 - **Aucune clé secrète dans le code.** La clé Anthropic est seulement dans les secrets Supabase (`ANTHROPIC_API_KEY`). La clé publishable Supabase de `src/config.ts` est publique par conception.
 - Style de code : Prettier avec `--single-quote --print-width 120`. Commentaires en français.
 
@@ -19,6 +20,7 @@ React 19, Vite, TypeScript, vite-plugin-pwa, date-fns (locale fr), lucide-react,
 - `npm install` : installer les dépendances.
 - `npx vite --host` : serveur de test, accessible depuis le téléphone sur le même Wi-Fi (adresse en `/CarnetDeBord.app/`).
 - `npm test` : tests (vitest). `npm run build` : vérification TypeScript et build.
+- `gitleaks git -v` : chercher des secrets dans tout l'historique (installé avec `brew install gitleaks`).
 - Mode démo local : ajouter `?demo` à l'adresse (seulement en développement). Il lit `data/demo-events.json` et ne contacte pas Supabase ; `?demo=reset` recharge les données.
 - Déployer la fonction Edge : `npx --yes supabase@2.121.0 functions deploy read-waybill --project-ref bjtqghlacclhbjjyarxj --use-api`.
 - Les migrations SQL (`supabase/migrations/`) sont lancées à la main par l'utilisateur dans l'éditeur SQL de Supabase.
