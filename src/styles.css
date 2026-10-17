@@ -473,12 +473,16 @@ legend { margin-bottom: 6px; }
   gap: 6px;
 }
 
-.place-input {
+.place-input,
+.input-with-btn {
   display: flex;
   gap: 8px;
 }
 
-.place-input .btn-secondary {
+.input-with-btn > input:not([hidden]) { flex: 1; min-width: 0; }
+
+.place-input .btn-secondary,
+.input-with-btn .btn-secondary {
   position: relative;
   flex: none;
   display: grid;

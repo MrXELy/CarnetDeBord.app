@@ -1,11 +1,12 @@
 import { parseISO } from 'date-fns';
-import { Camera, Pencil, Plus, X } from 'lucide-react';
+import { Camera, LoaderCircle, Pencil, Plus, X } from 'lucide-react';
 import { useRef, useState, type FormEvent } from 'react';
 import { toLocalInput } from '../lib/dates';
 import { formatPlace, resolveCity } from '../lib/geo';
 import { numText, parseNum } from '../lib/numbers';
+import { odometerMessage, readOdometerPhoto } from '../lib/odometer';
 import { useModal } from '../lib/useModal';
-import { useStore } from '../lib/useEvents';
+import { useEvents } from '../lib/useEvents';
 import { stepLabel } from '../lib/waybills';
 import {
   EVENT_TYPES,
@@ -27,6 +28,8 @@ interface Props {
   onClose: () => void;
 }
 
+type KmReading = { state: 'busy' | 'done' | 'error'; message: string } | null;
+
 type Editing = { waybill: Waybill; isNew: boolean; side: 'load' | 'delivery'; photo?: Blob } | null;
 
 /** Champs d'une LV qui comptent pour savoir si elle a changé (on ignore les dates de suivi). */
@@ -34,7 +37,7 @@ const sameWaybill = (a: Waybill, b: Waybill | undefined) =>
   !!b && JSON.stringify({ ...a, updated_at: '' }) === JSON.stringify({ ...b, updated_at: '' });
 
 export default function EventForm({ event, onClose }: Props) {
-  const store = useStore();
+  const { store, demo } = useEvents();
   const isNew = !event;
   const [eventId] = useState(() => event?.id ?? crypto.randomUUID());
   const [plates] = useState(() => store.lastPlates());
@@ -61,6 +64,8 @@ export default function EventForm({ event, onClose }: Props) {
   const [deliveryEdits, setDeliveryEdits] = useState<Map<string, Waybill>>(() => new Map());
   const [editing, setEditing] = useState<Editing>(null);
   const scanInput = useRef<HTMLInputElement>(null);
+  const kmCamera = useRef<HTMLInputElement>(null);
+  const [kmReading, setKmReading] = useState<KmReading>(null);
 
   useModal(onClose);
 
@@ -147,6 +152,29 @@ export default function EventForm({ event, onClose }: Props) {
         .catch(() => {});
     }
     onClose();
+  }
+
+  /** Lit le kilométrage sur une photo du chrono ou du compteur, puis remplit le champ (à vérifier). */
+  async function readKm(file: File) {
+    if (demo) return setKmReading({ state: 'error', message: 'Lecture indisponible en mode démo.' });
+    if (!navigator.onLine) {
+      return setKmReading({ state: 'error', message: 'Pas de réseau : saisis le kilométrage à la main.' });
+    }
+    setKmReading({ state: 'busy', message: 'Lecture du kilométrage…' });
+    try {
+      const read = await readOdometerPhoto(file);
+      if (read == null) {
+        return setKmReading({
+          state: 'error',
+          message: 'Kilométrage illisible : reprends la photo de plus près, ou saisis-le.',
+        });
+      }
+      setKm(String(read));
+      const { text, suspect } = odometerMessage(read, lastKm);
+      setKmReading({ state: suspect ? 'error' : 'done', message: text });
+    } catch (err) {
+      setKmReading({ state: 'error', message: err instanceof Error ? err.message : 'Lecture impossible' });
+    }
   }
 
   /** Un début de journée repart de la dernière fin de journée : le camion n'a normalement pas bougé. */
@@ -268,13 +296,43 @@ export default function EventForm({ event, onClose }: Props) {
 
             <label>
               Kilométrage
-              <input
-                type="text"
-                inputMode="numeric"
-                value={km}
-                onChange={(e) => setKm(e.target.value.replace(/\D/g, ''))}
-                placeholder="km au compteur"
-              />
+              <div className="input-with-btn">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={km}
+                  onChange={(e) => setKm(e.target.value.replace(/\D/g, ''))}
+                  placeholder="km au compteur"
+                />
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => kmCamera.current?.click()}
+                  disabled={kmReading?.state === 'busy'}
+                  title="Lire le km sur une photo"
+                >
+                  {kmReading?.state === 'busy' ? <LoaderCircle size={20} className="spin" /> : <Camera size={20} />}
+                  <span className="sr-only">Lire le km sur une photo</span>
+                </button>
+                <input
+                  ref={kmCamera}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  hidden
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (file) void readKm(file);
+                  }}
+                />
+              </div>
+              {kmReading && (
+                <span className={`reading reading-${kmReading.state}`}>
+                  {kmReading.state === 'busy' && <LoaderCircle size={16} className="spin" />}
+                  {kmReading.message}
+                </span>
+              )}
               {lastKm != null && (
                 <span className="hint">
                   Dernier relevé : {lastKm.toLocaleString('fr-FR')} km

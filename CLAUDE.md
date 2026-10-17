@@ -37,6 +37,7 @@ React 19, Vite, TypeScript, vite-plugin-pwa, date-fns (locale fr), lucide-react,
 - **Vue semaine** avec récap des km, navigation par glissement, liste « Choisir une semaine » groupée par mois et saut à une date.
 - **Lettres de voiture (LV)** : plusieurs par chargement, à compléter plus tard, choix des LV « dans le camion » à la livraison, page LV.
 - **Photos des LV et lecture automatique** par la fonction Edge `read-waybill`.
+- **Kilométrage en photo** : bouton appareil photo à côté du km ; la même fonction `read-waybill` (`kind: 'odometer'`, Haiku) lit l'écran du chrono (VDO DTCO à l'arrêt : « 123456.7km ») ou le compteur. Photo envoyée directement, non stockée, comptée dans les mêmes limites. Alerte si le km est inférieur au dernier relevé ou s'il y a plus de 2000 km d'écart.
 - **Cartes** de la semaine et du mois (accès au mois par « Carte du mois » dans la liste des semaines).
 - **Options** : mode Europe pour la recherche de villes, exports CSV (étapes et LV), compteur des lectures automatiques du mois.
 
@@ -46,6 +47,7 @@ React 19, Vite, TypeScript, vite-plugin-pwa, date-fns (locale fr), lucide-react,
 - **Itinéraires** : OSRM public, profil voiture, calculés **une seule fois** sur demande puis enregistrés (`week_maps`), simplifiés à quelques Ko ; bouton « Régénérer » si les étapes changent. Les étapes sans GPS sont placées au centre de leur ville. Lignes droites au choix.
 - **Carte du mois** : un mois = les semaines rangées sous ce mois dans la liste (mois de leur **lundi**), entières ; elle réutilise les cartes des semaines. Une couleur par semaine, points sans numéro, pas de flèches.
 - **Lecture des LV** : Claude Haiku par défaut (peu cher), bouton « Relire en mode fiable » avec Opus. Limites côté serveur : 2 lectures par photo, 30 par jour, 300 par mois. Alias de chargeurs (ETEX → Siniat).
+- **Kilométrage automatique** : le Bluetooth du chrono (DTCO 4.1, interface ITS) demanderait une appli native et rien ne garantit qu'il donne le km ; on lit une photo de l'écran du chrono à la place. Fichier `.ddd` de la carte conducteur : piste possible plus tard pour vérifier les km.
 - **Mode démo** (`?demo`) uniquement en développement, sans aucun appel à Supabase.
 - **Thème sombre**, icônes sobres (lucide), boutons de type petits et de même taille, débuts et fins de journée discrets.
 

@@ -1,6 +1,8 @@
 // Lecture automatique d'une photo de lettre de voiture avec Claude.
 // Lecture économique par défaut : Claude Haiku 5.5 (imprimé comme manuscrit).
 // « Relire en mode fiable » : Claude Opus 5.5.
+// Lit aussi le kilométrage sur une photo du chronotachygraphe ou du compteur (kind = 'odometer') :
+// la photo est alors envoyée directement dans la requête, sans être stockée.
 //
 // Garde-fous (imposés ici, côté serveur, même si l'appli a un bug) :
 //   - 2 lectures maximum par photo, 30 par jour, 300 par mois et par utilisateur ;
@@ -54,6 +56,13 @@ Extrais uniquement ce qui est réellement écrit sur le document :
 
 Si une information est absente, illisible ou incertaine, mets null : n'invente jamais rien. Si la photo montre d'autres papiers autour de la lettre, ignore-les.`;
 
+const ODOMETER_SYSTEM = `Tu lis le kilométrage total d'un camion sur une photo : écran du chronotachygraphe (par exemple VDO DTCO, qui affiche à l'arrêt une ligne du type « 123456.7km ») ou compteur du tableau de bord.
+
+- odometer_km : le kilométrage total du véhicule, en km, tel qu'il est affiché. Le point ou la virgule sépare les dixièmes : « 123456.7km » → 123456.7. Les espaces séparent les milliers : « 123 456 km » → 123456.
+- Ne confonds pas avec : la vitesse (km/h), l'heure, un compteur journalier ou partiel (« trip », « A », « B »), l'autonomie restante, ni les temps de conduite (« 00h32 »).
+
+Si le kilométrage est absent, flou, coupé ou si un seul chiffre est incertain, mets null : n'invente jamais rien.`;
+
 const nullable = (type: 'string' | 'number') => ({ type: [type, 'null'] });
 const SCHEMA = {
   type: 'object',
@@ -82,6 +91,13 @@ const SCHEMA = {
   additionalProperties: false,
 };
 
+const ODOMETER_SCHEMA = {
+  type: 'object',
+  properties: { odometer_km: nullable('number') },
+  required: ['odometer_km'],
+  additionalProperties: false,
+};
+
 function reply(status: number, body: unknown) {
   return new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 }
@@ -102,13 +118,38 @@ Deno.serve(async (req) => {
   const user = auth.user;
   if (!user) return reply(401, { error: 'Non connecté' });
 
-  const body = (await req.json().catch(() => ({}))) as { path?: unknown; mode?: unknown };
-  const path = body.path;
-  if (typeof path !== 'string' || !new RegExp(`^${user.id}/[\\w-]+/[\\w-]+\\.jpg$`).test(path)) {
-    return reply(400, { error: 'Photo invalide' });
+  const body = (await req.json().catch(() => ({}))) as {
+    path?: unknown;
+    mode?: unknown;
+    kind?: unknown;
+    id?: unknown;
+    image?: unknown;
+  };
+  const odometer = body.kind === 'odometer';
+  let path: string;
+  let image: string | null = null;
+  if (odometer) {
+    // Photo du kilométrage : envoyée en base64, rangée dans le journal sous « <id utilisateur>/odometer/<id> ».
+    const { id, image: data } = body;
+    if (
+      typeof id !== 'string' ||
+      !/^[\w-]{1,64}$/.test(id) ||
+      typeof data !== 'string' ||
+      data.length > (MAX_PHOTO_BYTES * 4) / 3 + 4 ||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(data)
+    ) {
+      return reply(400, { error: 'Photo invalide' });
+    }
+    path = `${user.id}/odometer/${id}`;
+    image = data;
+  } else {
+    if (typeof body.path !== 'string' || !new RegExp(`^${user.id}/[\\w-]+/[\\w-]+\\.jpg$`).test(body.path)) {
+      return reply(400, { error: 'Photo invalide' });
+    }
+    path = body.path;
   }
-  // Lecture économique par défaut ; le modèle le plus fiable seulement s'il est demandé.
-  const mode: Mode = body.mode === 'handwritten' ? 'handwritten' : 'printed';
+  // Lecture économique par défaut ; le modèle le plus fiable seulement s'il est demandé (LV seulement).
+  const mode: Mode = !odometer && body.mode === 'handwritten' ? 'handwritten' : 'printed';
 
   // 2. Limites, vérifiées avant toute dépense.
   const now = new Date();
@@ -145,11 +186,14 @@ Deno.serve(async (req) => {
   const finish = (fields: Record<string, unknown>) => admin.from('ocr_usage').update(fields).eq('id', row.id);
 
   try {
-    // 4. Photo, téléchargée avec les droits de l'utilisateur.
-    const { data: blob, error: downloadError } = await asUser.storage.from('waybill-photos').download(path);
-    if (downloadError || !blob) throw new Error('Photo introuvable dans le stockage');
-    if (blob.size > MAX_PHOTO_BYTES) throw new Error('Photo trop lourde');
-    const data = encodeBase64(new Uint8Array(await blob.arrayBuffer()));
+    // 4. Photo : reçue dans la requête (kilométrage), ou téléchargée avec les droits de l'utilisateur (LV).
+    let data = image;
+    if (data == null) {
+      const { data: blob, error: downloadError } = await asUser.storage.from('waybill-photos').download(path);
+      if (downloadError || !blob) throw new Error('Photo introuvable dans le stockage');
+      if (blob.size > MAX_PHOTO_BYTES) throw new Error('Photo trop lourde');
+      data = encodeBase64(new Uint8Array(await blob.arrayBuffer()));
+    }
 
     // 5. Lecture par Claude.
     const client = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY'), maxRetries: 1, timeout: 60_000 });
@@ -160,14 +204,14 @@ Deno.serve(async (req) => {
       ...(mode === 'handwritten'
         ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const }
         : {}),
-      output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
-      system: SYSTEM,
+      output_config: { effort: 'low', format: { type: 'json_schema', schema: odometer ? ODOMETER_SCHEMA : SCHEMA } },
+      system: odometer ? ODOMETER_SYSTEM : SYSTEM,
       messages: [
         {
           role: 'user',
           content: [
             { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data } },
-            { type: 'text', text: 'Lis cette lettre de voiture.' },
+            { type: 'text', text: odometer ? 'Lis le kilométrage.' : 'Lis cette lettre de voiture.' },
           ],
         },
       ],

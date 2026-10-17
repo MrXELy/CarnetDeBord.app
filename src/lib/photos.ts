@@ -114,11 +114,16 @@ export interface WaybillReading {
  * Lit une photo déjà envoyée. Une seule tentative : jamais de nouvel essai automatique
  * (le serveur limite de toute façon à 2 lectures par photo).
  */
-export async function readWaybillPhoto(
+export function readWaybillPhoto(
   path: string,
   mode: LetterKind,
 ): Promise<{ reading: WaybillReading; cost_usd: number }> {
-  const { data, error } = await supabase.functions.invoke('read-waybill', { body: { path, mode } });
+  return invokeReader({ path, mode });
+}
+
+/** Appelle la fonction de lecture et traduit ses erreurs en messages lisibles. */
+export async function invokeReader<T>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke('read-waybill', { body });
   if (error) {
     if (error instanceof FunctionsHttpError) {
       const body = await error.context.json().catch(() => null);
