@@ -1,4 +1,5 @@
 import { addWeeks, isSameDay } from 'date-fns';
+import { ChevronLeft, ChevronRight, LogOut, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { groupWeek, weekLabel, weekStart } from '../lib/dates';
 import { supabase } from '../lib/supabase';
@@ -28,19 +29,19 @@ export default function WeekView() {
             aria-label="Se déconnecter"
             onClick={() => confirm('Se déconnecter ?') && supabase.auth.signOut()}
           >
-            ⏻
+            <LogOut size={20} />
           </button>
         </div>
         <nav className="week-nav">
           <button className="icon-btn" aria-label="Semaine précédente" onClick={() => setStart(addWeeks(start, -1))}>
-            ‹
+            <ChevronLeft size={24} />
           </button>
           <button className="week-title" onClick={() => setStart(weekStart(new Date()))} disabled={isCurrentWeek}>
             {weekLabel(start)}
             {!isCurrentWeek && <small>Revenir à cette semaine</small>}
           </button>
           <button className="icon-btn" aria-label="Semaine suivante" onClick={() => setStart(addWeeks(start, 1))}>
-            ›
+            <ChevronRight size={24} />
           </button>
         </nav>
       </header>
@@ -59,7 +60,7 @@ export default function WeekView() {
       </main>
 
       <button className="fab" aria-label="Nouvelle étape" onClick={() => setEditing({ event: null })}>
-        +
+        <Plus size={32} strokeWidth={2.5} />
       </button>
 
       {editing && <EventForm event={editing.event} onClose={() => setEditing(null)} />}

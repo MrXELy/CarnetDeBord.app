@@ -1,4 +1,5 @@
 import { parseISO } from 'date-fns';
+import { X } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { toLocalInput } from '../lib/dates';
 import { useStore } from '../lib/useEvents';
@@ -115,7 +116,7 @@ export default function EventForm({ event, onClose }: Props) {
       <form className="modal" onSubmit={submit} onClick={(e) => e.stopPropagation()}>
         <header className="modal-header">
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Fermer">
-            ✕
+            <X size={22} />
           </button>
           <h2>{isNew ? 'Nouvelle étape' : 'Modifier l’étape'}</h2>
           <button className="btn-primary btn-small">Enregistrer</button>

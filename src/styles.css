@@ -110,7 +110,6 @@ textarea { resize: vertical; }
   color: var(--muted);
 }
 
-.icon-btn:hover { background: var(--surface-2); color: var(--text); }
 
 /* ---------- Connexion ---------- */
 .login {
@@ -236,7 +235,6 @@ textarea { resize: vertical; }
   border-radius: var(--radius);
 }
 
-.card:hover { background: var(--surface-2); }
 
 /* Icônes sobres, toutes de la même couleur */
 .event-icon { flex: none; color: var(--muted); }
@@ -259,7 +257,6 @@ textarea { resize: vertical; }
   text-align: left;
 }
 
-.marker:hover { background: var(--surface); }
 .marker-type { font-weight: 600; color: var(--tone); }
 .marker-time { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
 
@@ -320,10 +317,11 @@ textarea { resize: vertical; }
   height: 64px;
   border: none;
   border-radius: 50%;
+  display: grid;
+  place-items: center;
+  padding: 0;
   background: var(--accent);
   color: var(--accent-text);
-  font-size: 2.2rem;
-  line-height: 1;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
@@ -509,5 +507,15 @@ legend { margin-bottom: 6px; }
   text-align: left;
 }
 
-.suggestions button:hover { background: var(--surface); }
 .suggestions .muted { font-size: 0.8rem; }
+
+/* Survol uniquement avec une souris : sur écran tactile, l'effet resterait collé après un appui. */
+@media (hover: hover) {
+  .icon-btn:hover { background: var(--surface-2); color: var(--text); }
+  .card:hover { background: var(--surface-2); }
+  .marker:hover { background: var(--surface); }
+  .suggestions button:hover { background: var(--surface); }
+}
+
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }

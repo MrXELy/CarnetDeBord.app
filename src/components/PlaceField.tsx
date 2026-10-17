@@ -1,3 +1,4 @@
+import { LoaderCircle, LocateFixed } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { formatPlace, locateMe, searchCities } from '../lib/geo';
 import type { Place } from '../types';
@@ -96,7 +97,7 @@ export default function PlaceField({ value, onChange, autoLocate }: Props) {
           onBlur={() => setTimeout(() => setSuggestions([]), 150)}
         />
         <button type="button" className="btn-secondary" onClick={locate} disabled={locating} title="Me localiser">
-          {locating ? '…' : '📍'}
+          {locating ? <LoaderCircle size={20} className="spin" /> : <LocateFixed size={20} />}
           <span className="sr-only">Me localiser</span>
         </button>
       </div>
