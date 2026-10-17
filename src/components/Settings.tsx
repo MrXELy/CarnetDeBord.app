@@ -7,7 +7,7 @@ import { useEvents } from '../lib/useEvents';
 import { useModal } from '../lib/useModal';
 
 export default function Settings({ onClose }: { onClose: () => void }) {
-  const { events, waybills } = useEvents();
+  const { events, waybills, demo } = useEvents();
   const { europe } = useSettings();
 
   useModal(onClose);
@@ -15,8 +15,10 @@ export default function Settings({ onClose }: { onClose: () => void }) {
   // Nombre et coût des lectures du mois (undefined : chargement ; null : hors ligne ou indisponible).
   const [usage, setUsage] = useState<{ count: number; cost: number } | null | undefined>(undefined);
   useEffect(() => {
+    // Mode démo : rien n'est demandé à Supabase.
+    if (demo) return setUsage(null);
     monthUsage().then(setUsage, () => setUsage(null));
-  }, []);
+  }, [demo]);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
