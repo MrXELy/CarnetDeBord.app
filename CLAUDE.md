@@ -28,5 +28,26 @@ React 19, Vite, TypeScript, vite-plugin-pwa, date-fns (locale fr), lucide-react,
 
 - `src/lib/sync.ts` : synchro hors ligne d'abord (cache localStorage, file d'envoi), `EventStore`.
 - `src/lib/dates.ts` : la semaine commence le **dimanche à 22h**.
-- `src/components/WeekMap.tsx` : carte de la semaine (SVG, itinéraires OSRM générés une fois et enregistrés dans `week_maps`).
+- `src/components/MapSvg.tsx` : dessin commun des cartes (fond IGN, villes repères, tracés, export PNG).
+- `src/components/WeekMap.tsx` et `MonthMap.tsx` : cartes de la semaine et du mois ; `src/lib/weekMapGen.ts` calcule et enregistre les itinéraires d'une semaine.
+
+## Fonctions livrées
+
+- **Étapes** : début et fin de journée, chargement, livraison, carburant (Doumen, AS24, DKV ; gasoil, AdBlue). Immatriculations reprises automatiquement ; le début de journée reprend le km de la fin de journée précédente. Lieu par GPS ou autocomplétion (Photon, geo.api.gouv.fr).
+- **Vue semaine** avec récap des km, navigation par glissement, liste « Choisir une semaine » groupée par mois et saut à une date.
+- **Lettres de voiture (LV)** : plusieurs par chargement, à compléter plus tard, choix des LV « dans le camion » à la livraison, page LV.
+- **Photos des LV et lecture automatique** par la fonction Edge `read-waybill`.
+- **Cartes** de la semaine et du mois (accès au mois par « Carte du mois » dans la liste des semaines).
+- **Options** : mode Europe pour la recherche de villes, exports CSV (étapes et LV), compteur des lectures automatiques du mois.
+
+## Choix déjà faits (ne pas reproposer sans raison nouvelle)
+
+- **Chronologie Google abandonnée** (vrais trajets GPS) : pas d'API, export manuel seulement, recalage OSRM peu fiable. L'utilisateur a choisi de faire sans.
+- **Itinéraires** : OSRM public, profil voiture, calculés **une seule fois** sur demande puis enregistrés (`week_maps`), simplifiés à quelques Ko ; bouton « Régénérer » si les étapes changent. Les étapes sans GPS sont placées au centre de leur ville. Lignes droites au choix.
+- **Carte du mois** : un mois = les semaines rangées sous ce mois dans la liste (mois de leur **lundi**), entières ; elle réutilise les cartes des semaines. Une couleur par semaine, points sans numéro, pas de flèches.
+- **Lecture des LV** : Claude Haiku par défaut (peu cher), bouton « Relire en mode fiable » avec Opus. Limites côté serveur : 2 lectures par photo, 30 par jour, 300 par mois. Alias de chargeurs (ETEX → Siniat).
+- **Mode démo** (`?demo`) uniquement en développement, sans aucun appel à Supabase.
+- **Thème sombre**, icônes sobres (lucide), boutons de type petits et de même taille, débuts et fins de journée discrets.
+
+Après chaque nouvelle fonction ou décision importante, **mettre à jour ces deux sections**.
 - `data/` : exclu de GitHub (données réelles pour le mode démo). Ne jamais le committer ni recopier son contenu ailleurs dans le dépôt.
