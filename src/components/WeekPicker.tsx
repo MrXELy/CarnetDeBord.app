@@ -11,11 +11,13 @@ interface Props {
   onPick: (start: Date) => void;
   /** Ouvre la carte d'un mois (« Janvier 2026 »). */
   onMonthMap: (month: string) => void;
+  /** Ouvre la carte d'une semaine. */
+  onWeekMap: (start: Date) => void;
   onClose: () => void;
 }
 
 /** Liste des semaines travaillées, groupées par mois, et saut à une date. */
-export default function WeekPicker({ current, onPick, onMonthMap, onClose }: Props) {
+export default function WeekPicker({ current, onPick, onMonthMap, onWeekMap, onClose }: Props) {
   const { events } = useEvents();
   const weeks = useMemo(() => listWeeks(events), [events]);
   const selected = useRef<HTMLButtonElement>(null);
@@ -103,19 +105,31 @@ export default function WeekPicker({ current, onPick, onMonthMap, onClose }: Pro
                 {m.weeks.map((w) => {
                   const isCurrent = isSameDay(w.start, current);
                   return (
-                    <button
-                      type="button"
-                      key={w.start.getTime()}
-                      ref={isCurrent ? selected : undefined}
-                      className={`week-row${isCurrent ? ' selected' : ''}`}
-                      onClick={() => pick(w.start)}
-                    >
-                      <span className="week-row-title">{weekLabel(w.start)}</span>
-                      <span className="week-row-meta">
-                        {w.km != null && `${w.km.toLocaleString('fr-FR')} km · `}
-                        {w.count} étape{w.count > 1 ? 's' : ''}
-                      </span>
-                    </button>
+                    <div className="week-line" key={w.start.getTime()}>
+                      <button
+                        type="button"
+                        ref={isCurrent ? selected : undefined}
+                        className={`week-row${isCurrent ? ' selected' : ''}`}
+                        onClick={() => pick(w.start)}
+                      >
+                        <span className="week-row-title">{weekLabel(w.start)}</span>
+                        {/* Une seule ligne sur téléphone : les km, ou à défaut le nombre d'étapes. */}
+                        <span className="week-row-meta">
+                          {w.km != null
+                            ? `${w.km.toLocaleString('fr-FR')} km`
+                            : `${w.count} étape${w.count > 1 ? 's' : ''}`}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-btn week-map-btn"
+                        onClick={() => onWeekMap(w.start)}
+                        title="Carte de la semaine"
+                        aria-label={`Carte de la ${weekLabel(w.start).toLowerCase()}`}
+                      >
+                        <MapIcon size={18} />
+                      </button>
+                    </div>
                   );
                 })}
               </section>

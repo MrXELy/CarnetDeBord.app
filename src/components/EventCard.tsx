@@ -3,7 +3,6 @@ import { formatPlace } from '../lib/geo';
 import { useStore } from '../lib/useEvents';
 import { namesOf } from '../lib/waybills';
 import { eventTypeInfo, isDayBoundary, waybillStatus, type TripEvent } from '../types';
-import EventIcon from './EventIcon';
 
 const litres = (n: number) => `${n.toLocaleString('fr-FR')} L`;
 
@@ -16,7 +15,7 @@ export default function EventCard({ event: e, onOpen }: { event: TripEvent; onOp
   if (isDayBoundary(e.type)) {
     return (
       <button className={`marker tone-${e.type}`} onClick={onOpen}>
-        <EventIcon type={e.type} size={16} className="event-icon" />
+        <span className="dot" aria-hidden />
         <span className="marker-type">{info.short}</span>
         <span className="marker-time">{timeLabel(e.occurred_at)}</span>
         <span className="marker-place">{formatPlace(e)}</span>
@@ -46,7 +45,7 @@ export default function EventCard({ event: e, onOpen }: { event: TripEvent; onOp
 
   return (
     <button className={`card tone-${e.type}`} onClick={onOpen}>
-      <EventIcon type={e.type} className="event-icon card-icon" />
+      <span className="dot" aria-hidden />
       <span className="card-body">
         <span className="card-top">
           <span className="card-type">{info.label}</span>

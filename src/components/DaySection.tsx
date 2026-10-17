@@ -1,8 +1,16 @@
+import type { CSSProperties } from 'react';
 import { dayLabel, durationLabel, summarizeDay, type Day } from '../lib/dates';
 import type { TripEvent } from '../types';
 import EventCard from './EventCard';
 
-export default function DaySection({ day, onOpen }: { day: Day; onOpen: (e: TripEvent) => void }) {
+interface Props {
+  day: Day;
+  /** Rang du jour dans la semaine : décale l'apparition de ses étapes. */
+  index: number;
+  onOpen: (e: TripEvent) => void;
+}
+
+export default function DaySection({ day, index, onOpen }: Props) {
   const { km, amplitude } = summarizeDay(day.events);
   return (
     <section className="day">
@@ -14,8 +22,8 @@ export default function DaySection({ day, onOpen }: { day: Day; onOpen: (e: Trip
         </span>
       </h2>
       <ol className="timeline">
-        {day.events.map((e) => (
-          <li key={e.id}>
+        {day.events.map((e, i) => (
+          <li key={e.id} className="rise" style={{ '--i': index * 3 + i } as CSSProperties}>
             <EventCard event={e} onOpen={() => onOpen(e)} />
           </li>
         ))}

@@ -6,6 +6,9 @@ import { updateSettings, useSettings } from '../lib/settings';
 import { useEvents } from '../lib/useEvents';
 import { useModal } from '../lib/useModal';
 
+/** Lectures automatiques permises par mois (limite imposée par la fonction read-waybill). */
+const MONTH_LIMIT = 300;
+
 export default function Settings({ onClose }: { onClose: () => void }) {
   const { events, waybills, demo } = useEvents();
   const { europe } = useSettings();
@@ -39,7 +42,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
                 <span className="hint">
                   {europe
                     ? 'Suggestions dans toute l’Europe.'
-                    : 'Suggestions en France uniquement (recherche aussi par code postal).'}
+                    : 'Suggestions en France uniquement.'}
                 </span>
               </span>
               <input
@@ -92,20 +95,30 @@ export default function Settings({ onClose }: { onClose: () => void }) {
 
           <section className="settings-group">
             <h3>Lecture automatique des LV</h3>
-            <div className="setting-row">
-              <span className="setting-text">
-                <span className="setting-title">
-                  {usage === undefined
-                    ? 'Lectures ce mois-ci…'
-                    : usage === null
-                      ? 'Lectures ce mois-ci : indisponible'
-                      : `Lectures ce mois-ci : ${usage.count} · ≈ ${usage.cost.toLocaleString('fr-FR', {
-                          style: 'currency',
-                          currency: 'USD',
-                          maximumFractionDigits: 2,
-                        })}`}
-                </span>
-                <span className="hint">Limites : 2 lectures par photo, 30 par jour, 300 par mois.</span>
+            <div className="setting-row usage">
+              <span className="usage-head">
+                <span className="setting-title">Lectures ce mois-ci</span>
+                {usage && (
+                  <span className="hint">
+                    ≈{' '}
+                    {usage.cost.toLocaleString('fr-FR', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })}
+                  </span>
+                )}
+              </span>
+              {usage ? (
+                <>
+                  <span className="usage-count">
+                    <strong>{usage.count}</strong> sur {MONTH_LIMIT}
+                  </span>
+                  <span className="usage-bar" role="img" aria-label={`${usage.count} lectures sur ${MONTH_LIMIT}`}>
+                    <i style={{ width: `${Math.min(100, (usage.count / MONTH_LIMIT) * 100)}%` }} />
+                  </span>
+                </>
+              ) : (
+                <span className="hint">{usage === undefined ? 'Chargement…' : 'Indisponible'}</span>
+              )}
+              <span className="hint">
+                Limites : 2 lectures par photo, 30 par jour, {MONTH_LIMIT} par mois. Compte aussi les lectures de km.
               </span>
             </div>
           </section>

@@ -78,7 +78,7 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
           </header>
 
           <div className="modal-body">
-            <div className="segmented">
+            <div className="segmented stacked">
               {FILTERS.map((f) => (
                 <button
                   type="button"
@@ -86,7 +86,8 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
                   className={filter === f.value ? 'selected' : ''}
                   onClick={() => setFilter(f.value)}
                 >
-                  {f.label} <span className="segmented-count">{count(f.value)}</span>
+                  <span className="segmented-count">{count(f.value)}</span>
+                  <span className="segmented-label">{f.label}</span>
                 </button>
               ))}
             </div>
@@ -113,6 +114,7 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
                     key={w.id}
                     waybill={w}
                     onClick={() => setEditing(w)}
+                    showStatus
                   />
                 ))}
               </div>

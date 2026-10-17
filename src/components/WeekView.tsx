@@ -5,15 +5,14 @@ import {
   ChevronRight,
   FileText,
   LogOut,
-  Map as MapIcon,
   Plus,
   Settings as SettingsIcon,
 } from 'lucide-react';
 import { Suspense, lazy, useMemo, useRef, useState, type TouchEvent } from 'react';
-import { groupWeek, summarizeWeek, weekLabel, weekStart } from '../lib/dates';
+import { durationLabel, groupWeek, summarizeDay, summarizeWeek, weekLabel, weekStart } from '../lib/dates';
 import { supabase } from '../lib/supabase';
 import { useEvents } from '../lib/useEvents';
-import { waybillStatus, type TripEvent } from '../types';
+import { isDayBoundary, waybillStatus, type TripEvent } from '../types';
 import DaySection from './DaySection';
 import EventForm from './EventForm';
 import Settings from './Settings';
@@ -29,6 +28,8 @@ type Editing = { event: TripEvent | null } | null;
 export default function WeekView() {
   const { events, waybills, pending, syncing, online, error, demo, store } = useEvents();
   const [start, setStart] = useState(() => weekStart(new Date()));
+  // Sens de l'animation au changement de semaine : glisse depuis la droite (suivante) ou la gauche (précédente).
+  const [slide, setSlide] = useState<'next' | 'prev' | 'fade'>('fade');
   const [editing, setEditing] = useState<Editing>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [waybillFilter, setWaybillFilter] = useState<WaybillFilter | null>(null);
@@ -38,9 +39,22 @@ export default function WeekView() {
   const touch = useRef<{ x: number; y: number } | null>(null);
   const days = useMemo(() => groupWeek(events, start), [events, start]);
   const week = useMemo(() => summarizeWeek(days.flatMap((d) => d.events)), [days]);
+  // Amplitude totale des journées complètes, et nombre d'opérations (sans les débuts et fins de journée).
+  const amplitude = days.reduce((sum, d) => sum + (summarizeDay(d.events).amplitude ?? 0), 0);
+  const steps = days.reduce((n, d) => n + d.events.filter((e) => !isDayBoundary(e.type)).length, 0);
   const isCurrentWeek = isSameDay(start, weekStart(new Date()));
   const toComplete = waybills.filter((w) => waybillStatus(w) === 'a_completer').length;
   const inTruck = store.inTruck(new Date()).length;
+
+  function goWeek(delta: number) {
+    setSlide(delta > 0 ? 'next' : 'prev');
+    setStart(addWeeks(start, delta));
+  }
+
+  function pickWeek(week: Date) {
+    setSlide(week > start ? 'next' : week < start ? 'prev' : 'fade');
+    setStart(week);
+  }
 
   // Glisser du doigt sur les jours : vers la droite → semaine précédente, vers la gauche → suivante.
   function onTouchStart(e: TouchEvent) {
@@ -56,11 +70,16 @@ export default function WeekView() {
     const dx = t.clientX - from.x;
     const dy = t.clientY - from.y;
     // Geste nettement horizontal, pour ne pas changer de semaine en faisant défiler la page.
-    if (Math.abs(dx) > 60 && Math.abs(dx) > 1.5 * Math.abs(dy)) setStart(addWeeks(start, dx > 0 ? -1 : 1));
+    if (Math.abs(dx) > 60 && Math.abs(dx) > 1.5 * Math.abs(dy)) goWeek(dx > 0 ? -1 : 1);
   }
 
   return (
-    <div className="app">
+    <div className={`app${isCurrentWeek && inTruck > 0 ? ' has-links' : ''}`}>
+      <div className="halos" aria-hidden>
+        <i />
+        <i />
+        <i />
+      </div>
       <header className="topbar">
         <div className="topbar-row">
           <span className="brand">CarnetDeBord</span>
@@ -97,57 +116,51 @@ export default function WeekView() {
           </button>
         </div>
         <nav className="week-nav">
-          <button className="icon-btn" aria-label="Semaine précédente" onClick={() => setStart(addWeeks(start, -1))}>
-            <ChevronLeft size={24} />
+          <button className="round-btn" aria-label="Semaine précédente" onClick={() => goWeek(-1)}>
+            <ChevronLeft size={22} />
           </button>
-          <div className="week-center">
+          <div className={`week-center slide-${slide}`} key={start.getTime()}>
             <button className="week-title" onClick={() => setPickingWeek(true)} aria-label="Choisir une semaine">
               {weekLabel(start)}
-              <ChevronDown size={18} className="week-title-chevron" aria-hidden />
+              {week.inProgress && isCurrentWeek && ' · en cours'}
+              <ChevronDown size={16} className="week-title-chevron" aria-hidden />
             </button>
+            <span className={`week-km${week.km == null ? ' empty-km' : ''}`}>
+              {week.km != null ? `${week.km.toLocaleString('fr-FR')} km` : 'Aucun km'}
+            </span>
+            <span className="week-sub">
+              {amplitude > 0 && `${durationLabel(amplitude)} d’amplitude · `}
+              {steps} étape{steps > 1 ? 's' : ''}
+            </span>
           </div>
-          <button className="icon-btn" aria-label="Semaine suivante" onClick={() => setStart(addWeeks(start, 1))}>
-            <ChevronRight size={24} />
+          <button className="round-btn" aria-label="Semaine suivante" onClick={() => goWeek(1)}>
+            <ChevronRight size={22} />
           </button>
         </nav>
-        <p className="week-recap">
-          {week.km != null ? (
-            <>
-              <strong>{week.km.toLocaleString('fr-FR')} km</strong> parcourus
-              {week.inProgress && isCurrentWeek && ' · en cours'}
-            </>
-          ) : (
-            'Aucun kilométrage cette semaine'
-          )}
-          {days.length > 0 && (
-            <>
-              {' · '}
-              <button className="recap-link recap-map" onClick={() => setShowMap(true)}>
-                <MapIcon size={14} aria-hidden />
-                Carte
-              </button>
-            </>
-          )}
-          {isCurrentWeek && inTruck > 0 && (
-            <>
-              {' · '}
-              <button className="recap-link" onClick={() => setWaybillFilter('dans_camion')}>
-                {inTruck} LV dans le camion
-              </button>
-            </>
-          )}
-        </p>
+        {isCurrentWeek && inTruck > 0 && (
+          <div className="week-links">
+            <button className="pill" onClick={() => setWaybillFilter('dans_camion')}>
+              <FileText size={14} aria-hidden />
+              {inTruck} LV dans le camion
+            </button>
+          </div>
+        )}
       </header>
 
-      <main className="days" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <main
+        className={`days slide-${slide}`}
+        key={start.getTime()}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
         {days.length === 0 ? (
           <div className="empty">
             <p>Aucune étape cette semaine.</p>
             {isCurrentWeek && <p className="muted">Appuie sur « + » pour commencer ta journée.</p>}
           </div>
         ) : (
-          days.map((day) => (
-            <DaySection key={day.date.getTime()} day={day} onOpen={(event) => setEditing({ event })} />
+          days.map((day, i) => (
+            <DaySection key={day.date.getTime()} day={day} index={i} onOpen={(event) => setEditing({ event })} />
           ))
         )}
       </main>
@@ -162,10 +175,15 @@ export default function WeekView() {
       {pickingWeek && (
         <WeekPicker
           current={start}
-          onPick={setStart}
+          onPick={pickWeek}
           onMonthMap={(month) => {
             setPickingWeek(false);
             setMonthMap(month);
+          }}
+          onWeekMap={(week) => {
+            setPickingWeek(false);
+            pickWeek(week);
+            setShowMap(true);
           }}
           onClose={() => setPickingWeek(false)}
         />
@@ -176,7 +194,7 @@ export default function WeekView() {
             month={monthMap}
             onPickWeek={(week) => {
               setMonthMap(null);
-              setStart(week);
+              pickWeek(week);
             }}
             onEdit={(event) => {
               setMonthMap(null);

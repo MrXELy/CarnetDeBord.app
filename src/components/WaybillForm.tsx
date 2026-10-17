@@ -168,6 +168,10 @@ export default function WaybillForm({ waybill, isNew, context, initialPhoto, onS
     }
   }
 
+  /** Étiquette « LU » sur un champ encore tel que la lecture automatique l'a rempli. */
+  const readTag = (key: keyof ReadableFields, value: string) =>
+    value.trim() !== '' && fromReading.current[key] === value && <span className="read-tag">LU</span>;
+
   const last = photos[photos.length - 1];
   const canRead = last && reading.state !== 'busy' && !read.has(last);
   // Après une lecture économique (réussie ou non) : possibilité de relire avec le modèle le plus fiable.
@@ -187,7 +191,7 @@ export default function WaybillForm({ waybill, isNew, context, initialPhoto, onS
           </header>
 
           <div className="modal-body">
-            {context && <p className="hint">{context}</p>}
+            {context && <p className="context-pill">{context}</p>}
 
             <div className="label">
               Photos
@@ -242,7 +246,7 @@ export default function WaybillForm({ waybill, isNew, context, initialPhoto, onS
             </div>
 
             <label>
-              N° lettre de voiture
+              <span className="label-line">N° lettre de voiture{readTag('number', number)}</span>
               <input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="À compléter plus tard" />
             </label>
 
@@ -253,27 +257,29 @@ export default function WaybillForm({ waybill, isNew, context, initialPhoto, onS
             </datalist>
 
             <label>
-              Client chargeur (expéditeur)
+              <span className="label-line">Client chargeur (expéditeur){readTag('shipper', shipper)}</span>
               <input list="known-names" value={shipper} onChange={(e) => setShipper(e.target.value)} />
             </label>
 
             <label>
-              Client destinataire
+              <span className="label-line">Client destinataire{readTag('consignee', consignee)}</span>
               <input list="known-names" value={consignee} onChange={(e) => setConsignee(e.target.value)} />
             </label>
 
             <div className="label">
-              Ville de livraison prévue
+              <span className="label-line">
+                Ville de livraison prévue{readTag('planned_city', plannedText(planned))}
+              </span>
               <PlaceField key={plannedKey} value={planned} onChange={setPlanned} />
             </div>
 
             <div className="row">
               <label>
-                Marchandise
+                <span className="label-line">Marchandise{readTag('goods', goods)}</span>
                 <input value={goods} onChange={(e) => setGoods(e.target.value)} placeholder="Palettes de plâtre…" />
               </label>
               <label>
-                Poids (kg)
+                <span className="label-line">Poids (kg){readTag('weight_kg', weight)}</span>
                 <input type="text" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} />
               </label>
             </div>

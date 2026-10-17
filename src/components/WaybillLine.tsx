@@ -19,6 +19,8 @@ interface Props {
   leading?: ReactNode;
   trailing?: ReactNode;
   selected?: boolean;
+  /** Affiche l'état de la lettre (dans le camion ou livrée), pour la page des LV. */
+  showStatus?: boolean;
 }
 
 const date = (iso: string | null) => (iso ? format(parseISO(iso), 'dd/MM HH:mm') : null);
@@ -40,7 +42,7 @@ function Pair({ from, to, toMuted }: { from: string | null; to: string | null; t
  *   Val-de-Cognac (16) → Toulouse (31)
  *   16/10 06:30 → à livrer
  */
-export default function WaybillLine({ waybill: w, loading, onClick, leading, trailing, selected }: Props) {
+export default function WaybillLine({ waybill: w, loading, onClick, leading, trailing, selected, showStatus }: Props) {
   const store = useStore();
   const loadingEvent = store.event(w.loading_event_id);
   const deliveryEvent = store.event(w.delivery_event_id);
@@ -57,6 +59,11 @@ export default function WaybillLine({ waybill: w, loading, onClick, leading, tra
         <span className="lv-title">
           {w.number ? `LV ${w.number}` : <span className="badge">LV à compléter</span>}
           {w.photo_paths.length > 0 && <Camera size={15} className="lv-photo" aria-label="Avec photo" />}
+          {showStatus && (
+            <span className={`lv-state lv-status-${w.delivery_event_id ? 'livree' : 'dans_camion'}`}>
+              {w.delivery_event_id ? 'Livrée' : 'Dans le camion'}
+            </span>
+          )}
         </span>
         <Pair from={w.shipper} to={w.consignee} />
         <Pair from={from.place} to={toPlace} />
