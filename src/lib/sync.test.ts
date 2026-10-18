@@ -17,10 +17,26 @@ vi.stubGlobal('localStorage', {
 
 function ev(id: string, type: TripEvent['type'], occurred: string): TripEvent {
   return {
-    id, type, occurred_at: new Date(occurred).toISOString(), tractor_plate: '', trailer_plate: '',
-    odometer_km: null, notes: null, client: null, cmr_number: null, station: null, diesel_l: null,
-    adblue_l: null, city: '', postcode: null, department: null, country_code: null, lat: null, lon: null,
-    updated_at: '', deleted_at: null,
+    id,
+    type,
+    occurred_at: new Date(occurred).toISOString(),
+    tractor_plate: '',
+    trailer_plate: '',
+    odometer_km: null,
+    notes: null,
+    client: null,
+    cmr_number: null,
+    station: null,
+    diesel_l: null,
+    adblue_l: null,
+    city: '',
+    postcode: null,
+    department: null,
+    country_code: null,
+    lat: null,
+    lon: null,
+    updated_at: '',
+    deleted_at: null,
   };
 }
 
@@ -47,7 +63,10 @@ describe('EventStore et lettres de voiture', () => {
   beforeEach(() => storage.clear());
 
   it('relit l’ancien cache local des étapes', () => {
-    storage.set('cdb.u.data', JSON.stringify({ events: [ev('a', 'chargement', '2026-10-12T08:00')], outbox: [], cursor: null }));
+    storage.set(
+      'cdb.u.data',
+      JSON.stringify({ events: [ev('a', 'chargement', '2026-10-12T08:00')], outbox: [], cursor: null }),
+    );
     const store = new EventStore('u');
     expect(store.getState().events.map((e) => e.id)).toEqual(['a']);
     expect(store.getState().waybills).toEqual([]);
@@ -65,7 +84,11 @@ describe('EventStore et lettres de voiture', () => {
     store.save(loadB, [newWaybill({ id: 'w3', loading_event_id: 'loadB' })]);
     store.save(drop, [newWaybill({ id: 'w4' })]); // chargement inconnu
 
-    const ids = (at: string) => store.inTruck(new Date(at)).map((w) => w.id).sort();
+    const ids = (at: string) =>
+      store
+        .inTruck(new Date(at))
+        .map((w) => w.id)
+        .sort();
     expect(ids('2026-10-12T16:00')).toEqual(['w1', 'w4']); // w2 livrée, w3 pas encore chargée
     expect(ids('2026-10-13T09:00')).toEqual(['w1', 'w3', 'w4']);
   });
@@ -91,6 +114,33 @@ describe('EventStore et lettres de voiture', () => {
     expect(store.getState().pending).toBe(4); // 2 étapes + 2 LV à envoyer
   });
 
+  it('retrouve les LV chargées et livrées à une étape, comme un filtre sur toute la liste', () => {
+    const store = new EventStore('u');
+    store.save(ev('c1', 'chargement', '2026-10-12T08:00'), [
+      newWaybill({ id: 'w1', loading_event_id: 'c1' }),
+      newWaybill({ id: 'w2', loading_event_id: 'c1', delivery_event_id: 'd1' }),
+      newWaybill({ id: 'w3', loading_event_id: 'c2', delivery_event_id: 'd1' }),
+    ]);
+    store.save(ev('d1', 'livraison', '2026-10-12T15:00'), [newWaybill({ id: 'w4', loading_event_id: 'c1' })]);
+    store.saveWaybill({ ...store.waybill('w4')!, deleted_at: new Date().toISOString() }); // supprimée : exclue
+    const all = store.getState().waybills;
+    for (const id of ['c1', 'c2', 'd1', 'inconnue']) {
+      expect(store.loadedAt(id)).toEqual(all.filter((w) => w.loading_event_id === id));
+      expect(store.deliveredAt(id)).toEqual(all.filter((w) => w.delivery_event_id === id));
+    }
+    expect(store.loadedAt('c1').map((w) => w.id)).toEqual(['w1', 'w2']);
+    expect(store.deliveredAt('d1').map((w) => w.id)).toEqual(['w2', 'w3']);
+    // Une modification est vue tout de suite (l'index suit la liste).
+    store.saveWaybill({ ...store.waybill('w1')!, loading_event_id: 'c2' });
+    expect(store.loadedAt('c1').map((w) => w.id)).toEqual(['w2']);
+    expect(
+      store
+        .loadedAt('c2')
+        .map((w) => w.id)
+        .sort(),
+    ).toEqual(['w1', 'w3']);
+  });
+
   it('propose les noms déjà saisis, du plus fréquent au moins fréquent', () => {
     const store = new EventStore('u');
     store.save(ev('load', 'chargement', '2026-10-12T08:00'), [
@@ -109,8 +159,21 @@ describe('cartes des semaines et lieux complétés', () => {
     const start = new Date(2026, 0, 25, 22);
     expect(store.weekMap(start)).toBeNull();
     store.saveWeekMap({
-      id: 'm1', week_start: start.toISOString(), stops_hash: '4-abc', generated_at: '',
-      legs: [{ day: '2026-01-30', coords: [[43.2, 3.07], [43.17, 2.75]] }], updated_at: '', deleted_at: null,
+      id: 'm1',
+      week_start: start.toISOString(),
+      stops_hash: '4-abc',
+      generated_at: '',
+      legs: [
+        {
+          day: '2026-01-30',
+          coords: [
+            [43.2, 3.07],
+            [43.17, 2.75],
+          ],
+        },
+      ],
+      updated_at: '',
+      deleted_at: null,
     });
     expect(new EventStore('u').weekMap(start)?.stops_hash).toBe('4-abc'); // relue depuis le cache local
     expect(store.weekMap(new Date(2026, 0, 18, 22))).toBeNull();
@@ -119,7 +182,14 @@ describe('cartes des semaines et lieux complétés', () => {
   it('change le lieu d’une étape depuis une de ses LV et le met en file d’envoi', () => {
     const store = new EventStore('u');
     store.save({ ...ev('a', 'chargement', '2026-01-30T08:00'), city: 'Tours', lat: 47.39, lon: 0.69 });
-    store.setEventPlace('a', { city: 'Toulouse ', postcode: '31000', department: '31', country_code: 'FR', lat: 43.6, lon: 1.44 });
+    store.setEventPlace('a', {
+      city: 'Toulouse ',
+      postcode: '31000',
+      department: '31',
+      country_code: 'FR',
+      lat: 43.6,
+      lon: 1.44,
+    });
     expect(store.getState().events[0]).toMatchObject({ city: 'Toulouse', department: '31', lat: 43.6, lon: 1.44 });
     expect(store.isPending('a')).toBe(true);
   });
@@ -136,7 +206,14 @@ describe('cartes des semaines et lieux complétés', () => {
   it('complète les coordonnées d’une étape sans changer sa ville', () => {
     const store = new EventStore('u');
     store.save({ ...ev('a', 'livraison', '2026-01-30T08:00'), city: 'Tours' });
-    store.completePlace('a', { city: 'Tours', postcode: '37000', department: '37', country_code: 'FR', lat: 47.39, lon: 0.69 });
+    store.completePlace('a', {
+      city: 'Tours',
+      postcode: '37000',
+      department: '37',
+      country_code: 'FR',
+      lat: 47.39,
+      lon: 0.69,
+    });
     expect(store.getState().events[0]).toMatchObject({ city: 'Tours', postcode: '37000', lat: 47.39, lon: 0.69 });
   });
 });

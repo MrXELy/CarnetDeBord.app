@@ -38,6 +38,22 @@ interface Saved<T> {
 }
 
 /**
+ * Vrai si le serveur a refusé cette ligne précisément (contrainte, clé étrangère, valeur invalide…),
+ * donc que renvoyer les autres lignes seules a un sens (classes 22 et 23 : valeur invalide, contraintes).
+ * Faux pour ce qui concerne tout l'envoi et non une ligne : panne réseau (pas de code d'erreur), session expirée
+ * (401, 403, PGRST3xx), schéma ou colonne absente (PGRST2xx, 42P01, 42703, par exemple une migration pas encore
+ * lancée), droits refusés (42501), connexion coupée ou base surchargée (classes 08, 53 et 57, dont le délai dépassé
+ * 57014). Les autres codes restent des refus de ligne.
+ */
+function isRowRefusal(error: { code?: string; message: string }, status?: number): boolean {
+  const code = error.code;
+  if (!code || status === 401 || status === 403) return false;
+  if (code.startsWith('PGRST2') || code.startsWith('PGRST3')) return false;
+  if (['PGRST301', '42P01', '42703', '42501'].includes(code)) return false;
+  return !['08', '53', '57'].includes(code.slice(0, 2));
+}
+
+/**
  * Une table Supabase recopiée dans le téléphone : cache local + file d'envoi.
  * Tout est d'abord enregistré localement, puis envoyé dès que le réseau le permet.
  */
@@ -78,23 +94,57 @@ export class Collection<T extends Row> {
     return [...this.items.values()].filter((item) => !item.deleted_at);
   }
 
-  async push() {
-    if (!this.outbox.size) return;
-    const sent = [...this.outbox].map((id) => this.items.get(id)!);
-    // updated_at est fixé par le serveur.
-    const rows: Record<string, unknown>[] = sent.map(({ updated_at: _ignored, ...row }) => row);
-    const { error } = await supabase.from(this.table).upsert(rows);
-    if (error) throw new Error(error.message);
-    // Ne retire de la file que ce qui n'a pas été modifié pendant l'envoi.
+  /** Retire de la file ce qui vient d'être envoyé, mais pas ce qui a été modifié pendant l'envoi. */
+  private release(sent: T[]) {
     for (const item of sent) {
       if (this.items.get(item.id)?.updated_at === item.updated_at) this.outbox.delete(item.id);
     }
   }
 
+  /**
+   * Envoie la file d'envoi en un seul lot. Si le serveur refuse le lot, renvoie les lignes une par une :
+   * celles qui passent sortent de la file, celles qui sont refusées y restent et l'erreur les nomme.
+   * Une erreur réseau (ou d'accès, ou de table absente) n'est pas retentée ligne par ligne : ce serait inutile.
+   */
+  async push() {
+    if (!this.outbox.size) return;
+    const sent = [...this.outbox].map((id) => this.items.get(id)!);
+    // updated_at est fixé par le serveur.
+    const toRow = ({ updated_at: _ignored, ...row }: T): Record<string, unknown> => row;
+    const { error, status } = await supabase.from(this.table).upsert(sent.map(toRow));
+    if (!error) return this.release(sent);
+    if (sent.length === 1 || !isRowRefusal(error, status)) throw new Error(error.message);
+
+    const refused: string[] = [];
+    for (const item of sent) {
+      const { error: rowError, status: rowStatus } = await supabase.from(this.table).upsert([toRow(item)]);
+      if (!rowError) this.release([item]);
+      else if (!isRowRefusal(rowError, rowStatus)) throw new Error(rowError.message);
+      else refused.push(`${item.id} : ${rowError.message}`);
+    }
+    if (refused.length) {
+      throw new Error(
+        `Ligne refusée par le serveur (${this.table}) ${refused[0]}` +
+          (refused.length > 1 ? ` (et ${refused.length - 1} autre${refused.length > 2 ? 's' : ''})` : ''),
+      );
+    }
+  }
+
+  /**
+   * Récupère les lignes modifiées depuis le curseur, par pages. Le curseur est le couple (date de modification, id) :
+   * des lignes qui ont exactement la même date (un même envoi groupé) ne sont jamais sautées à la frontière d'une page.
+   * Format enregistré : « date|id ». Un ancien curseur (la date seule) reprend à cette date, lignes comprises :
+   * celles déjà connues sont simplement réécrites.
+   */
   async pull() {
     for (;;) {
-      let query = supabase.from(this.table).select('*').order('updated_at').limit(PAGE);
-      if (this.cursor) query = query.gt('updated_at', this.cursor);
+      let query = supabase.from(this.table).select('*').order('updated_at').order('id').limit(PAGE);
+      if (this.cursor) {
+        const [date, id] = this.cursor.split('|');
+        query = id
+          ? query.or(`updated_at.gt."${date}",and(updated_at.eq."${date}",id.gt."${id}")`)
+          : query.gte('updated_at', date);
+      }
       const { data, error } = await query;
       if (error) throw new Error(error.message);
       for (const row of data as (T & { user_id: string; created_at: string })[]) {
@@ -103,7 +153,7 @@ export class Collection<T extends Row> {
           this.items.set(item.id, this.normalize(item as unknown as T));
           this.version++;
         }
-        this.cursor = row.updated_at;
+        this.cursor = `${row.updated_at}|${row.id}`;
       }
       if (data.length < PAGE) return;
     }
@@ -125,6 +175,11 @@ export class EventStore {
   private waybillList: { version: number; list: Waybill[] } | null = null;
   /** Une demande de synchro est arrivée pendant une synchro en cours : une seule relance à la fin. */
   private resyncRequested = false;
+  private indexCache: {
+    waybills: Waybill[];
+    loaded: Map<string, Waybill[]>;
+    delivered: Map<string, Waybill[]>;
+  } | null = null;
   private fuelCache: { events: TripEvent[]; intervals: FuelInterval[] } | null = null;
   private timelineCache: { events: TripEvent[]; waybills: Waybill[]; timeline: KmTimeline } | null = null;
   private settingsCache: { row: UserSettingsRow | undefined; settings: AllowanceSettings } | null = null;
@@ -274,14 +329,34 @@ export class EventStore {
     return this.waybills.items.get(id);
   }
 
-  /** LV chargées à cette étape. */
+  /** LV chargées à cette étape (dans l'ordre de la liste des LV). */
   loadedAt(eventId: string): Waybill[] {
-    return this.state.waybills.filter((w) => w.loading_event_id === eventId);
+    return this.waybillIndex().loaded.get(eventId) ?? [];
   }
 
-  /** LV livrées à cette étape. */
+  /** LV livrées à cette étape (dans l'ordre de la liste des LV). */
   deliveredAt(eventId: string): Waybill[] {
-    return this.state.waybills.filter((w) => w.delivery_event_id === eventId);
+    return this.waybillIndex().delivered.get(eventId) ?? [];
+  }
+
+  /** Table étape → LV chargées / livrées, construite une fois par version de la liste des LV. */
+  private waybillIndex() {
+    const waybills = this.state.waybills;
+    if (this.indexCache?.waybills === waybills) return this.indexCache;
+    const loaded = new Map<string, Waybill[]>();
+    const delivered = new Map<string, Waybill[]>();
+    const add = (map: Map<string, Waybill[]>, id: string | null, w: Waybill) => {
+      if (!id) return;
+      const list = map.get(id);
+      if (list) list.push(w);
+      else map.set(id, [w]);
+    };
+    for (const w of waybills) {
+      add(loaded, w.loading_event_id, w);
+      add(delivered, w.delivery_event_id, w);
+    }
+    this.indexCache = { waybills, loaded, delivered };
+    return this.indexCache;
   }
 
   /** LV dans le camion à cette date : pas encore livrées, et chargées avant (ou chargement inconnu). */

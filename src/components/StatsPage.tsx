@@ -86,12 +86,14 @@ export default function StatsPage({ week, onClose }: Props) {
   const touch = useRef<{ x: number; y: number } | null>(null);
   const intervals = store.fuelIntervals();
   const timeline = store.kmTimeline();
-  const now = new Date();
+  // « Maintenant » ne change que si les données ou la période changent : les calculs ci-dessous restent mémorisés.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const now = useMemo(() => new Date(), [events, waybills, period]);
 
   useModal(onClose);
 
-  const range = periodRange(period);
-  const previous = previousRange(period, now);
+  const range = useMemo(() => periodRange(period), [period]);
+  const previous = useMemo(() => previousRange(period, now), [period, now]);
   const isFuture = range.start > now;
   const hasNext = periodRange(shiftPeriod(period, 1)).start <= now;
   const isCurrent = range.start <= now && now < range.end;
@@ -105,16 +107,27 @@ export default function StatsPage({ week, onClose }: Props) {
     else input.click();
   }
 
-  const stats = periodStats(events, waybills, range, intervals, timeline);
-  const before = periodStats(events, waybills, previous.range, intervals, timeline);
+  const stats = useMemo(
+    () => periodStats(events, waybills, range, intervals, timeline),
+    [events, waybills, range, intervals, timeline],
+  );
+  const before = useMemo(
+    () => periodStats(events, waybills, previous.range, intervals, timeline),
+    [events, waybills, previous, intervals, timeline],
+  );
   // Frais de déplacement : par semaine, mois ou année (pas par jour), une fois les bases réglées.
-  const fees =
-    period.kind !== 'jour' && allowanceSettings.bases.length > 0
-      ? {
-          cur: summarizeAllowances(store.allowances(), range),
-          prev: summarizeAllowances(store.allowances(), previous.range),
-        }
-      : null;
+  const fees = useMemo(
+    () =>
+      period.kind !== 'jour' && allowanceSettings.bases.length > 0
+        ? {
+            cur: summarizeAllowances(store.allowances(), range),
+            prev: summarizeAllowances(store.allowances(), previous.range),
+          }
+        : null,
+    // `events` : store.allowances() se recalcule quand les étapes changent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [events, allowanceSettings, period.kind, range, previous, store],
+  );
 
   function go(next: Period, direction: 'next' | 'prev' | 'fade') {
     setSlide(direction);
