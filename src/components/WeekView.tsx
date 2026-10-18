@@ -228,13 +228,19 @@ export default function WeekView() {
             </button>
           )}
           {showAllowancePill && (
-            <button className="pill" onClick={weekSheet} disabled={makingSheet} aria-busy={makingSheet}>
+            <button
+              className="pill"
+              onClick={weekSheet}
+              disabled={makingSheet}
+              aria-busy={makingSheet}
+              title="Feuille de semaine (PDF)"
+              aria-label="Feuille de semaine en PDF"
+            >
               {makingSheet ? (
                 <LoaderCircle size={14} className="spin" aria-hidden />
               ) : (
                 <FileDown size={14} aria-hidden />
               )}
-              Feuille
             </button>
           )}
         </div>
