@@ -5,6 +5,7 @@ import { fuelIntervals } from './fuel';
 import {
   clientGrouper,
   kmByDay,
+  nowIsStale,
   periodAt,
   periodRange,
   periodStats,
@@ -198,5 +199,31 @@ describe('periodStats', () => {
       longestDay: { day: d('2026-10-13T00:00'), minutes: 12 * 60 },
     });
     expect([...kmByDay(events, week).values()]).toEqual([500, 600]);
+  });
+});
+
+describe('nowIsStale', () => {
+  const week = { kind: 'semaine' as const, anchor: new Date('2026-10-11T22:00:00') }; // du dim. 11 oct. 22h au dim. 18 oct. 22h
+
+  it('même période, moins de 10 min : on garde le même', () => {
+    expect(nowIsStale(new Date('2026-10-14T10:00:00'), new Date('2026-10-14T10:05:00'), week)).toBe(false);
+  });
+
+  it('plus de 10 minutes : rafraîchi (la coupe « au même moment » avance)', () => {
+    expect(nowIsStale(new Date('2026-10-14T10:00:00'), new Date('2026-10-14T10:11:00'), week)).toBe(true);
+  });
+
+  it('la semaine finit le dimanche à 22h : rafraîchi dès cet instant', () => {
+    expect(nowIsStale(new Date('2026-10-18T21:59:00'), new Date('2026-10-18T22:00:00'), week)).toBe(true);
+    expect(nowIsStale(new Date('2026-10-18T21:55:00'), new Date('2026-10-18T21:59:00'), week)).toBe(false);
+  });
+
+  it('retour sur la page après une longue veille : rafraîchi', () => {
+    expect(nowIsStale(new Date('2026-10-14T10:00:00'), new Date('2026-10-16T08:00:00'), week)).toBe(true);
+  });
+
+  it('jour : franchit minuit', () => {
+    const day = { kind: 'jour' as const, anchor: new Date('2026-10-14T00:00:00') };
+    expect(nowIsStale(new Date('2026-10-14T23:58:00'), new Date('2026-10-15T00:01:00'), day)).toBe(true);
   });
 });

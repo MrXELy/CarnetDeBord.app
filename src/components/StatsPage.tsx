@@ -1,9 +1,10 @@
 import { addHours, format, parseISO } from 'date-fns';
 import { CalendarCheck, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { summarizeAllowances } from '../lib/allowances';
 import {
   inRange,
+  nowIsStale,
   periodAt,
   periodRange,
   periodStats,
@@ -66,9 +67,28 @@ export default function StatsPage({ week, onClose }: Props) {
   const [slide, setSlide] = useState<'next' | 'prev' | 'fade'>('fade');
   const intervals = store.fuelIntervals();
   const timeline = store.kmTimeline();
-  // « Maintenant » ne change que si les données ou la période changent : les calculs ci-dessous restent mémorisés.
+  // « Maintenant » ne change que si les données ou la période changent, ou si `tick` monte (voir plus bas) :
+  // les calculs ci-dessous restent mémorisés.
+  const [tick, setTick] = useState(0);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const now = useMemo(() => new Date(), [events, waybills, period]);
+  const now = useMemo(() => new Date(), [events, waybills, period, tick]);
+
+  // Page laissée ouverte : une fois par minute, et au retour sur la page (un téléphone en veille suspend la minuterie),
+  // on remplace `now` seulement s'il est périmé (limite de période franchie ou plus de 10 min), pas à chaque minute.
+  const shownNow = useRef(now);
+  shownNow.current = now;
+  useEffect(() => {
+    const check = () => {
+      if (nowIsStale(shownNow.current, new Date(), period)) setTick((t) => t + 1);
+    };
+    const timer = setInterval(check, 60_000);
+    const onVisible = () => document.visibilityState === 'visible' && check();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [period]);
 
   useModal(onClose);
 

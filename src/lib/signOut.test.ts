@@ -40,10 +40,26 @@ vi.stubGlobal('localStorage', {
 
 function ev(id: string): TripEvent {
   return {
-    id, type: 'chargement', occurred_at: new Date('2026-10-12T08:00').toISOString(), tractor_plate: '', trailer_plate: '',
-    odometer_km: null, notes: null, client: null, cmr_number: null, station: null, diesel_l: null,
-    adblue_l: null, city: '', postcode: null, department: null, country_code: null, lat: null, lon: null,
-    updated_at: '', deleted_at: null,
+    id,
+    type: 'chargement',
+    occurred_at: new Date('2026-10-12T08:00').toISOString(),
+    tractor_plate: '',
+    trailer_plate: '',
+    odometer_km: null,
+    notes: null,
+    client: null,
+    cmr_number: null,
+    station: null,
+    diesel_l: null,
+    adblue_l: null,
+    city: '',
+    postcode: null,
+    department: null,
+    country_code: null,
+    lat: null,
+    lon: null,
+    updated_at: '',
+    deleted_at: null,
   };
 }
 
@@ -170,5 +186,48 @@ describe('signOutAndClear', () => {
     await signOutAndClear(store, { ask: () => true });
     expect(presentAtSignOut).toBe(true);
     expect(storage.has('cdb.u1.data')).toBe(false);
+  });
+});
+
+describe('signOutAndClear : délai, avancement et double clic', () => {
+  it('envoi trop long : passé le délai, l’avertissement de perte s’affiche, et refuser ne change rien', async () => {
+    vi.useFakeTimers();
+    try {
+      const store = new EventStore('u1', { offline: true });
+      store.save(ev('a'));
+      vi.spyOn(store, 'sync').mockImplementation(() => new Promise(() => {})); // envoi qui ne finit jamais
+      const messages: string[] = [];
+      const steps: unknown[] = [];
+      const done = signOutAndClear(store, {
+        ask: (m) => (messages.push(m), messages.length === 1), // accepte le 1er message, refuse la perte
+        timeout: 20_000,
+        progress: (step) => steps.push(step),
+      });
+      await vi.advanceTimersByTimeAsync(19_000);
+      expect(messages).toHaveLength(1); // le délai n'est pas encore écoulé
+      await vi.advanceTimersByTimeAsync(1_500);
+      expect(await done).toBe(false);
+      expect(messages[1]).toMatch(/1 modification n’est pas encore envoyée.*effacera définitivement/);
+      expect(signOutRemote).not.toHaveBeenCalled();
+      expect(steps).toEqual(['sending', null]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('pendant la fermeture, l’étape passe à « closing » puis revient à null', async () => {
+    const store = new EventStore('u1', { offline: true });
+    const steps: unknown[] = [];
+    await signOutAndClear(store, { ask: () => true, progress: (step) => steps.push(step) });
+    expect(steps).toEqual(['sending', 'closing', null]);
+  });
+
+  it('un deuxième clic pendant la déconnexion ne lance pas une deuxième déconnexion', async () => {
+    const store = new EventStore('u1', { offline: true });
+    const first = signOutAndClear(store, { ask: () => true });
+    const second = await signOutAndClear(store, { ask: () => true });
+    expect(second).toBe(false);
+    expect(await first).toBe(true);
+    expect(signOutRemote).toHaveBeenCalledTimes(1);
   });
 });

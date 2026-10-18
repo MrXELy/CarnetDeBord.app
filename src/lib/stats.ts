@@ -141,6 +141,22 @@ export function previousRange(period: Period, now = new Date()): { range: Range;
   };
 }
 
+/** Au bout de ce temps, « maintenant » est rafraîchi même sans changement de période (coupe « au même moment »). */
+export const NOW_MAX_AGE_MS = 10 * 60 * 1000;
+
+/**
+ * Faut-il remplacer le « maintenant » mémorisé (`shown`) par l'heure actuelle ? Oui si une limite de la période
+ * affichée ou de la suivante a été franchie (la période devient passée, la flèche suivante apparaît : la semaine
+ * change le dimanche à 22h), ou si `shown` a plus de `NOW_MAX_AGE_MS`. Sinon on garde le même, et les calculs
+ * mémorisés ne sont pas refaits.
+ */
+export function nowIsStale(shown: Date, current: Date, period: Period): boolean {
+  if (Math.abs(current.getTime() - shown.getTime()) >= NOW_MAX_AGE_MS) return true;
+  const { start, end } = periodRange(period);
+  const next = periodRange(shiftPeriod(period, 1)).start;
+  return [start, end, next].some((limit) => shown < limit !== current < limit);
+}
+
 export const inRange = (events: TripEvent[], { start, end }: Range) => {
   const s = start.toISOString();
   const e = end.toISOString();

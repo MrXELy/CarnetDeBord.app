@@ -4,7 +4,7 @@ import { downloadCsv, eventsToCsv, waybillsToCsv } from '../lib/csv';
 import { averageRate, formatRate, intervalKm, recentIntervals } from '../lib/fuel';
 import { monthUsage, photoStats } from '../lib/photos';
 import { updateSettings, useSettings } from '../lib/settings';
-import { signOutAndClear } from '../lib/signOut';
+import { signOutAndClear, type SignOutStep } from '../lib/signOut';
 import { useEvents, useStore } from '../lib/useEvents';
 import { useModal } from '../lib/useModal';
 import AllowanceSettingsSection from './AllowanceSettings';
@@ -23,6 +23,9 @@ export default function Settings({ onClose }: { onClose: () => void }) {
   const rejected = intervals.filter((i) => i.problem).length;
 
   useModal(onClose);
+
+  // Déconnexion en cours (envoi de ce qui attend, puis fermeture de la session) : bouton occupé, pas de double clic.
+  const [signingOut, setSigningOut] = useState<SignOutStep>(null);
 
   // Nombre et coût des lectures du mois (undefined : chargement ; null : hors ligne ou indisponible).
   const [usage, setUsage] = useState<{ count: number; cost: number } | null | undefined>(undefined);
@@ -174,11 +177,18 @@ export default function Settings({ onClose }: { onClose: () => void }) {
                 onClick={() =>
                   demo
                     ? location.assign(location.pathname) // quitte le mode démo
-                    : void signOutAndClear(store)
+                    : void signOutAndClear(store, { progress: setSigningOut })
                 }
+                disabled={signingOut !== null}
               >
                 <LogOut size={18} />
-                {demo ? 'Quitter' : 'Déconnexion'}
+                {demo
+                  ? 'Quitter'
+                  : signingOut === 'sending'
+                    ? 'Envoi en cours…'
+                    : signingOut === 'closing'
+                      ? 'Déconnexion…'
+                      : 'Déconnexion'}
               </button>
             </div>
           </section>
