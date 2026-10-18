@@ -164,7 +164,7 @@ export default function WaybillForm(props: Props) {
     };
     try {
       setReading({ state: 'busy', message: 'Envoi de la photo…' });
-      if (!demo) await uploadPending();
+      if (!demo) await uploadPending(store.userId);
       setReading({
         state: 'busy',
         message: mode === 'handwritten' ? 'Relecture en mode fiable…' : 'L’IA regarde la photo…',

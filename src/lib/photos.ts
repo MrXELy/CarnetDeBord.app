@@ -49,9 +49,12 @@ const pendingBlob = (path: string) => withStore<Blob | undefined>('readonly', (s
 const unqueue = (path: string) => withStore('readwrite', (s) => s.delete(path));
 export const pendingPaths = async () => (await withStore('readonly', (s) => s.getAllKeys())) as string[];
 
-/** Envoie les photos en attente. Renvoie le nombre de photos restant à envoyer. */
-export async function uploadPending(): Promise<number> {
-  const paths = await pendingPaths();
+/**
+ * Envoie les photos en attente de cet utilisateur. Celles d'un autre compte ou du mode démo (« demo/… »), rangées
+ * dans la même file du navigateur, ne sont pas envoyées : le stockage les refuserait. Renvoie le nombre restant.
+ */
+export async function uploadPending(userId: string): Promise<number> {
+  const paths = (await pendingPaths()).filter((p) => p.startsWith(`${userId}/`));
   let left = paths.length;
   for (const path of paths) {
     const blob = await pendingBlob(path);
@@ -141,9 +144,9 @@ export function trashPhotos(paths: string[]) {
   writeTrash([...new Set([...readTrash(), ...paths])]);
 }
 
-/** Efface du stockage les photos mises à la corbeille. */
-export async function flushTrash() {
-  const paths = readTrash();
+/** Efface du stockage les photos de cet utilisateur mises à la corbeille (celles des autres comptes attendent). */
+export async function flushTrash(userId: string) {
+  const paths = readTrash().filter((p) => p.startsWith(`${userId}/`));
   for (let i = 0; i < paths.length; i += 100) {
     const batch = paths.slice(i, i + 100);
     const { error } = await supabase.storage.from(BUCKET).remove(batch);

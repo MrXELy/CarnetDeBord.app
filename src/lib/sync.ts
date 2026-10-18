@@ -501,11 +501,11 @@ export class EventStore {
         );
       }
       // Photos prises sans réseau : envoyées dès que possible.
-      await uploadPending();
+      await uploadPending(this.userId);
       this.error = null;
       // Photos à effacer, puis ménage une fois par jour : un échec est simplement retenté plus tard.
       try {
-        await flushTrash();
+        await flushTrash(this.userId);
         const last = this.read<string>('photos_cleaned');
         if (!last || Date.now() - new Date(last).getTime() > 24 * 3600 * 1000) {
           this.write('photos_cleaned', new Date().toISOString()); // une tentative par jour, même en cas d'échec
