@@ -45,6 +45,12 @@ export class Collection<T extends Row> {
   readonly items = new Map<string, T>();
   readonly outbox = new Set<string>();
   cursor: string | null = null;
+  /**
+   * Numéro de version de `items` : augmente à chaque vrai changement (enregistrement local,
+   * lignes reçues du serveur, chargement du cache). Sert à garder les mêmes listes tant que rien n'a changé.
+   * Tout nouvel endroit qui modifie `items` doit l'augmenter.
+   */
+  version = 0;
 
   constructor(
     private table: string,
@@ -53,6 +59,7 @@ export class Collection<T extends Row> {
 
   load(saved: Saved<T> | null) {
     saved?.items.forEach((item) => this.items.set(item.id, this.normalize(item)));
+    this.version++;
     saved?.outbox.forEach((id) => this.outbox.add(id));
     this.cursor = saved?.cursor ?? null;
   }
@@ -64,6 +71,7 @@ export class Collection<T extends Row> {
   save(item: T) {
     this.items.set(item.id, { ...item, updated_at: new Date().toISOString() });
     this.outbox.add(item.id);
+    this.version++;
   }
 
   alive(): T[] {
@@ -91,7 +99,10 @@ export class Collection<T extends Row> {
       if (error) throw new Error(error.message);
       for (const row of data as (T & { user_id: string; created_at: string })[]) {
         const { user_id: _u, created_at: _c, ...item } = row;
-        if (!this.outbox.has(item.id)) this.items.set(item.id, this.normalize(item as unknown as T));
+        if (!this.outbox.has(item.id)) {
+          this.items.set(item.id, this.normalize(item as unknown as T));
+          this.version++;
+        }
         this.cursor = row.updated_at;
       }
       if (data.length < PAGE) return;
@@ -109,6 +120,11 @@ export class EventStore {
   private state: SyncState;
   private syncing = false;
   private error: string | null = null;
+  // Listes affichées, gardées tant que la version de leur collection ne change pas (même tableau = rien de changé).
+  private eventList: { version: number; list: TripEvent[] } | null = null;
+  private waybillList: { version: number; list: Waybill[] } | null = null;
+  /** Une demande de synchro est arrivée pendant une synchro en cours : une seule relance à la fin. */
+  private resyncRequested = false;
   private fuelCache: { events: TripEvent[]; intervals: FuelInterval[] } | null = null;
   private timelineCache: { events: TripEvent[]; waybills: Waybill[]; timeline: KmTimeline } | null = null;
   private settingsCache: { row: UserSettingsRow | undefined; settings: AllowanceSettings } | null = null;
@@ -333,7 +349,12 @@ export class EventStore {
   }
 
   async sync() {
-    if (this.options.offline || this.syncing || !navigator.onLine) return this.emit();
+    if (this.options.offline || !navigator.onLine) return this.emit();
+    if (this.syncing) {
+      // Par exemple une modification enregistrée pendant l'envoi : elle partira juste après.
+      this.resyncRequested = true;
+      return this.emit();
+    }
     this.syncing = true;
     this.emit();
     try {
@@ -381,6 +402,11 @@ export class EventStore {
     } finally {
       this.syncing = false;
       this.persist();
+      // Une seule relance, même si plusieurs demandes sont arrivées ; les demandes de la relance ont leur propre drapeau.
+      if (this.resyncRequested) {
+        this.resyncRequested = false;
+        void this.sync();
+      }
     }
   }
 
@@ -392,9 +418,19 @@ export class EventStore {
   private handleOnline = () => void this.sync();
 
   private snapshot(): SyncState {
+    // Mêmes tableaux tant que les données n'ont pas changé : les caches et les écrans s'appuient dessus.
+    if (this.eventList?.version !== this.events.version) {
+      this.eventList = {
+        version: this.events.version,
+        list: this.events.alive().sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)),
+      };
+    }
+    if (this.waybillList?.version !== this.waybills.version) {
+      this.waybillList = { version: this.waybills.version, list: this.waybills.alive() };
+    }
     return {
-      events: this.events.alive().sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)),
-      waybills: this.waybills.alive(),
+      events: this.eventList.list,
+      waybills: this.waybillList.list,
       pending:
         this.events.outbox.size + this.waybills.outbox.size + this.weekMaps.outbox.size + this.userSettings.outbox.size,
       syncing: this.syncing,

@@ -27,6 +27,7 @@ create table if not exists public.events (
 );
 
 create index if not exists events_user_occurred_idx on public.events (user_id, occurred_at desc);
+create index if not exists events_user_updated_idx on public.events (user_id, updated_at);
 
 alter table public.events enable row level security;
 
