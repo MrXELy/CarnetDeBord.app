@@ -5,14 +5,12 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
-  LogOut,
   Plus,
   Search,
   Settings as SettingsIcon,
 } from 'lucide-react';
-import { Suspense, lazy, useMemo, useRef, useState, type TouchEvent } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState, type TouchEvent } from 'react';
 import { durationLabel, groupWeek, summarizeDay, summarizeWeek, weekLabel, weekStart } from '../lib/dates';
-import { supabase } from '../lib/supabase';
 import { useEvents } from '../lib/useEvents';
 import { isDayBoundary, waybillStatus, type TripEvent } from '../types';
 import DaySection from './DaySection';
@@ -38,6 +36,8 @@ export default function WeekView() {
   const [showSettings, setShowSettings] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [searching, setSearching] = useState(false);
+  // Étape trouvée par la recherche : mise en évidence tant qu'on reste sur sa semaine.
+  const [found, setFound] = useState<string | null>(null);
   const [waybillFilter, setWaybillFilter] = useState<WaybillFilter | null>(null);
   const [pickingWeek, setPickingWeek] = useState(false);
   const [showMap, setShowMap] = useState(false);
@@ -52,12 +52,30 @@ export default function WeekView() {
   const toComplete = waybills.filter((w) => waybillStatus(w) === 'a_completer').length;
   const inTruck = store.inTruck(new Date()).length;
 
+  // Nouvelle semaine : la page repart du haut (l'étape trouvée par la recherche est rejointe juste après).
+  useEffect(() => window.scrollTo({ top: 0 }), [start]);
+
+  // Recherche : fait défiler jusqu'à l'étape choisie. On attend que la fenêtre fermée ait rendu
+  // son entrée d'historique (le retour arrière replacerait la page en haut) et que la semaine ait glissé.
+  useEffect(() => {
+    if (!found) return;
+    const timer = setTimeout(() => {
+      const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      document
+        .querySelector(`[data-event-id="${found}"]`)
+        ?.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [found]);
+
   function goWeek(delta: number) {
+    setFound(null);
     setSlide(delta > 0 ? 'next' : 'prev');
     setStart(addWeeks(start, delta));
   }
 
   function pickWeek(week: Date) {
+    setFound(null);
     setSlide(week > start ? 'next' : week < start ? 'prev' : 'fade');
     setStart(week);
   }
@@ -88,14 +106,22 @@ export default function WeekView() {
       </div>
       <header className="topbar">
         <div className="topbar-row">
-          <span className="brand">CarnetDeBord</span>
-          {demo ? (
-            <span className="sync sync-off" title="Données de test dans ce navigateur, jamais envoyées en ligne">
-              Démo locale
-            </span>
-          ) : (
-            <SyncBadge pending={pending} syncing={syncing} online={online} error={error} onRetry={() => store.sync()} />
-          )}
+          <span className="brand-wrap">
+            <span className="brand">CarnetDeBord</span>
+            {demo ? (
+              <span className="sync-demo" title="Données de test dans ce navigateur, jamais envoyées en ligne">
+                Démo
+              </span>
+            ) : (
+              <SyncBadge
+                pending={pending}
+                syncing={syncing}
+                online={online}
+                error={error}
+                onRetry={() => store.sync()}
+              />
+            )}
+          </span>
           <button className="icon-btn" title="Rechercher" aria-label="Rechercher" onClick={() => setSearching(true)}>
             <Search size={20} />
           </button>
@@ -108,23 +134,16 @@ export default function WeekView() {
             <FileText size={20} />
             {toComplete > 0 && <span className="icon-badge">{toComplete}</span>}
           </button>
-          <button className="icon-btn" title="Statistiques" aria-label="Statistiques" onClick={() => setShowStats(true)}>
+          <button
+            className="icon-btn"
+            title="Statistiques"
+            aria-label="Statistiques"
+            onClick={() => setShowStats(true)}
+          >
             <ChartColumn size={20} />
           </button>
           <button className="icon-btn" title="Options" aria-label="Options" onClick={() => setShowSettings(true)}>
             <SettingsIcon size={20} />
-          </button>
-          <button
-            className="icon-btn"
-            title="Se déconnecter"
-            aria-label="Se déconnecter"
-            onClick={() =>
-              demo
-                ? location.assign(location.pathname) // quitte le mode démo
-                : confirm('Se déconnecter ?') && supabase.auth.signOut()
-            }
-          >
-            <LogOut size={20} />
           </button>
         </div>
         <nav className="week-nav">
@@ -159,12 +178,7 @@ export default function WeekView() {
         )}
       </header>
 
-      <main
-        className={`days slide-${slide}`}
-        key={start.getTime()}
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-      >
+      <main className={`days slide-${slide}`} key={start.getTime()} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         {days.length === 0 ? (
           <div className="empty">
             <p>Aucune étape cette semaine.</p>
@@ -172,7 +186,13 @@ export default function WeekView() {
           </div>
         ) : (
           days.map((day, i) => (
-            <DaySection key={day.date.getTime()} day={day} index={i} onOpen={(event) => setEditing({ event })} />
+            <DaySection
+              key={day.date.getTime()}
+              day={day}
+              index={i}
+              found={found}
+              onOpen={(event) => setEditing({ event })}
+            />
           ))
         )}
       </main>
@@ -187,6 +207,7 @@ export default function WeekView() {
           onShowWeek={(event) => {
             setSearching(false);
             pickWeek(weekStart(parseISO(event.occurred_at)));
+            setFound(event.id);
           }}
           onClose={() => setSearching(false)}
         />
@@ -247,15 +268,37 @@ export default function WeekView() {
   );
 }
 
-function SyncBadge(props: { pending: number; syncing: boolean; online: boolean; error: string | null; onRetry: () => void }) {
-  if (!props.online) return <span className="sync sync-off">Hors ligne{props.pending ? ` · ${props.pending} en attente` : ''}</span>;
-  if (props.syncing) return <span className="sync">Synchro…</span>;
-  if (props.error)
-    return (
-      <button className="sync sync-err" onClick={props.onRetry} title={props.error}>
-        Erreur · réessayer
-      </button>
-    );
-  if (props.pending) return <span className="sync sync-off">{props.pending} en attente</span>;
-  return <span className="sync sync-ok">À jour</span>;
+/** Pastille de synchro : la toucher relance l'envoi, son libellé dit l'état aux lecteurs d'écran. */
+function SyncBadge(props: {
+  pending: number;
+  syncing: boolean;
+  online: boolean;
+  error: string | null;
+  onRetry: () => void;
+}) {
+  const { pending, syncing, online, error } = props;
+  const waiting = pending ? ` · ${pending} en attente` : '';
+  const [tone, label] = !online
+    ? ['sync-off', `Hors ligne${waiting}`]
+    : syncing
+      ? ['sync-off sync-busy', 'Synchro en cours…']
+      : error
+        ? ['sync-err', `Erreur de synchro${waiting} · toucher pour réessayer`]
+        : pending
+          ? ['sync-off', `${pending} en attente d’envoi`]
+          : ['sync-ok', 'À jour'];
+  return (
+    <button
+      type="button"
+      className={`sync ${tone}`}
+      title={error ? `${label} (${error})` : label}
+      aria-label={label}
+      onClick={() => {
+        if (error) props.onRetry();
+        else alert(label);
+      }}
+    >
+      <span className={`sync-dot${pending ? ' has-count' : ''}`}>{pending > 0 && pending}</span>
+    </button>
+  );
 }

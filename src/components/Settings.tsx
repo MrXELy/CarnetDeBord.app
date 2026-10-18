@@ -1,9 +1,10 @@
-import { Download, X } from 'lucide-react';
+import { Download, LogOut, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { downloadCsv, eventsToCsv, waybillsToCsv } from '../lib/csv';
 import { averageRate, formatRate, intervalKm, recentIntervals } from '../lib/fuel';
 import { monthUsage } from '../lib/photos';
 import { updateSettings, useSettings } from '../lib/settings';
+import { supabase } from '../lib/supabase';
 import { useEvents, useStore } from '../lib/useEvents';
 import { useModal } from '../lib/useModal';
 
@@ -47,9 +48,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
               <span className="setting-text">
                 <span className="setting-title">Mode Europe</span>
                 <span className="hint">
-                  {europe
-                    ? 'Suggestions dans toute l’Europe.'
-                    : 'Suggestions en France uniquement.'}
+                  {europe ? 'Suggestions dans toute l’Europe.' : 'Suggestions en France uniquement.'}
                 </span>
               </span>
               <input
@@ -77,7 +76,8 @@ export default function Settings({ onClose }: { onClose: () => void }) {
                 {rate != null &&
                   `Sur les ${recent.length} derniers pleins complets (${recentKm.toLocaleString('fr-FR')} km). `}
                 Calculée d’un plein complet au suivant, compléments compris.
-                {rejected > 0 && ` ${rejected} intervalle${rejected > 1 ? 's' : ''} écarté${rejected > 1 ? 's' : ''} (km ou litres manquants).`}
+                {rejected > 0 &&
+                  ` ${rejected} intervalle${rejected > 1 ? 's' : ''} écarté${rejected > 1 ? 's' : ''} (km ou litres manquants).`}
               </span>
             </div>
           </section>
@@ -128,7 +128,11 @@ export default function Settings({ onClose }: { onClose: () => void }) {
                 {usage && (
                   <span className="hint">
                     ≈{' '}
-                    {usage.cost.toLocaleString('fr-FR', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })}
+                    {usage.cost.toLocaleString('fr-FR', {
+                      style: 'currency',
+                      currency: 'USD',
+                      maximumFractionDigits: 2,
+                    })}
                   </span>
                 )}
               </span>
@@ -147,6 +151,30 @@ export default function Settings({ onClose }: { onClose: () => void }) {
               <span className="hint">
                 Limites : 2 lectures par photo, 30 par jour, {MONTH_LIMIT} par mois. Compte aussi les lectures de km.
               </span>
+            </div>
+          </section>
+
+          <section className="settings-group">
+            <h3>Compte</h3>
+            <div className="setting-row">
+              <span className="setting-text">
+                <span className="setting-title">{demo ? 'Quitter la démo' : 'Se déconnecter'}</span>
+                <span className="hint">
+                  {demo ? 'Revient à la version normale.' : 'Il faudra te reconnecter pour revoir ton carnet.'}
+                </span>
+              </span>
+              <button
+                type="button"
+                className="btn-danger btn-icon"
+                onClick={() =>
+                  demo
+                    ? location.assign(location.pathname) // quitte le mode démo
+                    : confirm('Se déconnecter ?') && supabase.auth.signOut()
+                }
+              >
+                <LogOut size={18} />
+                {demo ? 'Quitter' : 'Déconnexion'}
+              </button>
             </div>
           </section>
         </div>

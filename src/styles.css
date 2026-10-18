@@ -224,26 +224,53 @@ textarea { resize: vertical; }
   gap: 6px;
 }
 
-/* Sur téléphone étroit, le nom et l'état de synchro se raccourcissent plutôt que de pousser les boutons hors de l'écran. */
-.brand { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; font-size: 1.05rem; margin-right: auto; }
+/* Nom et pastille de synchro : se raccourcissent plutôt que de pousser les boutons hors de l'écran. */
+.brand-wrap { display: flex; align-items: center; min-width: 0; margin-right: auto; }
+.brand { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; font-size: 1.05rem; }
 
+/* État de la synchro : pastille de couleur (vert à jour, orange en attente ou hors ligne, rouge erreur), avec le nombre en attente. */
 .sync {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.78rem;
-  font-weight: 600;
-  padding: 5px 11px;
-  border-radius: 999px;
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
-  color: var(--muted);
+  --tone: var(--muted);
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  background: none;
 }
 
-.sync-ok { color: var(--ok); }
-.sync-off { color: var(--accent); }
-.sync-err { color: var(--danger); }
+.sync-dot {
+  display: grid;
+  place-items: center;
+  min-width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--tone);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--tone) 60%, transparent);
+}
+
+.sync-dot.has-count { min-width: 18px; height: 18px; padding: 0 5px; font-size: 0.7rem; font-weight: 800; color: #000; }
+
+.sync-ok { --tone: var(--ok); }
+.sync-off { --tone: var(--accent); }
+.sync-err { --tone: var(--danger); }
+.sync-busy .sync-dot { animation: sync-pulse 1s ease-in-out infinite alternate; }
+
+@keyframes sync-pulse { to { opacity: 0.35; } }
+
+/* Mode démo (développement seulement) : petite étiquette */
+.sync-demo {
+  flex: none;
+  margin-left: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent);
+}
 
 .week-nav {
   display: flex;
@@ -341,6 +368,8 @@ textarea { resize: vertical; }
   margin: 0;
   padding: 0 0 0 26px;
   display: grid;
+  /* Une colonne à la largeur de l'écran : un nom de lieu très long se coupe au lieu d'élargir la page. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -975,6 +1004,8 @@ legend { margin-bottom: 6px; }
 .search input { border: none; background: transparent; padding-left: 0; }
 
 /* ---------- Recherche globale ---------- */
+/* Une seule colonne à la largeur de l'écran : les lignes longues (début, fin) ne l'élargissent pas. */
+.search-body { grid-template-columns: minmax(0, 1fr); }
 .search-summary { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--muted); }
 
 /* Dans la fenêtre, les en-têtes de jour ne collent pas sous la barre du haut de la semaine. */
@@ -982,7 +1013,6 @@ legend { margin-bottom: 6px; }
 .search-results .day + .day { margin-top: 14px; }
 .search-results .day-header {
   position: static;
-  align-items: center;
   margin: 0 0 8px;
   padding: 0;
   background: none;
@@ -991,12 +1021,21 @@ legend { margin-bottom: 6px; }
   font-size: 0.95rem;
 }
 
-.search-week { flex: none; padding: 4px 10px; font-size: 0.75rem; color: var(--muted); }
-
 /* LV trouvées sous l'étape : numéro et marchandise, que la carte n'affiche pas */
 .search-lv { display: block; padding: 4px 14px 0; font-size: 0.8rem; color: var(--muted); }
 
 .search-more { margin: 0; text-align: center; font-size: 0.85rem; }
+
+/* Étape choisie dans la recherche : entourée tant qu'on reste sur sa semaine, avec une lueur à l'arrivée. */
+.found .card,
+.found .marker {
+  box-shadow: 0 0 0 2px var(--accent), 0 0 18px color-mix(in srgb, var(--accent) 30%, transparent);
+  animation: found 1.6s ease-out;
+}
+
+@keyframes found {
+  0%, 40% { box-shadow: 0 0 0 3px var(--accent), 0 0 32px color-mix(in srgb, var(--accent) 60%, transparent); }
+}
 
 .has-badge { position: relative; }
 

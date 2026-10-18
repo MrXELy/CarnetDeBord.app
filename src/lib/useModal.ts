@@ -15,6 +15,9 @@ function addGuard() {
   guarded = true;
 }
 
+// L'appli gère elle-même la position de la page : un retour arrière ne la ramène pas en haut.
+history.scrollRestoration = 'manual';
+
 window.addEventListener('popstate', () => {
   if (ignoreNextPop) {
     ignoreNextPop = false;

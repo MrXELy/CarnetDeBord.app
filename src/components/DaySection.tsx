@@ -7,10 +7,12 @@ interface Props {
   day: Day;
   /** Rang du jour dans la semaine : décale l'apparition de ses étapes. */
   index: number;
+  /** Étape trouvée par la recherche, mise en évidence. */
+  found?: string | null;
   onOpen: (e: TripEvent) => void;
 }
 
-export default function DaySection({ day, index, onOpen }: Props) {
+export default function DaySection({ day, index, found, onOpen }: Props) {
   const { km, amplitude } = summarizeDay(day.events);
   return (
     <section className="day">
@@ -23,7 +25,12 @@ export default function DaySection({ day, index, onOpen }: Props) {
       </h2>
       <ol className="timeline">
         {day.events.map((e, i) => (
-          <li key={e.id} className="rise" style={{ '--i': index * 3 + i } as CSSProperties}>
+          <li
+            key={e.id}
+            className={e.id === found ? 'rise found' : 'rise'}
+            data-event-id={e.id}
+            style={{ '--i': index * 3 + i } as CSSProperties}
+          >
             <EventCard event={e} onOpen={() => onOpen(e)} />
           </li>
         ))}
