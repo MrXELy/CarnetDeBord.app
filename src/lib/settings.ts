@@ -9,10 +9,21 @@ export interface Settings {
   mapCities: boolean;
   /** Carte de la semaine : frontières des départements affichées. */
   mapDepartments: boolean;
+  /** Carte de la semaine : numéros des étapes dans les pastilles (sinon simples points). */
+  mapNumbers: boolean;
+  /** Cartes de la semaine et du mois : cadrées sur les trajets, ou sur toute la France. */
+  mapFrame: 'trips' | 'france';
 }
 
 const KEY = 'cdb.settings';
-const DEFAULTS: Settings = { europe: false, mapRoutes: true, mapCities: true, mapDepartments: true };
+const DEFAULTS: Settings = {
+  europe: false,
+  mapRoutes: true,
+  mapCities: true,
+  mapDepartments: true,
+  mapNumbers: true,
+  mapFrame: 'trips',
+};
 const listeners = new Set<() => void>();
 
 let current = read();

@@ -1,6 +1,6 @@
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { Download, LoaderCircle, Route, X } from 'lucide-react';
+import { LoaderCircle, Route, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { summarizeDay, summarizeWeek, timeLabel, weekLabel } from '../lib/dates';
 import { formatPlace } from '../lib/geo';
@@ -10,7 +10,7 @@ import { useModal } from '../lib/useModal';
 import { generateWeekMap } from '../lib/weekMapGen';
 import { buildStops, dayColor, dayKey, dayLegs, shortDay, stopsHash, type Stop } from '../lib/weekStops';
 import { eventTypeInfo, type Place, type TripEvent } from '../types';
-import MapSvg, { mapUnit, project, renderImage, shareImage, viewBox, type MapPin, type Point } from './MapSvg';
+import MapSvg, { ImageButton, mapUnit, renderImage, shareImage, stopPins, viewBox, type Point } from './MapSvg';
 
 interface Props {
   start: Date;
@@ -21,27 +21,10 @@ interface Props {
 
 type Status = { state: 'idle' } | { state: 'busy'; message: string } | { state: 'error'; message: string };
 
-/**
- * Repères de la carte : les lieux qui se toucheraient à l'écran (même endroit, ou villes voisines
- * à cette échelle) partagent un repère avec tous leurs numéros (« 2·7 ») ; la liste détaille chaque lieu.
- */
-function pins(stops: Stop[], minGap: number): MapPin[] {
-  const result: { at: Point; numbers: number[]; color: string; approximate: boolean }[] = [];
-  for (const s of stops) {
-    const at = project([s.lat, s.lon]);
-    const near = result.find((p) => Math.hypot(p.at[0] - at[0], p.at[1] - at[1]) < minGap);
-    if (near) {
-      near.numbers.push(s.number);
-      near.approximate ||= s.approximate;
-    } else result.push({ at, numbers: [s.number], color: s.color, approximate: s.approximate });
-  }
-  return result.map((p) => ({ ...p, label: p.numbers.join('·') }));
-}
-
 export default function WeekMap({ start, events, onEdit, onClose }: Props) {
   const { store } = useEvents();
   // Réglages de la carte, mémorisés sur cet appareil.
-  const { mapRoutes, mapCities, mapDepartments } = useSettings();
+  const { mapRoutes, mapCities, mapDepartments, mapNumbers, mapFrame } = useSettings();
   const saved = store.weekMap(start);
   const [found, setFound] = useState<Map<string, Place>>(() => new Map());
   const [status, setStatus] = useState<Status>({ state: 'idle' });
@@ -61,8 +44,11 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
     ? saved.legs.map((l) => ({ day: l.day, color: dayColor(l.day), coords: l.coords }))
     : straight.map((l) => ({ day: l.day, color: l.color, coords: l.points }));
 
-  const box = viewBox([...stops.map((s): Point => [s.lat, s.lon]), ...legs.flatMap((l) => l.coords)]);
-  const pinList = pins(stops, mapUnit(box) * 16);
+  const box = viewBox(
+    [...stops.map((s): Point => [s.lat, s.lon]), ...legs.flatMap((l) => l.coords)],
+    mapFrame === 'france',
+  );
+  const pinList = stopPins(stops, mapUnit(box) * 16, mapNumbers);
 
   const days = [...new Set(stops.map((s) => s.day))].sort();
   const dayKm = (day: string) => summarizeDay(events.filter((e) => !e.deleted_at && dayKey(e.occurred_at) === day)).km;
@@ -142,34 +128,55 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
                     Lignes droites
                   </button>
                 </div>
-                <label className="map-toggle">
-                  <input
-                    type="checkbox"
-                    checked={mapCities}
-                    onChange={(e) => updateSettings({ mapCities: e.target.checked })}
-                  />
-                  Villes
-                </label>
-                <label className="map-toggle">
-                  <input
-                    type="checkbox"
-                    checked={mapDepartments}
-                    onChange={(e) => updateSettings({ mapDepartments: e.target.checked })}
-                  />
-                  Départements
-                </label>
+                <div className="map-toggles">
+                  <label className="map-toggle">
+                    <input
+                      type="checkbox"
+                      checked={mapFrame === 'france'}
+                      onChange={(e) => updateSettings({ mapFrame: e.target.checked ? 'france' : 'trips' })}
+                    />
+                    France entière
+                  </label>
+                  <label className="map-toggle">
+                    <input
+                      type="checkbox"
+                      checked={mapNumbers}
+                      onChange={(e) => updateSettings({ mapNumbers: e.target.checked })}
+                    />
+                    Numéros
+                  </label>
+                  <label className="map-toggle">
+                    <input
+                      type="checkbox"
+                      checked={mapCities}
+                      onChange={(e) => updateSettings({ mapCities: e.target.checked })}
+                    />
+                    Villes
+                  </label>
+                  <label className="map-toggle">
+                    <input
+                      type="checkbox"
+                      checked={mapDepartments}
+                      onChange={(e) => updateSettings({ mapDepartments: e.target.checked })}
+                    />
+                    Départements
+                  </label>
+                </div>
               </div>
 
-              <MapSvg
-                ref={svgRef}
-                box={box}
-                lines={legs}
-                pins={pinList}
-                arrows
-                cities={mapCities}
-                departments={mapDepartments}
-                label={`Carte des trajets de la ${weekLabel(start)}`}
-              />
+              <div className="map-frame">
+                <MapSvg
+                  ref={svgRef}
+                  box={box}
+                  lines={legs}
+                  pins={pinList}
+                  arrows
+                  cities={mapCities}
+                  departments={mapDepartments}
+                  label={`Carte des trajets de la ${weekLabel(start)}`}
+                />
+                <ImageButton onExport={exportImage} disabled={busy || stops.length === 0} />
+              </div>
 
               {outdated && (
                 <p className="reading reading-waiting">Des étapes ont changé depuis la création de la carte.</p>
@@ -181,23 +188,17 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
                 </p>
               )}
 
-              <div className="row">
-                {(!saved || outdated) && (
-                  <button type="button" className="btn-primary btn-icon lv-add" onClick={generate} disabled={busy}>
-                    <Route size={18} />
-                    {saved ? 'Régénérer' : 'Générer la carte'}
-                  </button>
-                )}
+              {(!saved || outdated) && (
                 <button
                   type="button"
-                  className="btn-secondary btn-icon lv-add"
-                  onClick={exportImage}
-                  disabled={busy || stops.length === 0}
+                  className="btn-primary btn-icon lv-add map-generate"
+                  onClick={generate}
+                  disabled={busy}
                 >
-                  <Download size={18} />
-                  Enregistrer l’image
+                  <Route size={18} />
+                  {saved ? 'Régénérer' : 'Générer la carte'}
                 </button>
-              </div>
+              )}
 
               <div className="map-legend">
                 {days.map((d) => (

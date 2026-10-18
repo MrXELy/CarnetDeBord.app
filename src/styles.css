@@ -1284,6 +1284,29 @@ legend { margin-bottom: 6px; }
   background: #0b0d11;
 }
 
+/* Carte et son bouton « Enregistrer l'image », rond, posé en bas à droite */
+.map-frame { position: relative; }
+
+.map-image-btn {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: rgb(11 13 17 / 0.75);
+  backdrop-filter: blur(6px);
+  color: var(--text);
+}
+
+.map-image-btn:disabled:not([aria-busy='true']) { opacity: 0.45; }
+
+.map-generate { width: 100%; }
+
 .map-legend {
   display: flex;
   flex-wrap: wrap;
@@ -1325,16 +1348,21 @@ legend { margin-bottom: 6px; }
 .map-missing-row { display: flex; justify-content: space-between; gap: 8px; font-size: 0.85rem; }
 .map-missing-row .btn-link { flex: none; }
 
-/* Réglages de la carte : tracé, villes, départements */
+/* Réglages de la carte : tracé sur toute la largeur, puis les cases en grille (2 colonnes sur téléphone) */
 .map-controls {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 14px;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.map-toggles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px 14px;
 }
 
 .map-mode {
-  display: inline-flex;
+  display: flex;
   padding: 3px;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -1342,6 +1370,7 @@ legend { margin-bottom: 6px; }
 }
 
 .map-mode button {
+  flex: 1;
   padding: 6px 12px;
   border: none;
   border-radius: 7px;

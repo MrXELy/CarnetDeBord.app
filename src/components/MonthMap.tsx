@@ -1,4 +1,4 @@
-import { Download, LoaderCircle, Route, X } from 'lucide-react';
+import { LoaderCircle, Route, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { monthWeeks, summarizeWeek, timeLabel, weekLabel } from '../lib/dates';
 import { updateSettings, useSettings } from '../lib/settings';
@@ -7,7 +7,16 @@ import { useModal } from '../lib/useModal';
 import { generateWeekMap } from '../lib/weekMapGen';
 import { WEEK_COLORS, buildStops, dayKey, dayLegs, shortDay, stopsHash } from '../lib/weekStops';
 import { eventTypeInfo, type Place, type TripEvent } from '../types';
-import MapSvg, { mapUnit, project, renderImage, shareImage, viewBox, type MapPin, type Point } from './MapSvg';
+import MapSvg, {
+  ImageButton,
+  mapUnit,
+  project,
+  renderImage,
+  shareImage,
+  viewBox,
+  type MapPin,
+  type Point,
+} from './MapSvg';
 
 interface Props {
   /** Mois tel qu'affiché dans la liste des semaines : « Janvier 2026 ». */
@@ -36,7 +45,7 @@ function dots(stops: { at: Point; color: string; approximate: boolean }[], minGa
 /** Carte d'un mois : les semaines réutilisent leurs itinéraires enregistrés, une couleur par semaine. */
 export default function MonthMap({ month, onPickWeek, onEdit, onClose }: Props) {
   const { store, events } = useEvents();
-  const { mapRoutes, mapCities, mapDepartments } = useSettings();
+  const { mapRoutes, mapCities, mapDepartments, mapFrame } = useSettings();
   const [found, setFound] = useState<Map<string, Place>>(() => new Map());
   const [status, setStatus] = useState<Status>({ state: 'idle' });
   const svgRef = useRef<SVGSVGElement>(null);
@@ -75,7 +84,10 @@ export default function MonthMap({ month, onPickWeek, onEdit, onClose }: Props) 
 
   const allStops = weeks.flatMap((w) => w.stops.map((s) => ({ ...s, color: w.color })));
   const missing = weeks.flatMap((w) => w.missing);
-  const box = viewBox([...allStops.map((s): Point => [s.lat, s.lon]), ...lines.flatMap((l) => l.coords)]);
+  const box = viewBox(
+    [...allStops.map((s): Point => [s.lat, s.lon]), ...lines.flatMap((l) => l.coords)],
+    mapFrame === 'france',
+  );
   const pins = dots(
     allStops.map((s) => ({ at: project([s.lat, s.lon]), color: s.color, approximate: s.approximate })),
     mapUnit(box) * 6,
@@ -167,34 +179,47 @@ export default function MonthMap({ month, onPickWeek, onEdit, onClose }: Props) 
                     Lignes droites
                   </button>
                 </div>
-                <label className="map-toggle">
-                  <input
-                    type="checkbox"
-                    checked={mapCities}
-                    onChange={(e) => updateSettings({ mapCities: e.target.checked })}
-                  />
-                  Villes
-                </label>
-                <label className="map-toggle">
-                  <input
-                    type="checkbox"
-                    checked={mapDepartments}
-                    onChange={(e) => updateSettings({ mapDepartments: e.target.checked })}
-                  />
-                  Départements
-                </label>
+                <div className="map-toggles">
+                  <label className="map-toggle">
+                    <input
+                      type="checkbox"
+                      checked={mapFrame === 'france'}
+                      onChange={(e) => updateSettings({ mapFrame: e.target.checked ? 'france' : 'trips' })}
+                    />
+                    France entière
+                  </label>
+                  <label className="map-toggle">
+                    <input
+                      type="checkbox"
+                      checked={mapCities}
+                      onChange={(e) => updateSettings({ mapCities: e.target.checked })}
+                    />
+                    Villes
+                  </label>
+                  <label className="map-toggle">
+                    <input
+                      type="checkbox"
+                      checked={mapDepartments}
+                      onChange={(e) => updateSettings({ mapDepartments: e.target.checked })}
+                    />
+                    Départements
+                  </label>
+                </div>
               </div>
 
-              <MapSvg
-                ref={svgRef}
-                box={box}
-                lines={lines}
-                pins={pins}
-                arrows={false}
-                cities={mapCities}
-                departments={mapDepartments}
-                label={`Carte des trajets de ${month.toLowerCase()}`}
-              />
+              <div className="map-frame">
+                <MapSvg
+                  ref={svgRef}
+                  box={box}
+                  lines={lines}
+                  pins={pins}
+                  arrows={false}
+                  cities={mapCities}
+                  departments={mapDepartments}
+                  label={`Carte des trajets de ${month.toLowerCase()}`}
+                />
+                <ImageButton onExport={exportImage} disabled={busy || allStops.length === 0} />
+              </div>
 
               {status.state !== 'idle' && (
                 <p className={`reading ${status.state === 'error' ? 'reading-error' : ''}`}>
@@ -203,25 +228,19 @@ export default function MonthMap({ month, onPickWeek, onEdit, onClose }: Props) 
                 </p>
               )}
 
-              <div className="row">
-                {toGenerate.length > 0 && (
-                  <button type="button" className="btn-primary btn-icon lv-add" onClick={generate} disabled={busy}>
-                    <Route size={18} />
-                    {toGenerate.length === weeks.length
-                      ? 'Générer la carte'
-                      : `Générer ${toGenerate.length} semaine${toGenerate.length > 1 ? 's' : ''}`}
-                  </button>
-                )}
+              {toGenerate.length > 0 && (
                 <button
                   type="button"
-                  className="btn-secondary btn-icon lv-add"
-                  onClick={exportImage}
-                  disabled={busy || allStops.length === 0}
+                  className="btn-primary btn-icon lv-add map-generate"
+                  onClick={generate}
+                  disabled={busy}
                 >
-                  <Download size={18} />
-                  Enregistrer l’image
+                  <Route size={18} />
+                  {toGenerate.length === weeks.length
+                    ? 'Générer la carte'
+                    : `Générer ${toGenerate.length} semaine${toGenerate.length > 1 ? 's' : ''}`}
                 </button>
-              </div>
+              )}
 
               <div className="month-weeks">
                 {weeks.map((w) => (

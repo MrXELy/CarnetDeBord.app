@@ -1,4 +1,5 @@
-import { forwardRef } from 'react';
+import { Download, LoaderCircle } from 'lucide-react';
+import { forwardRef, useState } from 'react';
 import { CITIES } from '../assets/cities';
 import departements from '../assets/departements.json';
 import france from '../assets/france.json';
@@ -74,13 +75,17 @@ function arrowsAlong(coords: Point[]): { at: Point; angle: number }[] {
   });
 }
 
-/** Cadre de la carte : tous les points, avec une marge, au format presque carré. */
-export function viewBox(points: Point[]): Box {
-  const pts = (points.length ? points : FRANCE_BOUNDS).map(project);
+/**
+ * Cadre de la carte : tous les points, avec une marge, au format presque carré.
+ * Avec `france`, le cadre couvre toute la métropole, agrandi si un point en sort (mode Europe).
+ */
+export function viewBox(points: Point[], france = false): Box {
+  const pts = (points.length && !france ? points : [...points, ...FRANCE_BOUNDS]).map(project);
   let [minX, minY] = [Math.min(...pts.map((p) => p[0])), Math.min(...pts.map((p) => p[1]))];
   let [maxX, maxY] = [Math.max(...pts.map((p) => p[0])), Math.max(...pts.map((p) => p[1]))];
-  // Marge de 12 %, et au moins 1,5° de côté pour garder un repère autour d'une seule ville.
-  const pad = Math.max(maxX - minX, maxY - minY) * 0.12;
+  // Marge de 12 % (3 % pour la France, son cadre en a déjà une),
+  // et au moins 1,5° de côté pour garder un repère autour d'une seule ville.
+  const pad = Math.max(maxX - minX, maxY - minY) * (france ? 0.03 : 0.12);
   let width = Math.max(maxX - minX + 2 * pad, 1.5);
   let height = Math.max(maxY - minY + 2 * pad, 1.5);
   // Forme adaptée au parcours, entre « paysage » (4:3) et « portrait » (3:4).
@@ -104,6 +109,34 @@ export interface MapPin {
   label?: string;
   color: string;
   approximate: boolean;
+}
+
+/** Lieu à placer sur la carte, avec son numéro dans la semaine. */
+export interface NumberedStop {
+  lat: number;
+  lon: number;
+  number: number;
+  color: string;
+  approximate: boolean;
+}
+
+/**
+ * Repères des lieux. Avec les numéros, les lieux qui se toucheraient à l'écran (même endroit, ou villes
+ * voisines à cette échelle) partagent une pastille avec tous leurs numéros (« 2·7 »). Sans numéros,
+ * chaque lieu garde son petit point, de la couleur de son jour.
+ */
+export function stopPins(stops: NumberedStop[], minGap: number, numbered: boolean): MapPin[] {
+  if (!numbered) return stops.map((s) => ({ at: project([s.lat, s.lon]), color: s.color, approximate: s.approximate }));
+  const result: { at: Point; numbers: number[]; color: string; approximate: boolean }[] = [];
+  for (const s of stops) {
+    const at = project([s.lat, s.lon]);
+    const near = result.find((p) => Math.hypot(p.at[0] - at[0], p.at[1] - at[1]) < minGap);
+    if (near) {
+      near.numbers.push(s.number);
+      near.approximate ||= s.approximate;
+    } else result.push({ at, numbers: [s.number], color: s.color, approximate: s.approximate });
+  }
+  return result.map(({ numbers, ...p }) => ({ ...p, label: numbers.join('·') }));
 }
 
 interface Props {
@@ -237,6 +270,32 @@ const MapSvg = forwardRef<SVGSVGElement, Props>(function MapSvg(
 });
 
 export default MapSvg;
+
+/** Bouton rond posé en bas à droite de la carte : enregistre l'image (l'icône tourne pendant la création). */
+export function ImageButton({ onExport, disabled }: { onExport: () => Promise<void>; disabled: boolean }) {
+  const [working, setWorking] = useState(false);
+  async function run() {
+    setWorking(true);
+    try {
+      await onExport();
+    } finally {
+      setWorking(false);
+    }
+  }
+  return (
+    <button
+      type="button"
+      className="map-image-btn"
+      aria-label="Enregistrer l’image"
+      aria-busy={working}
+      title="Enregistrer l’image"
+      disabled={disabled || working}
+      onClick={run}
+    >
+      {working ? <LoaderCircle size={18} className="spin" /> : <Download size={18} />}
+    </button>
+  );
+}
 
 /** Image PNG de la carte : titre, carte et légende, pour la partager ou la garder. */
 export async function renderImage(svg: SVGSVGElement, title: string, lines: string[], colors: string[]): Promise<Blob> {
