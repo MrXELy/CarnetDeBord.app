@@ -7,6 +7,7 @@ import { updateSettings, useSettings } from '../lib/settings';
 import { supabase } from '../lib/supabase';
 import { useEvents, useStore } from '../lib/useEvents';
 import { useModal } from '../lib/useModal';
+import AllowanceSettingsSection from './AllowanceSettings';
 
 /** Lectures automatiques permises par mois (limite imposée par la fonction read-waybill). */
 const MONTH_LIMIT = 300;
@@ -81,6 +82,8 @@ export default function Settings({ onClose }: { onClose: () => void }) {
               </span>
             </div>
           </section>
+
+          <AllowanceSettingsSection />
 
           <section className="settings-group">
             <h3>Données</h3>

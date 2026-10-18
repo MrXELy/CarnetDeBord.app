@@ -309,13 +309,20 @@ textarea { resize: vertical; }
 .week-sub { font-size: 0.78rem; color: var(--muted); }
 
 /* En-tête plus haut quand il affiche « LV dans le camion » */
-.app.has-links { --topbar-h: calc(192px + env(safe-area-inset-top, 0px)); }
 
 .week-links {
+  position: relative;
+  z-index: 1;
   display: flex;
   justify-content: center;
   gap: 8px;
-  margin-top: auto;
+  padding: 12px 12px 0;
+}
+
+/* Sur téléphone étroit, « 3 LV dans le camion » devient « 3 LV » pour laisser la place aux frais et à la carte. */
+.week-links .pill { white-space: nowrap; }
+@media (max-width: 420px) {
+  .pill-long { display: none; }
 }
 
 .pill {
@@ -1003,6 +1010,43 @@ legend { margin-bottom: 6px; }
 .search input:focus { box-shadow: none; }
 .search input { border: none; background: transparent; padding-left: 0; }
 
+/* ---------- Frais de déplacement ---------- */
+.fr-week { margin: 0; font-weight: 700; color: var(--muted); }
+.fr-empty { margin: 0; }
+.fr-setup { display: grid; gap: 12px; justify-items: start; }
+.fr-setup p { margin: 0; }
+
+.fr-table {
+  display: grid;
+  gap: 2px;
+  padding: 6px 14px;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+}
+
+.fr-row { display: flex; align-items: baseline; gap: 10px; padding: 8px 0; }
+.fr-row + .fr-row { border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.fr-count { flex: none; min-width: 2.2em; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); }
+.fr-label { flex: 1; min-width: 0; }
+.fr-label small { margin-left: 6px; font-size: 0.72rem; font-weight: 700; color: #60a5fa; }
+.fr-amount { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fr-total { font-size: 1.05rem; font-weight: 800; }
+.fr-total .fr-amount { font-size: 1.2rem; font-weight: 800; }
+.fr-table .hint { margin: 0 0 8px; }
+
+.fr-bases { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.fr-bases li { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 700; }
+.fr-period { font: inherit; font-size: 0.85rem; color: var(--text); background: var(--glass); border: 1px solid var(--glass-border); border-radius: 10px; padding: 4px 8px; }
+.fr-from { display: flex; align-items: center; gap: 10px; }
+.fr-from input { flex: 1; padding: 8px 10px; }
+
+.fr-rates { display: grid; grid-template-columns: minmax(0, 1fr) 84px 84px; gap: 6px 8px; align-items: center; }
+.fr-col { font-size: 0.75rem; font-weight: 700; color: var(--muted); text-align: center; }
+.fr-rate-label { font-size: 0.85rem; }
+.fr-money { padding: 8px 10px; text-align: right; font-variant-numeric: tabular-nums; }
+.fr-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
 /* ---------- Recherche globale ---------- */
 /* Une seule colonne à la largeur de l'écran : les lignes longues (début, fin) ne l'élargissent pas. */
 .search-body { grid-template-columns: minmax(0, 1fr); }
@@ -1424,6 +1468,7 @@ legend { margin-bottom: 6px; }
 .st-chip.flat { color: var(--muted); background: var(--glass); }
 
 .st-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.st-tile.wide { grid-column: 1 / -1; }
 .st-tile {
   min-width: 0;
   display: grid;

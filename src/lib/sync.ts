@@ -1,4 +1,5 @@
 import { isInTruck, type Place, type TripEvent, type Waybill, type WeekMap } from '../types';
+import { DEFAULT_ALLOWANCE_SETTINGS, computeAllowances, type Allowance, type AllowanceSettings } from './allowances';
 import { fuelIntervals, type FuelInterval } from './fuel';
 import { uploadPending } from './photos';
 import { supabase } from './supabase';
@@ -12,6 +13,13 @@ export interface SyncState {
   error: string | null;
   /** Mode démo local : données dans le navigateur uniquement, jamais envoyées à Supabase. */
   demo: boolean;
+  /** Bases et tarifs des frais de déplacement. */
+  allowanceSettings: AllowanceSettings;
+}
+
+/** Réglages partagés entre les appareils : une seule ligne, identifiée par l'utilisateur. */
+interface UserSettingsRow extends Row {
+  allowances: AllowanceSettings | null;
 }
 
 const PAGE = 1000;
@@ -95,11 +103,14 @@ export class EventStore {
   private events = new Collection<TripEvent>('events', normalizeEvent);
   private waybills = new Collection<Waybill>('waybills', normalizeWaybill);
   private weekMaps = new Collection<WeekMap>('week_maps');
+  private userSettings = new Collection<UserSettingsRow>('user_settings');
   private listeners = new Set<() => void>();
   private state: SyncState;
   private syncing = false;
   private error: string | null = null;
   private fuelCache: { events: TripEvent[]; intervals: FuelInterval[] } | null = null;
+  private settingsCache: { row: UserSettingsRow | undefined; settings: AllowanceSettings } | null = null;
+  private allowanceCache: { events: TripEvent[]; settings: AllowanceSettings; list: Allowance[] } | null = null;
 
   constructor(
     readonly userId: string,
@@ -110,6 +121,7 @@ export class EventStore {
     this.events.load(saved && { items: saved.events, outbox: saved.outbox, cursor: saved.cursor });
     this.waybills.load(this.read<Saved<Waybill>>('waybills'));
     this.weekMaps.load(this.read<Saved<WeekMap>>('week_maps'));
+    this.userSettings.load(this.read<Saved<UserSettingsRow>>('user_settings'));
     this.state = this.snapshot();
     window.addEventListener('online', this.handleOnline);
     window.addEventListener('offline', this.emit);
@@ -161,6 +173,23 @@ export class EventStore {
   saveWeekMap(map: WeekMap) {
     this.weekMaps.save(map);
     this.commit();
+  }
+
+  /** Enregistre les bases et les tarifs des frais de déplacement. */
+  saveAllowanceSettings(settings: AllowanceSettings) {
+    const row = this.userSettings.items.get(this.userId);
+    this.userSettings.save({ id: this.userId, updated_at: '', deleted_at: null, ...row, allowances: settings });
+    this.commit();
+  }
+
+  /** Frais de déplacement de tout l'historique, recalculés seulement si les étapes ou les réglages changent. */
+  allowances(): Allowance[] {
+    const { events, allowanceSettings: settings } = this.state;
+    const cache = this.allowanceCache;
+    if (cache?.events === events && cache.settings === settings) return cache.list;
+    const list = computeAllowances(events, settings);
+    this.allowanceCache = { events, settings, list };
+    return list;
   }
 
   /** Complète le lieu d'une étape (coordonnées retrouvées d'après le nom de la ville). */
@@ -299,6 +328,13 @@ export class EventStore {
       } catch (err) {
         this.error = /week_maps/.test(String(err)) ? 'Table des cartes absente dans Supabase' : String(err);
       }
+      // Réglages partagés : un échec ne bloque pas le reste non plus.
+      try {
+        await this.userSettings.push();
+        await this.userSettings.pull();
+      } catch (err) {
+        this.error = /user_settings/.test(String(err)) ? 'Table des réglages absente dans Supabase' : String(err);
+      }
     } catch (err) {
       this.error = err instanceof Error ? err.message : 'Erreur de synchronisation';
     } finally {
@@ -318,12 +354,27 @@ export class EventStore {
     return {
       events: this.events.alive().sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)),
       waybills: this.waybills.alive(),
-      pending: this.events.outbox.size + this.waybills.outbox.size + this.weekMaps.outbox.size,
+      pending:
+        this.events.outbox.size + this.waybills.outbox.size + this.weekMaps.outbox.size + this.userSettings.outbox.size,
       syncing: this.syncing,
       online: navigator.onLine,
       error: this.error,
       demo: !!this.options.offline,
+      allowanceSettings: this.allowanceSettings(),
     };
+  }
+
+  /** Réglages des frais, avec les valeurs par défaut ; même objet tant que la ligne ne change pas. */
+  private allowanceSettings(): AllowanceSettings {
+    const row = this.userSettings.items.get(this.userId);
+    if (this.settingsCache && this.settingsCache.row === row) return this.settingsCache.settings;
+    const saved = row?.allowances;
+    const settings: AllowanceSettings = {
+      bases: saved?.bases ?? DEFAULT_ALLOWANCE_SETTINGS.bases,
+      rates: saved?.rates?.length ? saved.rates : DEFAULT_ALLOWANCE_SETTINGS.rates,
+    };
+    this.settingsCache = { row, settings };
+    return settings;
   }
 
   private emit = () => {
@@ -336,6 +387,7 @@ export class EventStore {
     this.write('data', { events: events.items, outbox: events.outbox, cursor: events.cursor });
     this.write('waybills', this.waybills.dump());
     this.write('week_maps', this.weekMaps.dump());
+    this.write('user_settings', this.userSettings.dump());
     this.emit();
   }
 

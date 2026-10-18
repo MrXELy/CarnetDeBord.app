@@ -1,18 +1,22 @@
-import { addWeeks, isSameDay, parseISO } from 'date-fns';
+import { addDays, addWeeks, isSameDay, parseISO } from 'date-fns';
 import {
   ChartColumn,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   FileText,
+  Map as MapIcon,
   Plus,
+  ReceiptEuro,
   Search,
   Settings as SettingsIcon,
 } from 'lucide-react';
 import { Suspense, lazy, useEffect, useMemo, useRef, useState, type TouchEvent } from 'react';
+import { euros, summarizeAllowances } from '../lib/allowances';
 import { durationLabel, groupWeek, summarizeDay, summarizeWeek, weekLabel, weekStart } from '../lib/dates';
 import { useEvents } from '../lib/useEvents';
 import { isDayBoundary, waybillStatus, type TripEvent } from '../types';
+import AllowancesSheet from './AllowancesSheet';
 import DaySection from './DaySection';
 import EventForm from './EventForm';
 import SearchPage from './SearchPage';
@@ -28,7 +32,7 @@ const StatsPage = lazy(() => import('./StatsPage'));
 type Editing = { event: TripEvent | null } | null;
 
 export default function WeekView() {
-  const { events, waybills, pending, syncing, online, error, demo, store } = useEvents();
+  const { events, waybills, pending, syncing, online, error, demo, store, allowanceSettings } = useEvents();
   const [start, setStart] = useState(() => weekStart(new Date()));
   // Sens de l'animation au changement de semaine : glisse depuis la droite (suivante) ou la gauche (précédente).
   const [slide, setSlide] = useState<'next' | 'prev' | 'fade'>('fade');
@@ -36,6 +40,7 @@ export default function WeekView() {
   const [showSettings, setShowSettings] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [showAllowances, setShowAllowances] = useState(false);
   // Étape trouvée par la recherche : mise en évidence tant qu'on reste sur sa semaine.
   const [found, setFound] = useState<string | null>(null);
   const [waybillFilter, setWaybillFilter] = useState<WaybillFilter | null>(null);
@@ -51,6 +56,15 @@ export default function WeekView() {
   const isCurrentWeek = isSameDay(start, weekStart(new Date()));
   const toComplete = waybills.filter((w) => waybillStatus(w) === 'a_completer').length;
   const inTruck = store.inTruck(new Date()).length;
+  const showInTruck = isCurrentWeek && inTruck > 0;
+  // Frais de la semaine : dès qu'elle a des étapes.
+  const allowances = useMemo(
+    () => summarizeAllowances(store.allowances(), { start, end: addDays(start, 7) }),
+    // store.allowances() ne change qu'avec les étapes ou les réglages.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [events, allowanceSettings, start],
+  );
+  const showAllowancePill = days.length > 0;
 
   // Nouvelle semaine : la page repart du haut (l'étape trouvée par la recherche est rejointe juste après).
   useEffect(() => window.scrollTo({ top: 0 }), [start]);
@@ -98,7 +112,7 @@ export default function WeekView() {
   }
 
   return (
-    <div className={`app${isCurrentWeek && inTruck > 0 ? ' has-links' : ''}`}>
+    <div className="app">
       <div className="halos" aria-hidden>
         <i />
         <i />
@@ -168,15 +182,31 @@ export default function WeekView() {
             <ChevronRight size={22} />
           </button>
         </nav>
-        {isCurrentWeek && inTruck > 0 && (
-          <div className="week-links">
+      </header>
+
+      {/* Raccourcis de la semaine : hors de la barre fixe, ils défilent avec les jours. */}
+      {(showInTruck || showAllowancePill) && (
+        <div className="week-links">
+          {showInTruck && (
             <button className="pill" onClick={() => setWaybillFilter('dans_camion')}>
               <FileText size={14} aria-hidden />
-              {inTruck} LV dans le camion
+              {inTruck} LV<span className="pill-long"> dans le camion</span>
             </button>
-          </div>
-        )}
-      </header>
+          )}
+          {showAllowancePill && (
+            <button className="pill" onClick={() => setShowAllowances(true)}>
+              <ReceiptEuro size={14} aria-hidden />
+              {allowanceSettings.bases.length ? `Frais ${euros(allowances.total)}` : 'Frais de route'}
+            </button>
+          )}
+          {showAllowancePill && (
+            <button className="pill" onClick={() => setShowMap(true)}>
+              <MapIcon size={14} aria-hidden />
+              Carte
+            </button>
+          )}
+        </div>
+      )}
 
       <main className={`days slide-${slide}`} key={start.getTime()} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         {days.length === 0 ? (
@@ -210,6 +240,16 @@ export default function WeekView() {
             setFound(event.id);
           }}
           onClose={() => setSearching(false)}
+        />
+      )}
+      {showAllowances && (
+        <AllowancesSheet
+          start={start}
+          onOpenSettings={() => {
+            setShowAllowances(false);
+            setShowSettings(true);
+          }}
+          onClose={() => setShowAllowances(false)}
         />
       )}
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}

@@ -3,6 +3,7 @@ import { fr } from 'date-fns/locale';
 import { CalendarCheck, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useMemo, useRef, useState, type ReactNode, type TouchEvent } from 'react';
 import { dayLabel, durationLabel, timeLabel, weekLabel } from '../lib/dates';
+import { euros, summarizeAllowances, type AllowanceSummary } from '../lib/allowances';
 import { averageRate, formatRate, intervalKm, intervalRate, recentIntervals, type FuelInterval } from '../lib/fuel';
 import { formatPlace } from '../lib/geo';
 import {
@@ -30,6 +31,7 @@ import {
 import { useEvents } from '../lib/useEvents';
 import { useModal } from '../lib/useModal';
 import { eventTypeInfo, isDayBoundary, type TripEvent, type Waybill } from '../types';
+import AllowanceTable from './AllowanceTable';
 
 const KINDS: { value: PeriodKind; label: string }[] = [
   { value: 'jour', label: 'Jour' },
@@ -75,7 +77,7 @@ interface Props {
 }
 
 export default function StatsPage({ week, onClose }: Props) {
-  const { events, waybills, store } = useEvents();
+  const { events, waybills, store, allowanceSettings } = useEvents();
   const [period, setPeriod] = useState<Period>({ kind: 'semaine', anchor: week });
   const [slide, setSlide] = useState<'next' | 'prev' | 'fade'>('fade');
   const touch = useRef<{ x: number; y: number } | null>(null);
@@ -101,6 +103,14 @@ export default function StatsPage({ week, onClose }: Props) {
 
   const stats = periodStats(events, waybills, range, intervals);
   const before = periodStats(events, waybills, previous.range, intervals);
+  // Frais de déplacement : par semaine, mois ou année (pas par jour), une fois les bases réglées.
+  const fees =
+    period.kind !== 'jour' && allowanceSettings.bases.length > 0
+      ? {
+          cur: summarizeAllowances(store.allowances(), range),
+          prev: summarizeAllowances(store.allowances(), previous.range),
+        }
+      : null;
 
   function go(next: Period, direction: 'next' | 'prev' | 'fade') {
     setSlide(direction);
@@ -223,7 +233,7 @@ export default function StatsPage({ week, onClose }: Props) {
                   )}
                 </section>
 
-                <Tiles period={period} stats={stats} before={before} />
+                <Tiles period={period} stats={stats} before={before} fees={fees} />
 
                 {period.kind === 'jour' ? (
                   <DayDetail events={events} range={range} stats={stats} />
@@ -232,6 +242,12 @@ export default function StatsPage({ week, onClose }: Props) {
                 )}
 
                 <FuelSection period={period} stats={stats} intervals={intervals} range={range} />
+
+                {fees && (
+                  <Section title="Frais de route">
+                    <AllowanceTable summary={fees.cur} />
+                  </Section>
+                )}
 
                 {period.kind !== 'jour' && (
                   <>
@@ -283,9 +299,9 @@ function Evolution(props: {
   );
 }
 
-function Tile(props: { label: string; value: ReactNode; tone?: string; children?: ReactNode }) {
+function Tile(props: { label: string; value: ReactNode; tone?: string; wide?: boolean; children?: ReactNode }) {
   return (
-    <div className={`st-tile${props.tone ? ` tone-${props.tone}` : ''}`}>
+    <div className={`st-tile${props.tone ? ` tone-${props.tone}` : ''}${props.wide ? ' wide' : ''}`}>
       <span className="st-tile-label">
         {props.tone && <i aria-hidden />}
         {props.label}
@@ -296,7 +312,13 @@ function Tile(props: { label: string; value: ReactNode; tone?: string; children?
   );
 }
 
-function Tiles({ period, stats, before }: { period: Period; stats: PeriodStats; before: PeriodStats }) {
+function Tiles(props: {
+  period: Period;
+  stats: PeriodStats;
+  before: PeriodStats;
+  fees: { cur: AllowanceSummary; prev: AllowanceSummary } | null;
+}) {
+  const { period, stats, before, fees } = props;
   const fuel = stats.fuel;
   const used = fuel.used != null ? `≈ ${liters(fuel.used)}` : '—';
   const perDay = (s: PeriodStats) => (s.days ? Math.round(s.km / s.days) : null);
@@ -353,6 +375,11 @@ function Tiles({ period, stats, before }: { period: Period; stats: PeriodStats; 
       >
         <Delta cur={fuel.rate} prev={before.fuel.rate} better="down" digits={1} />
       </Tile>
+      {fees && (
+        <Tile label="Frais de route" value={euros(fees.cur.total)} wide>
+          <Delta cur={fees.cur.total} prev={fees.prev.total} digits={2} format={euros} />
+        </Tile>
+      )}
     </div>
   );
 }
@@ -449,7 +476,7 @@ function KmChart(props: { period: Period; events: TripEvent[]; now: Date; onPick
           );
         })}
       </svg>
-      <p className="hint">En doré, la plus grosse. Touche une barre pour l’ouvrir.</p>
+      <p className="hint">En doré, la plus grosse journée. Touche une barre pour l’ouvrir.</p>
     </Section>
   );
 }
