@@ -1,6 +1,7 @@
 import { Search, X } from 'lucide-react';
 import { useState } from 'react';
 import { applyStepChanges, placeOf } from '../lib/places';
+import { normalize } from '../lib/search';
 import { useModal } from '../lib/useModal';
 import { useEvents } from '../lib/useEvents';
 import { stepLabel } from '../lib/waybills';
@@ -15,12 +16,6 @@ const FILTERS: { value: WaybillFilter; label: string }[] = [
   { value: 'dans_camion', label: 'Dans le camion' },
   { value: 'toutes', label: 'Toutes' },
 ];
-
-const normalize = (s: string) =>
-  s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase();
 
 interface Props {
   initialFilter: WaybillFilter;

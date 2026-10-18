@@ -974,6 +974,30 @@ legend { margin-bottom: 6px; }
 .search input:focus { box-shadow: none; }
 .search input { border: none; background: transparent; padding-left: 0; }
 
+/* ---------- Recherche globale ---------- */
+.search-summary { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+
+/* Dans la fenêtre, les en-têtes de jour ne collent pas sous la barre du haut de la semaine. */
+.search-results .day { margin-top: 0; }
+.search-results .day + .day { margin-top: 14px; }
+.search-results .day-header {
+  position: static;
+  align-items: center;
+  margin: 0 0 8px;
+  padding: 0;
+  background: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  font-size: 0.95rem;
+}
+
+.search-week { flex: none; padding: 4px 10px; font-size: 0.75rem; color: var(--muted); }
+
+/* LV trouvées sous l'étape : numéro et marchandise, que la carte n'affiche pas */
+.search-lv { display: block; padding: 4px 14px 0; font-size: 0.8rem; color: var(--muted); }
+
+.search-more { margin: 0; text-align: center; font-size: 0.85rem; }
+
 .has-badge { position: relative; }
 
 .icon-badge {

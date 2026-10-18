@@ -1,4 +1,4 @@
-import { addWeeks, isSameDay } from 'date-fns';
+import { addWeeks, isSameDay, parseISO } from 'date-fns';
 import {
   ChartColumn,
   ChevronDown,
@@ -7,6 +7,7 @@ import {
   FileText,
   LogOut,
   Plus,
+  Search,
   Settings as SettingsIcon,
 } from 'lucide-react';
 import { Suspense, lazy, useMemo, useRef, useState, type TouchEvent } from 'react';
@@ -16,6 +17,7 @@ import { useEvents } from '../lib/useEvents';
 import { isDayBoundary, waybillStatus, type TripEvent } from '../types';
 import DaySection from './DaySection';
 import EventForm from './EventForm';
+import SearchPage from './SearchPage';
 import Settings from './Settings';
 import WaybillsPage, { type WaybillFilter } from './WaybillsPage';
 import WeekPicker from './WeekPicker';
@@ -35,6 +37,7 @@ export default function WeekView() {
   const [editing, setEditing] = useState<Editing>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [searching, setSearching] = useState(false);
   const [waybillFilter, setWaybillFilter] = useState<WaybillFilter | null>(null);
   const [pickingWeek, setPickingWeek] = useState(false);
   const [showMap, setShowMap] = useState(false);
@@ -93,6 +96,9 @@ export default function WeekView() {
           ) : (
             <SyncBadge pending={pending} syncing={syncing} online={online} error={error} onRetry={() => store.sync()} />
           )}
+          <button className="icon-btn" title="Rechercher" aria-label="Rechercher" onClick={() => setSearching(true)}>
+            <Search size={20} />
+          </button>
           <button
             className="icon-btn has-badge"
             title="Lettres de voiture"
@@ -176,6 +182,15 @@ export default function WeekView() {
       </button>
 
       {editing && <EventForm event={editing.event} onClose={() => setEditing(null)} />}
+      {searching && (
+        <SearchPage
+          onShowWeek={(event) => {
+            setSearching(false);
+            pickWeek(weekStart(parseISO(event.occurred_at)));
+          }}
+          onClose={() => setSearching(false)}
+        />
+      )}
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
       {showStats && (
         <Suspense fallback={null}>
