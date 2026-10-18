@@ -151,33 +151,68 @@ describe('buildWeekSheet', () => {
     ]);
   });
 
-  it('réunit les LV d’un chargement sur sa ligne, chaque livraison gardant les siennes', () => {
-    const load = ev('chargement', '2026-03-02T08:00', 'Toulouse', '31', 100_050);
+  it('fait une ligne par LV, au chargement comme à la livraison', () => {
+    const load = ev('chargement', '2026-03-02T08:00', 'Toulouse', '31', 100_050, { client: 'Usine A' });
     const first = ev('livraison', '2026-03-03T08:00', 'Narbonne', '11', 100_300);
     const second = ev('livraison', '2026-03-03T10:00', 'Narbonne', '11', 100_310);
     const waybills = [
       newWaybill({
         loading_event_id: load.id,
-        delivery_event_id: first.id,
-        number: '1',
-        goods: 'sec',
-        weight_kg: 10_000,
+        delivery_event_id: second.id,
+        number: '2',
+        goods: 'placo',
+        weight_kg: 12_000,
+        consignee: 'Client D',
       }),
       newWaybill({
         loading_event_id: load.id,
-        delivery_event_id: second.id,
-        number: '2',
-        goods: 'frais',
-        weight_kg: 5_000,
+        delivery_event_id: first.id,
+        number: '1',
+        goods: 'placo',
+        weight_kg: 15_000,
+        consignee: 'Client C',
       }),
     ];
     const sheet = buildWeekSheet([load, first, second], waybills, start, settings);
-    expect(sheet.operations[0]).toEqual([
-      expect.objectContaining({ goods: 'sec, frais', weightKg: 15_000, number: '1, 2' }),
+    expect(sheet.operations[0].map((r) => [r.trailer, r.shipper, r.goods, r.weightKg, r.number])).toEqual([
+      ['BB 222 BB', 'Usine A', 'placo', 15_000, '1'],
+      ['', '', 'placo', 12_000, '2'],
     ]);
-    expect(sheet.operations[1].map((r) => [r.trailer, r.goods, r.weightKg, r.number])).toEqual([
-      ['BB 222 BB', 'sec', 10_000, '1'],
-      ['', 'frais', 5_000, '2'],
+    expect(sheet.operations[1].map((r) => [r.trailer, r.consignee, r.weightKg, r.number])).toEqual([
+      ['BB 222 BB', 'Client C', 15_000, '1'],
+      ['', 'Client D', 12_000, '2'],
+    ]);
+  });
+
+  it('met une livraison du jour même sur la ligne de sa LV', () => {
+    const load = ev('chargement', '2026-03-02T08:00', 'Toulouse', '31', 100_050);
+    const first = ev('livraison', '2026-03-02T11:00', 'Narbonne', '11', 100_200);
+    const second = ev('livraison', '2026-03-02T12:00', 'Narbonne', '11', 100_210);
+    const waybills = [
+      newWaybill({ loading_event_id: load.id, delivery_event_id: second.id, number: '1', consignee: 'Client C' }),
+      newWaybill({ loading_event_id: load.id, delivery_event_id: first.id, number: '2', consignee: 'Client D' }),
+    ];
+    const rows = buildWeekSheet([load, first, second], waybills, start, settings).operations[0];
+    expect(rows.map((r) => [r.number, r.consignee, r.consigneeKm])).toEqual([
+      ['1', 'Client C', 100_210],
+      ['2', 'Client D', 100_200],
+    ]);
+  });
+
+  it('livre plusieurs LV ensemble sur une ligne chacune, le destinataire sur la première', () => {
+    const delivery = ev('livraison', '2026-03-02T09:00', 'Narbonne', '11', 100_100);
+    const waybills = ['1', '2'].map((number) =>
+      newWaybill({
+        loading_event_id: 'chargement-semaine-avant',
+        delivery_event_id: delivery.id,
+        number,
+        consignee: 'Client C',
+      }),
+    );
+    const rows = buildWeekSheet([delivery], waybills, start, settings).operations[0];
+    expect(rows.map((r) => [r.trailer, r.consignee, r.number])).toEqual([
+      ['BB 222 BB', 'Client C', '1'],
+      ['', '', '2'],
     ]);
   });
 

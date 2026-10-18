@@ -118,15 +118,20 @@ export function fuelColumn(e: Pick<TripEvent, 'station' | 'city'>, depots: Sheet
 const names = (list: Waybill[], side: 'shipper' | 'consignee' | 'goods' | 'number') =>
   [...new Set(list.map((w) => w[side]?.trim()).filter(Boolean))].join(', ');
 
-/** Nature, poids et n° des LV d'une étape : plusieurs LV sont réunies (natures et n° à la suite, poids additionnés). */
-function lvInfo(list: Waybill[], e: TripEvent): Pick<OpRow, 'goods' | 'weightKg' | 'number'> {
-  const weights = list.map((w) => w.weight_kg).filter((w): w is number => w != null);
+/** Nature, poids et n° d'une LV (ou, sans LV, l'ancien n° noté sur l'étape). */
+function lvInfo(w: Waybill | undefined, e: TripEvent): Pick<OpRow, 'goods' | 'weightKg' | 'number'> {
   return {
-    goods: names(list, 'goods'),
-    weightKg: weights.length ? weights.reduce((a, b) => a + b, 0) : null,
-    number: names(list, 'number') || e.cmr_number?.trim() || '',
+    goods: w?.goods?.trim() ?? '',
+    weightKg: w?.weight_kg ?? null,
+    number: w?.number?.trim() || e.cmr_number?.trim() || '',
   };
 }
+
+/** LV d'une étape dans l'ordre de leur n° ; au moins un élément (vide sans LV) pour avoir une ligne. */
+const byNumber = (list: Waybill[]): (Waybill | undefined)[] =>
+  list.length
+    ? [...list].sort((a, b) => (a.number ?? '').localeCompare(b.number ?? '', 'fr', { numeric: true }))
+    : [undefined];
 
 const emptyRow = (): OpRow => ({
   trailer: '',
@@ -141,41 +146,55 @@ const emptyRow = (): OpRow => ({
   number: '',
 });
 
+const hasDelivery = (row: OpRow) => !!row.consignee || !!row.consigneePlace || row.consigneeKm != null;
+
 /**
- * Lignes d'une journée (pages 2-3), dans l'ordre des heures : chaque chargement ouvre une ligne ; une livraison
- * va sur la ligne de son chargement s'il a eu lieu le même jour (LV, ou à défaut le dernier chargement du jour
- * pour les anciennes étapes sans LV), sinon sur sa propre ligne. Les livraisons suivantes d'une même ligne
- * s'ajoutent dessous, sans remorque ni expéditeur. Chaque ligne de livraison reprend la nature, le poids et le n°
- * de ses LV.
+ * Lignes d'une journée (pages 2-3), dans l'ordre des heures, **une ligne par LV**. Un chargement ouvre une ligne
+ * par LV (remorque, expéditeur, ville et km sur la première seulement). Une livraison va sur la ligne de sa LV si
+ * celle-ci a été chargée le même jour (à défaut de LV, sur le dernier chargement du jour, pour les anciennes étapes),
+ * sinon sur ses propres lignes, une par LV livrée, la remorque sur la première. Les livraisons qui se suivent
+ * sans chargement du jour se rangent dessous, sans remorque. Chaque ligne porte la nature, le poids et le n° de sa LV.
  */
 function dayRows(events: TripEvent[], loaded: Map<string, Waybill[]>, delivered: Map<string, Waybill[]>): OpRow[] {
   const rows: OpRow[] = [];
-  // Ligne de chaque chargement du jour, et dernière ligne de son groupe (pour ajouter dessous).
-  const loadingRow = new Map<string, OpRow>();
+  // Groupe de lignes : sa première ligne, et la dernière (pour ajouter dessous).
+  const headOf = new Map<OpRow, OpRow>();
   const groupEnd = new Map<OpRow, OpRow>();
+  // Ligne de chaque LV chargée ce jour-là.
+  const lvRow = new Map<string, OpRow>();
   let lastLoading: OpRow | null = null;
-  // Livraisons qui se suivent sans chargement du jour : une seule ligne avec remorque, les autres dessous.
+  // Livraisons qui se suivent sans chargement du jour : un seul groupe, remorque sur la première ligne.
   let ownGroup: OpRow | null = null;
 
+  const open = (row: OpRow) => {
+    rows.push(row);
+    headOf.set(row, row);
+    groupEnd.set(row, row);
+  };
   const addUnder = (head: OpRow, row: OpRow) => {
-    rows.splice(rows.indexOf(groupEnd.get(head) ?? head) + 1, 0, row);
+    rows.splice(rows.indexOf(groupEnd.get(head)!) + 1, 0, row);
     groupEnd.set(head, row);
+    headOf.set(row, head);
   };
 
   for (const e of events) {
     if (e.type === 'chargement') {
-      const list = loaded.get(e.id) ?? [];
-      const row: OpRow = {
+      const lvs = byNumber(loaded.get(e.id) ?? []);
+      const head: OpRow = {
         ...emptyRow(),
+        ...lvInfo(lvs[0], e),
         trailer: sheetPlate(e.trailer_plate),
-        shipper: names(list, 'shipper') || e.client?.trim() || '',
+        shipper: names(loaded.get(e.id) ?? [], 'shipper') || e.client?.trim() || '',
         shipperPlace: sheetPlace(e),
         shipperKm: e.odometer_km,
-        ...lvInfo(list, e),
       };
-      rows.push(row);
-      loadingRow.set(e.id, row);
-      lastLoading = row;
+      open(head);
+      lvs.forEach((w, i) => {
+        const row = i === 0 ? head : { ...emptyRow(), ...lvInfo(w, e) };
+        if (i > 0) addUnder(head, row);
+        if (w) lvRow.set(w.id, row);
+      });
+      lastLoading = head;
       ownGroup = null;
     } else if (e.type === 'livraison') {
       const list = delivered.get(e.id) ?? [];
@@ -184,19 +203,25 @@ function dayRows(events: TripEvent[], loaded: Map<string, Waybill[]>, delivered:
         consigneePlace: sheetPlace(e),
         consigneeKm: e.odometer_km,
       };
-      // Une ligne de livraison répète la nature, le poids et le n° de ses LV (sauf sur la ligne de son chargement).
-      const ownLine = { ...emptyRow(), ...lvInfo(list, e), ...delivery };
-      const loadingId = list.map((w) => w.loading_event_id).find((id) => id && loadingRow.has(id));
-      const head = loadingId ? loadingRow.get(loadingId)! : list.length === 0 ? lastLoading : null;
-      if (head) {
-        if (!head.consignee && !head.consigneePlace && head.consigneeKm == null) Object.assign(head, delivery);
-        else addUnder(head, ownLine);
+      const sameDay = list.filter((w) => lvRow.has(w.id));
+      if (sameDay.length || (list.length === 0 && lastLoading)) {
+        // Sur la ligne de sa LV chargée le jour même (ou du dernier chargement), sinon juste dessous.
+        const targets = sameDay.length
+          ? sameDay.map((w) => [w, lvRow.get(w.id)!] as const)
+          : [[undefined, lastLoading!] as const];
+        for (const [w, row] of targets) {
+          if (!hasDelivery(row)) Object.assign(row, delivery);
+          else addUnder(headOf.get(row)!, { ...emptyRow(), ...lvInfo(w, e), ...delivery });
+        }
+        const head = headOf.get(targets[0][1])!;
+        for (const w of list.filter((w) => !lvRow.has(w.id))) addUnder(head, { ...emptyRow(), ...lvInfo(w, e) });
         ownGroup = null;
-      } else if (ownGroup) {
-        addUnder(ownGroup, ownLine);
       } else {
-        ownGroup = { ...ownLine, trailer: sheetPlate(e.trailer_plate) };
-        rows.push(ownGroup);
+        byNumber(list).forEach((w, i) => {
+          const row = { ...emptyRow(), ...lvInfo(w, e), ...(i === 0 ? delivery : {}) };
+          if (ownGroup) addUnder(ownGroup, row);
+          else open((ownGroup = { ...row, trailer: sheetPlate(e.trailer_plate) }));
+        });
       }
     }
   }
