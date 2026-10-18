@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from 'react';
 import { monthWeeks, summarizeWeek, timeLabel, weekLabel } from '../lib/dates';
 import { updateSettings, useSettings } from '../lib/settings';
 import { useEvents } from '../lib/useEvents';
+import { shareFile } from '../lib/share';
 import { useModal } from '../lib/useModal';
 import { generateWeekMap } from '../lib/weekMapGen';
 import { WEEK_COLORS, buildStops, dayKey, dayLegs, shortDay, stopsHash } from '../lib/weekStops';
@@ -12,7 +13,6 @@ import MapSvg, {
   mapUnit,
   project,
   renderImage,
-  shareImage,
   viewBox,
   type MapPin,
   type Point,
@@ -127,7 +127,7 @@ export default function MonthMap({ month, onPickWeek, onEdit, onClose }: Props) 
         ],
         weeks.map((w) => w.color),
       );
-      await shareImage(blob, `carte-${month.toLowerCase().replace(' ', '-')}.png`, month);
+      await shareFile(blob, `carte-${month.toLowerCase().replace(' ', '-')}.png`, month);
       setStatus({ state: 'idle' });
     } catch (err) {
       // Partage annulé par l'utilisateur : rien à signaler.

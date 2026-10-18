@@ -317,6 +317,7 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
   position: relative;
   z-index: 1;
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
   padding: 12px 12px 0;
@@ -1049,6 +1050,11 @@ legend { margin-bottom: 6px; }
 .fr-rate-label { font-size: 0.85rem; }
 .fr-money { padding: 8px 10px; text-align: right; font-variant-numeric: tabular-nums; }
 .fr-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* ---------- Feuille de semaine (Options) ---------- */
+.ws-field { display: grid; gap: 6px; }
+.ws-depots { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 6px 8px; align-items: center; }
+.ws-input { padding: 8px 10px; }
 
 /* ---------- Recherche globale ---------- */
 /* Une seule colonne à la largeur de l'écran : les lignes longues (début, fin) ne l'élargissent pas. */

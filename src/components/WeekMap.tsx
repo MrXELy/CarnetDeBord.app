@@ -6,11 +6,12 @@ import { summarizeDay, summarizeWeek, timeLabel, weekLabel } from '../lib/dates'
 import { formatPlace } from '../lib/geo';
 import { updateSettings, useSettings } from '../lib/settings';
 import { useEvents } from '../lib/useEvents';
+import { shareFile } from '../lib/share';
 import { useModal } from '../lib/useModal';
 import { generateWeekMap } from '../lib/weekMapGen';
 import { buildStops, dayColor, dayKey, dayLegs, shortDay, stopsHash, type Stop } from '../lib/weekStops';
 import { eventTypeInfo, type Place, type TripEvent } from '../types';
-import MapSvg, { ImageButton, mapUnit, renderImage, shareImage, stopPins, viewBox, type Point } from './MapSvg';
+import MapSvg, { ImageButton, mapUnit, renderImage, stopPins, viewBox, type Point } from './MapSvg';
 
 interface Props {
   start: Date;
@@ -76,7 +77,7 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
         ...days.map((d) => `${shortDay(d)} : ${dayKm(d)?.toLocaleString('fr-FR') ?? '–'} km`),
       ], days.map(dayColor));
       const name = `carte-${format(start, 'yyyy')}-semaine-${weekLabel(start).match(/\d+/)?.[0]}.png`;
-      await shareImage(blob, name, weekLabel(start));
+      await shareFile(blob, name, weekLabel(start));
       setStatus({ state: 'idle' });
     } catch (err) {
       // Partage annulé par l'utilisateur : rien à signaler.

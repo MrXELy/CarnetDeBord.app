@@ -8,6 +8,7 @@ import { signOutAndClear, type SignOutStep } from '../lib/signOut';
 import { useEvents, useStore } from '../lib/useEvents';
 import { useModal } from '../lib/useModal';
 import AllowanceSettingsSection from './AllowanceSettings';
+import WeekSheetSettingsSection from './WeekSheetSettings';
 
 /** Lectures automatiques permises par mois (limite imposée par la fonction read-waybill). */
 const MONTH_LIMIT = 300;
@@ -87,6 +88,8 @@ export default function Settings({ onClose }: { onClose: () => void }) {
           </section>
 
           <AllowanceSettingsSection />
+
+          <WeekSheetSettingsSection />
 
           <section className="settings-group">
             <h3>Données</h3>

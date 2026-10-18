@@ -337,15 +337,3 @@ export async function renderImage(svg: SVGSVGElement, title: string, lines: stri
   );
 }
 
-/** Partage l'image sur téléphone, la télécharge sur ordinateur (partage annulé : AbortError). */
-export async function shareImage(blob: Blob, name: string, title: string): Promise<void> {
-  const file = new File([blob], name, { type: 'image/png' });
-  const phone = matchMedia('(pointer: coarse)').matches;
-  if (phone && navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], title });
-  else {
-    const url = URL.createObjectURL(file);
-    const link = Object.assign(document.createElement('a'), { href: url, download: file.name });
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-}

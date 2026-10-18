@@ -4,7 +4,9 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  FileDown,
   FileText,
+  LoaderCircle,
   Map as MapIcon,
   Plus,
   ReceiptEuro,
@@ -14,8 +16,10 @@ import {
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { euros, summarizeAllowances } from '../lib/allowances';
 import { durationLabel, groupWeek, summarizeDay, summarizeWeek, weekLabel, weekStart } from '../lib/dates';
+import { shareFile } from '../lib/share';
 import { useEvents } from '../lib/useEvents';
 import { useSwipe } from '../lib/useSwipe';
+import { buildWeekSheet } from '../lib/weekSheet';
 import { isDayBoundary, waybillStatus, type TripEvent } from '../types';
 import AllowancesSheet from './AllowancesSheet';
 import DaySection from './DaySection';
@@ -34,7 +38,8 @@ const WaybillsPage = lazy(() => import('./WaybillsPage'));
 type Editing = { event: TripEvent | null } | null;
 
 export default function WeekView() {
-  const { events, waybills, pending, syncing, online, error, demo, store, allowanceSettings } = useEvents();
+  const { events, waybills, pending, syncing, online, error, demo, store, allowanceSettings, sheetSettings } =
+    useEvents();
   const [start, setStart] = useState(() => weekStart(new Date()));
   // Sens de l'animation au changement de semaine : glisse depuis la droite (suivante) ou la gauche (précédente).
   const [slide, setSlide] = useState<'next' | 'prev' | 'fade'>('fade');
@@ -49,6 +54,8 @@ export default function WeekView() {
   const [pickingWeek, setPickingWeek] = useState(false);
   const [showMap, setShowMap] = useState(false);
   const [monthMap, setMonthMap] = useState<string | null>(null);
+  // Feuille de semaine en cours de fabrication : bouton occupé, pas de double fabrication.
+  const [makingSheet, setMakingSheet] = useState(false);
   const days = useMemo(() => groupWeek(events, start), [events, start]);
   const week = useMemo(() => summarizeWeek(days.flatMap((d) => d.events)), [days]);
   // Amplitude totale des journées complètes, et nombre d'opérations (sans les débuts et fins de journée).
@@ -95,6 +102,25 @@ export default function WeekView() {
     setFound(null);
     setSlide(week > start ? 'next' : week < start ? 'prev' : 'fade');
     setStart(week);
+  }
+
+  /** Feuille de semaine en PDF : partagée sur téléphone, téléchargée sur ordinateur. */
+  async function weekSheet() {
+    if (makingSheet) return;
+    setMakingSheet(true);
+    try {
+      // Le dessin du PDF (et sa bibliothèque) n'est chargé qu'ici.
+      const { weekSheetPdf } = await import('../lib/weekSheetPdf');
+      const sheet = buildWeekSheet(events, waybills, start, sheetSettings);
+      const name = `feuille-semaine-${sheet.week}-${sheet.monday.getFullYear()}.pdf`;
+      await shareFile(weekSheetPdf(sheet), name, `Feuille de semaine ${sheet.week}`);
+    } catch (err) {
+      if (!(err instanceof Error && err.name === 'AbortError')) {
+        alert(`Feuille de semaine impossible : ${err instanceof Error ? err.message : String(err)}`);
+      }
+    } finally {
+      setMakingSheet(false);
+    }
   }
 
   // Glisser du doigt sur les jours : vers la droite → semaine précédente, vers la gauche → suivante.
@@ -192,6 +218,16 @@ export default function WeekView() {
             <button className="pill" onClick={() => setShowMap(true)}>
               <MapIcon size={14} aria-hidden />
               Carte
+            </button>
+          )}
+          {showAllowancePill && (
+            <button className="pill" onClick={weekSheet} disabled={makingSheet} aria-busy={makingSheet}>
+              {makingSheet ? (
+                <LoaderCircle size={14} className="spin" aria-hidden />
+              ) : (
+                <FileDown size={14} aria-hidden />
+              )}
+              Feuille
             </button>
           )}
         </div>

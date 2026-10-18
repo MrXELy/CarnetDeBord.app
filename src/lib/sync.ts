@@ -4,6 +4,7 @@ import { kmTimeline, type KmTimeline } from './emptyKm';
 import { fuelIntervals, type FuelInterval } from './fuel';
 import { cleanOrphanPhotos, flushTrash, trashPhotos, uploadPending } from './photos';
 import { supabase } from './supabase';
+import { DEFAULT_SHEET_SETTINGS, type SheetSettings } from './weekSheet';
 
 export interface SyncState {
   events: TripEvent[];
@@ -16,11 +17,15 @@ export interface SyncState {
   demo: boolean;
   /** Bases et tarifs des frais de déplacement. */
   allowanceSettings: AllowanceSettings;
+  /** Nom, agence et dépôts de la feuille de semaine. */
+  sheetSettings: SheetSettings;
 }
 
 /** Réglages partagés entre les appareils : une seule ligne, identifiée par l'utilisateur. */
 interface UserSettingsRow extends Row {
   allowances: AllowanceSettings | null;
+  /** Colonne ajoutée par la migration 009 : absente des anciennes lignes. */
+  week_sheet?: SheetSettings | null;
 }
 
 const PAGE = 1000;
@@ -198,6 +203,7 @@ export class EventStore {
   private fuelCache: { events: TripEvent[]; intervals: FuelInterval[] } | null = null;
   private timelineCache: { events: TripEvent[]; waybills: Waybill[]; timeline: KmTimeline } | null = null;
   private settingsCache: { row: UserSettingsRow | undefined; settings: AllowanceSettings } | null = null;
+  private sheetCache: { row: UserSettingsRow | undefined; settings: SheetSettings } | null = null;
   private allowanceCache: { events: TripEvent[]; settings: AllowanceSettings; list: Allowance[] } | null = null;
 
   constructor(
@@ -268,6 +274,20 @@ export class EventStore {
   saveAllowanceSettings(settings: AllowanceSettings) {
     const row = this.userSettings.items.get(this.userId);
     this.userSettings.save({ id: this.userId, updated_at: '', deleted_at: null, ...row, allowances: settings });
+    this.commit();
+  }
+
+  /** Enregistre le nom, l'agence et les dépôts de la feuille de semaine. */
+  saveSheetSettings(settings: SheetSettings) {
+    const row = this.userSettings.items.get(this.userId);
+    this.userSettings.save({
+      id: this.userId,
+      updated_at: '',
+      deleted_at: null,
+      allowances: null,
+      ...row,
+      week_sheet: settings,
+    });
     this.commit();
   }
 
@@ -506,7 +526,11 @@ export class EventStore {
         await tolerant(() => this.userSettings.push());
         await this.userSettings.pull();
       } catch (err) {
-        this.error = /user_settings/.test(String(err)) ? 'Table des réglages absente dans Supabase' : String(err);
+        this.error = /week_sheet/.test(String(err))
+          ? 'Réglages de la feuille de semaine : migration 009 à lancer dans Supabase'
+          : /user_settings/.test(String(err))
+            ? 'Table des réglages absente dans Supabase'
+            : String(err);
       }
       // Une ligne refusée reste signalée (pastille rouge) même si tout le reste a réussi.
       if (refusals.length && !this.error) {
@@ -556,6 +580,7 @@ export class EventStore {
       error: this.error,
       demo: !!this.options.offline,
       allowanceSettings: this.allowanceSettings(),
+      sheetSettings: this.sheetSettings(),
     };
   }
 
@@ -569,6 +594,15 @@ export class EventStore {
       rates: saved?.rates?.length ? saved.rates : DEFAULT_ALLOWANCE_SETTINGS.rates,
     };
     this.settingsCache = { row, settings };
+    return settings;
+  }
+
+  /** Réglages de la feuille de semaine ; même objet tant que la ligne ne change pas. */
+  private sheetSettings(): SheetSettings {
+    const row = this.userSettings.items.get(this.userId);
+    if (this.sheetCache && this.sheetCache.row === row) return this.sheetCache.settings;
+    const settings = { ...DEFAULT_SHEET_SETTINGS, ...row?.week_sheet };
+    this.sheetCache = { row, settings };
     return settings;
   }
 
