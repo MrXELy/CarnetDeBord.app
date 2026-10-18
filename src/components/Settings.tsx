@@ -4,7 +4,7 @@ import { downloadCsv, eventsToCsv, waybillsToCsv } from '../lib/csv';
 import { averageRate, formatRate, intervalKm, recentIntervals } from '../lib/fuel';
 import { monthUsage, photoStats } from '../lib/photos';
 import { updateSettings, useSettings } from '../lib/settings';
-import { supabase } from '../lib/supabase';
+import { signOutAndClear } from '../lib/signOut';
 import { useEvents, useStore } from '../lib/useEvents';
 import { useModal } from '../lib/useModal';
 import AllowanceSettingsSection from './AllowanceSettings';
@@ -174,7 +174,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
                 onClick={() =>
                   demo
                     ? location.assign(location.pathname) // quitte le mode démo
-                    : confirm('Se déconnecter ?') && supabase.auth.signOut()
+                    : void signOutAndClear(store)
                 }
               >
                 <LogOut size={18} />

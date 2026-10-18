@@ -11,23 +11,25 @@ import {
   Search,
   Settings as SettingsIcon,
 } from 'lucide-react';
-import { Suspense, lazy, useEffect, useMemo, useRef, useState, type TouchEvent } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { euros, summarizeAllowances } from '../lib/allowances';
 import { durationLabel, groupWeek, summarizeDay, summarizeWeek, weekLabel, weekStart } from '../lib/dates';
 import { useEvents } from '../lib/useEvents';
+import { useSwipe } from '../lib/useSwipe';
 import { isDayBoundary, waybillStatus, type TripEvent } from '../types';
 import AllowancesSheet from './AllowancesSheet';
 import DaySection from './DaySection';
 import EventForm from './EventForm';
-import SearchPage from './SearchPage';
-import Settings from './Settings';
-import WaybillsPage, { type WaybillFilter } from './WaybillsPage';
+import type { WaybillFilter } from './WaybillsPage';
 import WeekPicker from './WeekPicker';
 
 // Carte chargée seulement à son ouverture : ses contours de la France pèsent une centaine de Ko.
 const WeekMap = lazy(() => import('./WeekMap'));
 const MonthMap = lazy(() => import('./MonthMap'));
 const StatsPage = lazy(() => import('./StatsPage'));
+const SearchPage = lazy(() => import('./SearchPage'));
+const Settings = lazy(() => import('./Settings'));
+const WaybillsPage = lazy(() => import('./WaybillsPage'));
 
 type Editing = { event: TripEvent | null } | null;
 
@@ -47,7 +49,6 @@ export default function WeekView() {
   const [pickingWeek, setPickingWeek] = useState(false);
   const [showMap, setShowMap] = useState(false);
   const [monthMap, setMonthMap] = useState<string | null>(null);
-  const touch = useRef<{ x: number; y: number } | null>(null);
   const days = useMemo(() => groupWeek(events, start), [events, start]);
   const week = useMemo(() => summarizeWeek(days.flatMap((d) => d.events)), [days]);
   // Amplitude totale des journées complètes, et nombre d'opérations (sans les débuts et fins de journée).
@@ -97,21 +98,7 @@ export default function WeekView() {
   }
 
   // Glisser du doigt sur les jours : vers la droite → semaine précédente, vers la gauche → suivante.
-  function onTouchStart(e: TouchEvent) {
-    const t = e.touches[0];
-    touch.current = e.touches.length === 1 ? { x: t.clientX, y: t.clientY } : null;
-  }
-
-  function onTouchEnd(e: TouchEvent) {
-    const from = touch.current;
-    touch.current = null;
-    if (!from) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - from.x;
-    const dy = t.clientY - from.y;
-    // Geste nettement horizontal, pour ne pas changer de semaine en faisant défiler la page.
-    if (Math.abs(dx) > 60 && Math.abs(dx) > 1.5 * Math.abs(dy)) goWeek(dx > 0 ? -1 : 1);
-  }
+  const swipe = useSwipe(goWeek);
 
   return (
     <div className="app">
@@ -210,7 +197,7 @@ export default function WeekView() {
         </div>
       )}
 
-      <main className={`days slide-${slide}`} key={start.getTime()} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <main className={`days slide-${slide}`} key={start.getTime()} {...swipe}>
         {days.length === 0 ? (
           <div className="empty">
             <p>Aucune étape cette semaine.</p>
@@ -235,14 +222,16 @@ export default function WeekView() {
 
       {editing && <EventForm event={editing.event} onClose={() => setEditing(null)} />}
       {searching && (
-        <SearchPage
-          onShowWeek={(event) => {
-            setSearching(false);
-            pickWeek(weekStart(parseISO(event.occurred_at)));
-            setFound(event.id);
-          }}
-          onClose={() => setSearching(false)}
-        />
+        <Suspense fallback={null}>
+          <SearchPage
+            onShowWeek={(event) => {
+              setSearching(false);
+              pickWeek(weekStart(parseISO(event.occurred_at)));
+              setFound(event.id);
+            }}
+            onClose={() => setSearching(false)}
+          />
+        </Suspense>
       )}
       {showAllowances && (
         <AllowancesSheet
@@ -254,13 +243,21 @@ export default function WeekView() {
           onClose={() => setShowAllowances(false)}
         />
       )}
-      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
+      {showSettings && (
+        <Suspense fallback={null}>
+          <Settings onClose={() => setShowSettings(false)} />
+        </Suspense>
+      )}
       {showStats && (
         <Suspense fallback={null}>
           <StatsPage week={start} onClose={() => setShowStats(false)} />
         </Suspense>
       )}
-      {waybillFilter && <WaybillsPage initialFilter={waybillFilter} onClose={() => setWaybillFilter(null)} />}
+      {waybillFilter && (
+        <Suspense fallback={null}>
+          <WaybillsPage initialFilter={waybillFilter} onClose={() => setWaybillFilter(null)} />
+        </Suspense>
+      )}
       {pickingWeek && (
         <WeekPicker
           current={start}

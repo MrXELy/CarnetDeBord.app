@@ -169,6 +169,9 @@ export class EventStore {
   private listeners = new Set<() => void>();
   private state: SyncState;
   private syncing = false;
+  /** Synchro en cours (pour attendre sa fin) et arrêt du store (déconnexion) : plus rien n'est écrit ni lancé. */
+  private running: Promise<void> | null = null;
+  private disposed = false;
   private error: string | null = null;
   // Listes affichées, gardées tant que la version de leur collection ne change pas (même tableau = rien de changé).
   private eventList: { version: number; list: TripEvent[] } | null = null;
@@ -202,6 +205,7 @@ export class EventStore {
   }
 
   dispose() {
+    this.disposed = true;
     window.removeEventListener('online', this.handleOnline);
     window.removeEventListener('offline', this.emit);
   }
@@ -424,12 +428,22 @@ export class EventStore {
   }
 
   async sync() {
-    if (this.options.offline || !navigator.onLine) return this.emit();
+    if (this.disposed || this.options.offline || !navigator.onLine) return this.emit();
     if (this.syncing) {
       // Par exemple une modification enregistrée pendant l'envoi : elle partira juste après.
       this.resyncRequested = true;
       return this.emit();
     }
+    this.running = this.run();
+    return this.running;
+  }
+
+  /** Attend la fin de la synchro en cours (et de sa relance éventuelle). */
+  async whenIdle() {
+    while (this.syncing && this.running) await this.running;
+  }
+
+  private async run() {
     this.syncing = true;
     this.emit();
     try {
@@ -535,6 +549,7 @@ export class EventStore {
   };
 
   private persist() {
+    if (this.disposed) return; // store arrêté : le cache local ne doit plus être réécrit
     const events = this.events.dump();
     this.write('data', { events: events.items, outbox: events.outbox, cursor: events.cursor });
     this.write('waybills', this.waybills.dump());
@@ -557,6 +572,7 @@ export class EventStore {
   }
 
   private write(name: string, value: unknown) {
+    if (this.disposed) return;
     try {
       localStorage.setItem(this.key(name), JSON.stringify(value));
     } catch {

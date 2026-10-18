@@ -67,6 +67,30 @@ export async function uploadPending(): Promise<number> {
   return left;
 }
 
+/** Photos de cet utilisateur prises sans réseau et pas encore envoyées. */
+export async function pendingPhotoCount(userId: string): Promise<number> {
+  try {
+    return (await pendingPaths()).filter((p) => p.startsWith(`${userId}/`)).length;
+  } catch {
+    return 0; // IndexedDB indisponible : pas de photo en attente connue
+  }
+}
+
+/** Efface les photos en attente et la corbeille de cet utilisateur (celles des autres comptes sont gardées). */
+export async function clearUserPhotos(userId: string) {
+  const mine = (path: string) => path.startsWith(`${userId}/`);
+  try {
+    await Promise.all((await pendingPaths()).filter(mine).map((p) => unqueue(p)));
+  } catch {
+    // IndexedDB indisponible : rien à effacer
+  }
+  writeTrash(readTrash().filter((p) => !mine(p)));
+  for (const path of [...urls.keys()].filter(mine)) {
+    URL.revokeObjectURL(urls.get(path)!);
+    urls.delete(path);
+  }
+}
+
 // ---------- Affichage ----------
 
 const urls = new Map<string, string>();
