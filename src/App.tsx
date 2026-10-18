@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import Login from './components/Login';
 import WeekView from './components/WeekView';
 import { supabase } from './lib/supabase';
+import { readDemoData, type DemoData } from './lib/demoData';
 import { EventStore } from './lib/sync';
 import { StoreContext } from './lib/useEvents';
 import type { TripEvent } from './types';
@@ -48,16 +49,22 @@ function SignedInApp() {
 const DEMO_KEY = 'cdb.demo.data';
 
 /**
- * Charge les données de démo (data/demo-events.json, créé par scripts/import-legacy.mjs)
- * au premier lancement ou avec « ?demo=reset ». Fichier absent : historique vide.
+ * Charge les données de démo (data/demo-events.json, créé par scripts/import-legacy.mjs ou par le bouton
+ * « Sauvegarder la démo » des Options) au premier lancement ou avec « ?demo=reset ». Fichier absent : historique vide.
  */
 async function seedDemo(reset: boolean) {
   if (!reset && localStorage.getItem(DEMO_KEY)) return;
-  const files = import.meta.glob<TripEvent[]>('../data/demo-events.json', { import: 'default' });
+  const files = import.meta.glob<TripEvent[] | DemoData>('../data/demo-events.json', { import: 'default' });
   const load = Object.values(files)[0];
-  const events = load ? await load() : [];
+  const { events, waybills = [], settings } = readDemoData(load ? await load() : []);
+  const saved = (items: unknown[]) => JSON.stringify({ items, outbox: [], cursor: null });
   localStorage.setItem(DEMO_KEY, JSON.stringify({ events, outbox: [], cursor: null }));
-  localStorage.removeItem('cdb.demo.waybills');
+  localStorage.setItem('cdb.demo.waybills', saved(waybills));
+  // Réglages (frais, feuille de semaine) : une ligne, identifiée par l'utilisateur de démo.
+  localStorage.setItem(
+    'cdb.demo.user_settings',
+    saved(settings ? [{ id: 'demo', updated_at: '', deleted_at: null, allowances: null, ...settings }] : []),
+  );
 }
 
 function DemoApp({ reset }: { reset: boolean }) {

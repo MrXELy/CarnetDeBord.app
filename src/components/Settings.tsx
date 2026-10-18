@@ -1,9 +1,11 @@
 import { Download, Eraser, LogOut, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { downloadCsv, eventsToCsv, waybillsToCsv } from '../lib/csv';
+import { demoSnapshot } from '../lib/demoData';
 import { averageRate, formatRate, intervalKm, recentIntervals } from '../lib/fuel';
 import { monthUsage, photoStats } from '../lib/photos';
 import { updateSettings, useSettings } from '../lib/settings';
+import { shareFile } from '../lib/share';
 import { signOutAndClear, type SignOutStep } from '../lib/signOut';
 import { useEvents, useStore } from '../lib/useEvents';
 import { useModal } from '../lib/useModal';
@@ -127,6 +129,28 @@ export default function Settings({ onClose }: { onClose: () => void }) {
                 Exporter
               </button>
             </div>
+            {demo && (
+              <div className="setting-row">
+                <span className="setting-text">
+                  <span className="setting-title">Sauvegarder la démo</span>
+                  <span className="hint">
+                    Étapes, LV et réglages (sans les photos). Remplace data/demo-events.json par ce fichier : il sera
+                    rechargé avec « ?demo=reset ».
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  className="btn-secondary btn-icon"
+                  onClick={() => {
+                    const json = JSON.stringify(demoSnapshot(store.getState()), null, 2);
+                    void shareFile(new Blob([json], { type: 'application/json' }), 'demo-events.json', 'Démo');
+                  }}
+                >
+                  <Download size={18} />
+                  Sauvegarder
+                </button>
+              </div>
+            )}
           </section>
 
           <section className="settings-group">
