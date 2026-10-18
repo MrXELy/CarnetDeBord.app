@@ -209,15 +209,22 @@ export default function WeekView() {
             </button>
           )}
           {showAllowancePill && (
-            <button className="pill" onClick={() => setShowAllowances(true)}>
+            // Icône et montant seulement, pour que les pastilles tiennent sur une ligne.
+            <button
+              className="pill"
+              onClick={() => setShowAllowances(true)}
+              title="Frais de route"
+              aria-label={
+                allowanceSettings.bases.length ? `Frais de route, ${euros(allowances.total)}` : 'Frais de route'
+              }
+            >
               <ReceiptEuro size={14} aria-hidden />
-              {allowanceSettings.bases.length ? `Frais ${euros(allowances.total)}` : 'Frais de route'}
+              {allowanceSettings.bases.length > 0 && euros(allowances.total)}
             </button>
           )}
           {showAllowancePill && (
-            <button className="pill" onClick={() => setShowMap(true)}>
+            <button className="pill" onClick={() => setShowMap(true)} title="Carte" aria-label="Carte de la semaine">
               <MapIcon size={14} aria-hidden />
-              Carte
             </button>
           )}
           {showAllowancePill && (
