@@ -31,15 +31,19 @@ export default function WeekSheetSettingsSection() {
       <div className="setting-row usage">
         <span className="setting-title">Dépôts de la page carburant</span>
         <div className="ws-depots">
-          <span className="fr-col">Colonne</span>
-          <span className="fr-col">Villes des pleins</span>
+          <span className="fr-col">Nom sur la feuille</span>
+          <span className="fr-col">Ville du plein, si différente</span>
           {depots.map((d, i) => (
             <DepotRow key={i} index={i} depot={d} onCommit={(patch) => saveDepot(i, patch)} />
           ))}
         </div>
         <span className="hint">
-          Un plein AS24 va dans la colonne AS 24, un plein DKV dans DKV. Les autres vont dans le dépôt de leur ville
-          (villes séparées par des virgules ; vide : le nom de la colonne), sinon dans Divers.
+          À gauche, recopie les noms écrits en haut des colonnes « Dépôts » de ta feuille, dans l’ordre. À droite, rien
+          à mettre si la ville de tes pleins porte déjà ce nom ; sinon, écris la ville telle qu’elle apparaît dans tes
+          étapes (par exemple colonne « Toulouse », ville « Blagnac » ; plusieurs villes : séparées par des virgules).
+        </span>
+        <span className="hint">
+          Un plein AS24 va toujours dans « AS 24 », un plein DKV dans « DKV », et un plein ailleurs dans « Divers ».
         </span>
       </div>
     </section>
@@ -52,13 +56,14 @@ function DepotRow(props: { index: number; depot: SheetDepot; onCommit: (patch: P
     <>
       <Text
         value={props.depot.label}
-        label={`Dépôt ${n}, nom de la colonne`}
+        label={`Dépôt ${n}, nom sur la feuille`}
+        placeholder={`Dépôt ${n}`}
         onCommit={(label) => props.onCommit({ label })}
       />
       <Text
         value={props.depot.cities}
-        label={`Dépôt ${n}, villes des pleins`}
-        placeholder={props.depot.label}
+        label={`Dépôt ${n}, ville du plein si différente`}
+        placeholder={props.depot.label || '—'}
         onCommit={(cities) => props.onCommit({ cities })}
       />
     </>
