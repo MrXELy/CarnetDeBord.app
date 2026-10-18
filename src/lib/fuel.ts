@@ -1,4 +1,4 @@
-import type { TripEvent } from '../types';
+import { plateKey, type TripEvent } from '../types';
 
 /**
  * Consommation de gasoil.
@@ -52,7 +52,7 @@ const fuelLog = (events: TripEvent[]) =>
 export function fuelIntervals(events: TripEvent[]): FuelInterval[] {
   const byTractor = new Map<string, TripEvent[]>();
   for (const e of fuelLog(events)) {
-    const tractor = e.tractor_plate.trim();
+    const tractor = plateKey(e.tractor_plate);
     byTractor.set(tractor, [...(byTractor.get(tractor) ?? []), e]);
   }
 
@@ -167,7 +167,7 @@ export function fuelReport(
   const ranges = new Map<string, [number, number]>();
   for (const e of inPeriod) {
     if (e.odometer_km == null) continue;
-    const tractor = e.tractor_plate.trim();
+    const tractor = plateKey(e.tractor_plate);
     const [lo, hi] = ranges.get(tractor) ?? [e.odometer_km, e.odometer_km];
     ranges.set(tractor, [Math.min(lo, e.odometer_km), Math.max(hi, e.odometer_km)]);
   }

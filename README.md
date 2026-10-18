@@ -67,7 +67,8 @@ Application web pour noter et suivre mes trajets de chauffeur routier (France et
 - Par **jour, semaine, mois ou année**, avec les flèches ou en glissant du doigt. Toucher le titre pour aller directement à une date.
 - **Km de la période** comparés à la période d'avant (au même moment si la période est en cours).
 - **Tuiles** : heures, moyenne par jour, chargements, livraisons, gasoil consommé et acheté, consommation en L/100 km.
-- **Barres des km** par jour, semaine ou mois : toucher une barre ouvre la période.
+- **Barres des km** par jour, semaine ou mois, avec la part à vide en gris : toucher une barre ouvre la période.
+- **Km à vide** : de la dernière livraison au chargement suivant (retour à la maison compris). Part des km, comparaison avec la période d'avant, nombre de trajets à vide, le plus long, détail par tracteur. Calculé tracteur par tracteur : changer de tracteur ne fausse jamais le chiffre.
 - **Gasoil** : courbe des derniers pleins complets, répartition par station, AdBlue.
 - **Temps de travail** : début et fin moyens, amplitude, repos le plus court (un repère, le chrono fait foi).
 - **Clients et lieux** : chargeurs et destinataires les plus fréquents (un nom qui contient un autre client, comme « Usine (Client A) », est compté avec lui), départements des chargements et livraisons, tonnage.

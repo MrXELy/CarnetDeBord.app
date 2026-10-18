@@ -4,12 +4,12 @@ import { CalendarCheck, ChevronDown, ChevronLeft, ChevronRight, X } from 'lucide
 import { useMemo, useRef, useState, type ReactNode, type TouchEvent } from 'react';
 import { dayLabel, durationLabel, timeLabel, weekLabel } from '../lib/dates';
 import { euros, summarizeAllowances, type AllowanceSummary } from '../lib/allowances';
+import { emptyReport, type KmTimeline } from '../lib/emptyKm';
 import { averageRate, formatRate, intervalKm, intervalRate, recentIntervals, type FuelInterval } from '../lib/fuel';
 import { formatPlace } from '../lib/geo';
 import {
   inRange,
   kmByDay,
-  kmByTractor,
   periodAt,
   periodRange,
   periodStats,
@@ -21,6 +21,7 @@ import {
   shortLabel,
   subPeriods,
   topPlaces,
+  totalKm,
   workTimes,
   type Period,
   type PeriodKind,
@@ -67,8 +68,10 @@ const clock = (minutes: number | null) => {
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 };
 
-const kmOf = (events: TripEvent[], range: Range) =>
-  [...kmByTractor(inRange(events, range)).values()].reduce((a, b) => a + b, 0);
+const kmOf = (events: TripEvent[], range: Range) => totalKm(inRange(events, range));
+
+/** Part en pourcentage arrondi (0,153 → 15), ou null. */
+const percent = (share: number | null) => (share == null ? null : Math.round(share * 100));
 
 interface Props {
   /** Semaine affichée à l'ouverture (dimanche 22h). */
@@ -82,6 +85,7 @@ export default function StatsPage({ week, onClose }: Props) {
   const [slide, setSlide] = useState<'next' | 'prev' | 'fade'>('fade');
   const touch = useRef<{ x: number; y: number } | null>(null);
   const intervals = store.fuelIntervals();
+  const timeline = store.kmTimeline();
   const now = new Date();
 
   useModal(onClose);
@@ -101,8 +105,8 @@ export default function StatsPage({ week, onClose }: Props) {
     else input.click();
   }
 
-  const stats = periodStats(events, waybills, range, intervals);
-  const before = periodStats(events, waybills, previous.range, intervals);
+  const stats = periodStats(events, waybills, range, intervals, timeline);
+  const before = periodStats(events, waybills, previous.range, intervals, timeline);
   // Frais de déplacement : par semaine, mois ou année (pas par jour), une fois les bases réglées.
   const fees =
     period.kind !== 'jour' && allowanceSettings.bases.length > 0
@@ -225,6 +229,11 @@ export default function StatsPage({ week, onClose }: Props) {
                   <span className="st-big">
                     {num(stats.km)} <small>km</small>
                   </span>
+                  {stats.empty.share != null && (
+                    <span className="st-hero-empty">
+                      dont <b>{num(stats.empty.empty)} km à vide</b> · {percent(stats.empty.share)} %
+                    </span>
+                  )}
                   {before.km > 0 && (
                     <span className="st-compare">
                       <Evolution cur={stats.km} prev={before.km} mode="pct" />
@@ -238,7 +247,22 @@ export default function StatsPage({ week, onClose }: Props) {
                 {period.kind === 'jour' ? (
                   <DayDetail events={events} range={range} stats={stats} />
                 ) : (
-                  <KmChart period={period} events={events} now={now} onPick={(p) => go(p, 'fade')} />
+                  <KmChart
+                    period={period}
+                    events={events}
+                    timeline={timeline}
+                    now={now}
+                    onPick={(p) => go(p, 'fade')}
+                  />
+                )}
+
+                {period.kind !== 'jour' && (
+                  <EmptySection
+                    stats={stats}
+                    before={before.days > 0 ? before : null}
+                    previous={PREVIOUS[period.kind]}
+                    onPick={(p) => go(p, 'fade')}
+                  />
                 )}
 
                 <FuelSection period={period} stats={stats} intervals={intervals} range={range} />
@@ -397,10 +421,18 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /** Barres des km : jours d'une semaine, semaines d'un mois, mois d'une année. Toucher une barre l'ouvre. */
-function KmChart(props: { period: Period; events: TripEvent[]; now: Date; onPick: (p: Period) => void }) {
+function KmChart(props: {
+  period: Period;
+  events: TripEvent[];
+  timeline: KmTimeline;
+  now: Date;
+  onPick: (p: Period) => void;
+}) {
   const bars = subPeriods(props.period).map((p) => {
     const range = periodRange(p);
-    return { period: p, km: range.start > props.now ? null : kmOf(props.events, range) };
+    if (range.start > props.now) return { period: p, km: null, empty: 0 };
+    const km = kmOf(props.events, range);
+    return { period: p, km, empty: Math.min(km, emptyReport(props.timeline, range.start, range.end).empty) };
   });
   const max = Math.max(1, ...bars.map((b) => b.km ?? 0));
   const step = [100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000].find((s) => max / s <= 4) ?? 10000;
@@ -455,14 +487,26 @@ function KmChart(props: { period: Period; events: TripEvent[]; now: Date; onPick
               {empty ? (
                 <rect x={cx - width / 2} y={y(0) - 3} width={width} height={3} rx={1.5} className="st-bar-empty" />
               ) : (
-                <rect
-                  x={cx - width / 2}
-                  y={y(b.km!)}
-                  width={width}
-                  height={y(0) - y(b.km!)}
-                  rx={6}
-                  fill={i === best ? 'url(#st-best)' : 'url(#st-bar)'}
-                />
+                <>
+                  <rect
+                    x={cx - width / 2}
+                    y={y(b.km!)}
+                    width={width}
+                    height={y(0) - y(b.km!)}
+                    rx={6}
+                    fill={i === best ? 'url(#st-best)' : 'url(#st-bar)'}
+                  />
+                  {b.empty > 0 && (
+                    <rect
+                      x={cx - width / 2}
+                      y={y(b.empty)}
+                      width={width}
+                      height={y(0) - y(b.empty)}
+                      rx={Math.min(6, (y(0) - y(b.empty)) / 2)}
+                      className="st-bar-vide"
+                    />
+                  )}
+                </>
               )}
               {!empty && (bars.length <= 7 || i === best) && (
                 <text x={cx} y={y(b.km!) - 6} textAnchor="middle" className="st-value">
@@ -476,7 +520,82 @@ function KmChart(props: { period: Period; events: TripEvent[]; now: Date; onPick
           );
         })}
       </svg>
-      <p className="hint">En doré, la plus grosse journée. Touche une barre pour l’ouvrir.</p>
+      <p className="hint">En doré, la plus grosse barre ; en gris, la part à vide. Touche une barre pour l’ouvrir.</p>
+    </Section>
+  );
+}
+
+/** Km à vide : part de la période, trajets, détail par tracteur. */
+function EmptySection(props: {
+  stats: PeriodStats;
+  /** Période d'avant, ou null si elle n'a aucune étape. */
+  before: PeriodStats | null;
+  previous: string;
+  onPick: (p: Period) => void;
+}) {
+  const r = props.stats.empty;
+  const total = r.empty + r.loaded;
+  const avg = r.legs.length ? Math.round(r.legs.reduce((sum, l) => sum + l.km, 0) / r.legs.length) : null;
+  const longest = r.longest?.loading ? { leg: r.longest, loading: r.longest.loading } : null;
+  const prevShare = props.before ? percent(props.before.empty.share) : null;
+  const short = (iso: string) => format(parseISO(iso), 'EEE d MMM', { locale: fr });
+  const incomplete = r.incomplete;
+  return (
+    <Section title="Km à vide">
+      {total > 0 && (
+        <div>
+          <div className="st-split-bar" aria-hidden>
+            <i className="charge" style={{ width: `${(r.loaded / total) * 100}%` }} />
+            <i className="vide" style={{ width: `${(r.empty / total) * 100}%` }} />
+          </div>
+          <div className="st-split-legend">
+            <span className="charge">En charge {num(r.loaded)} km</span>
+            <span className="vide">À vide {num(r.empty)} km</span>
+          </div>
+        </div>
+      )}
+      <div className="st-kv">
+        <KV
+          label="Part à vide"
+          value={r.share != null ? `${percent(r.share)} %` : '—'}
+          note={
+            prevShare != null && r.share != null ? (
+              <>
+                <Evolution cur={percent(r.share)} prev={prevShare} better="down" format={(n) => `${num(n)} pt`} /> vs{' '}
+                {props.previous}
+              </>
+            ) : undefined
+          }
+        />
+        <KV label="Trajets à vide" value={r.legs.length} note={avg != null ? `en moyenne ${num(avg)} km` : undefined} />
+        {longest && (
+          <KV
+            label="Le plus long"
+            value={`${num(longest.leg.km)} km`}
+            note={`${short(longest.loading.occurred_at)} · ${longest.leg.delivery.city || '?'} → ${longest.loading.city || '?'}`}
+            onClick={() => props.onPick(periodAt('jour', parseISO(longest.loading.occurred_at)))}
+          />
+        )}
+      </div>
+      {r.tractors.length > 1 && (
+        <div>
+          <h3 className="st-h3">À vide par tracteur</h3>
+          <RankList
+            items={r.tractors.map((t) => ({
+              name: t.plate || 'Sans immatriculation',
+              detail: t.empty + t.loaded > 0 ? `${percent(t.empty / (t.empty + t.loaded))} %` : null,
+              count: t.empty,
+            }))}
+            unit=" km"
+          />
+        </div>
+      )}
+      <p className="hint">
+        De la dernière livraison au chargement suivant, retour à la maison compris, tracteur par tracteur : les
+        compteurs de deux tracteurs ne sont jamais soustraits.
+        {incomplete > 0 &&
+          ` ${incomplete} trajet${incomplete > 1 ? 's' : ''} incomplet${incomplete > 1 ? 's' : ''} (changement de tracteur sans km noté, étape sans km ou relevé incohérent) : la partie inconnue n’est pas comptée.`}
+      </p>
     </Section>
   );
 }

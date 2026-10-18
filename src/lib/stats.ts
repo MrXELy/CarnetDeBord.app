@@ -18,6 +18,7 @@ import { fr } from 'date-fns/locale';
 import { isDayBoundary, type Station, type TripEvent, type Waybill } from '../types';
 import { dayLabel, summarizeDay, weekLabel, weekStart, workDay } from './dates';
 import { DEPARTMENTS } from './departments';
+import { emptyReport, kmSegments, type EmptyReport, type KmTimeline } from './emptyKm';
 import { fuelReport, type FuelInterval, type FuelReport } from './fuel';
 
 /**
@@ -156,17 +157,24 @@ function byWorkDay(events: TripEvent[]): Map<number, TripEvent[]> {
   return days;
 }
 
-/** Km par tracteur : du plus petit au plus grand relevé de la plage. */
+/**
+ * Km par tracteur de ces étapes : somme des tronçons entre deux relevés qui se suivent avec le même tracteur
+ * (sans le repos, les changements de tracteur sans relevé ni les relevés incohérents, voir emptyKm.ts).
+ * Clé : la plaque telle que saisie le plus récemment ; « AB-123-CD » et « AB123CD » sont le même tracteur.
+ */
 export function kmByTractor(events: TripEvent[]): Map<string, number> {
-  const ranges = new Map<string, [number, number]>();
-  for (const e of events) {
-    if (e.odometer_km == null) continue;
-    const tractor = e.tractor_plate.trim();
-    const [lo, hi] = ranges.get(tractor) ?? [e.odometer_km, e.odometer_km];
-    ranges.set(tractor, [Math.min(lo, e.odometer_km), Math.max(hi, e.odometer_km)]);
+  const tractors = new Map<string, { plate: string; km: number }>();
+  for (const s of kmSegments(events)) {
+    const t = tractors.get(s.tractor) ?? { plate: s.plate, km: 0 };
+    t.plate = s.plate || t.plate;
+    t.km += s.km;
+    tractors.set(s.tractor, t);
   }
-  return new Map([...ranges].map(([tractor, [lo, hi]]) => [tractor, hi - lo]));
+  return new Map([...tractors.values()].map((t) => [t.plate, t.km]));
 }
+
+/** Km de ces étapes, tous tracteurs confondus. */
+export const totalKm = (events: TripEvent[]) => [...kmByTractor(events).values()].reduce((a, b) => a + b, 0);
 
 export interface PeriodStats {
   km: number;
@@ -186,6 +194,8 @@ export interface PeriodStats {
   /** Poids des LV chargées (kg). */
   weightKg: number;
   tractors: { plate: string; km: number }[];
+  /** Km à vide et en charge. */
+  empty: EmptyReport;
 }
 
 export function periodStats(
@@ -193,6 +203,7 @@ export function periodStats(
   waybills: Waybill[],
   range: Range,
   intervals: FuelInterval[],
+  timeline: KmTimeline,
 ): PeriodStats {
   const events = inRange(all, range);
   const days = byWorkDay(events);
@@ -236,6 +247,7 @@ export function periodStats(
     stations: [...stations].map(([station, liters]) => ({ station, liters })).sort((a, b) => b.liters - a.liters),
     weightKg,
     tractors,
+    empty: emptyReport(timeline, range.start, range.end),
   };
 }
 
@@ -410,8 +422,9 @@ export function records(all: TripEvent[]): Records {
   const result: Records = { bestDay: null, bestWeek: null, longestDay: null };
   const events = all.filter((e) => !e.deleted_at);
   byWorkDay(events).forEach((list, key) => {
-    const { km, amplitude } = summarizeDay(list);
-    if (km != null && km > (result.bestDay?.km ?? 0)) result.bestDay = { day: new Date(key), km };
+    const { amplitude } = summarizeDay(list);
+    const km = totalKm(list);
+    if (km > (result.bestDay?.km ?? 0)) result.bestDay = { day: new Date(key), km };
     if (amplitude != null && amplitude > (result.longestDay?.minutes ?? 0)) {
       result.longestDay = { day: new Date(key), minutes: amplitude };
     }
@@ -422,7 +435,7 @@ export function records(all: TripEvent[]): Records {
     weeks.set(key, [...(weeks.get(key) ?? []), e]);
   }
   weeks.forEach((list, key) => {
-    const km = [...kmByTractor(list).values()].reduce((a, b) => a + b, 0);
+    const km = totalKm(list);
     if (km > (result.bestWeek?.km ?? 0)) result.bestWeek = { start: new Date(key), km };
   });
   return result;
@@ -431,11 +444,6 @@ export function records(all: TripEvent[]): Records {
 /** Km de chaque jour (clé : minuit du jour de travail), pour le calendrier. */
 export function kmByDay(all: TripEvent[], range: Range): Map<number, number> {
   const result = new Map<number, number>();
-  byWorkDay(inRange(all, range)).forEach((list, key) => {
-    result.set(
-      key,
-      [...kmByTractor(list).values()].reduce((a, b) => a + b, 0),
-    );
-  });
+  byWorkDay(inRange(all, range)).forEach((list, key) => result.set(key, totalKm(list)));
   return result;
 }

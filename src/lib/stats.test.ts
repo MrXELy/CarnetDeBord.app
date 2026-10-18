@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { newWaybill, type TripEvent } from '../types';
+import { kmTimeline } from './emptyKm';
 import { fuelIntervals } from './fuel';
 import {
   clientGrouper,
@@ -109,7 +110,7 @@ describe('periodStats', () => {
   const week = periodRange(periodAt('semaine', d('2026-10-14T12:00')));
 
   it('fait le bilan de la semaine', () => {
-    const s = periodStats(events, waybills, week, fuelIntervals(events));
+    const s = periodStats(events, waybills, week, fuelIntervals(events), kmTimeline(events, waybills));
     expect(s).toMatchObject({
       km: 1100,
       days: 2,

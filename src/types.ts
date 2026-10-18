@@ -102,6 +102,9 @@ export function eventTypeInfo(type: EventType) {
 
 export const isDayBoundary = (type: EventType) => type === 'debut_journee' || type === 'fin_journee';
 
+/** Plaque comparable : sans tirets, espaces ni minuscules (« ab-123 cd » = « AB123CD »). */
+export const plateKey = (plate: string | null | undefined) => (plate ?? '').toUpperCase().replace(/[\s-]/g, '');
+
 /** Tronçon de la carte : le trajet d'un jour, en points [latitude, longitude]. */
 export interface MapLeg {
   /** Jour (« 2026-01-26 »). */

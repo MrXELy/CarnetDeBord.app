@@ -1,5 +1,6 @@
-import { isInTruck, type Place, type TripEvent, type Waybill, type WeekMap } from '../types';
+import { isInTruck, plateKey, type Place, type TripEvent, type Waybill, type WeekMap } from '../types';
 import { DEFAULT_ALLOWANCE_SETTINGS, computeAllowances, type Allowance, type AllowanceSettings } from './allowances';
+import { kmTimeline, type KmTimeline } from './emptyKm';
 import { fuelIntervals, type FuelInterval } from './fuel';
 import { cleanOrphanPhotos, flushTrash, trashPhotos, uploadPending } from './photos';
 import { supabase } from './supabase';
@@ -109,6 +110,7 @@ export class EventStore {
   private syncing = false;
   private error: string | null = null;
   private fuelCache: { events: TripEvent[]; intervals: FuelInterval[] } | null = null;
+  private timelineCache: { events: TripEvent[]; waybills: Waybill[]; timeline: KmTimeline } | null = null;
   private settingsCache: { row: UserSettingsRow | undefined; settings: AllowanceSettings } | null = null;
   private allowanceCache: { events: TripEvent[]; settings: AllowanceSettings; list: Allowance[] } | null = null;
 
@@ -304,11 +306,22 @@ export class EventStore {
     return this.fuelCache.intervals;
   }
 
-  /** Dernier kilométrage relevé pour ce tracteur avant cette date. */
+  /** Tronçons de km (à vide ou en charge) de tout l'historique, recalculés seulement si les étapes ou les LV changent. */
+  kmTimeline(): KmTimeline {
+    const { events, waybills } = this.state;
+    const cache = this.timelineCache;
+    if (cache?.events === events && cache.waybills === waybills) return cache.timeline;
+    const timeline = kmTimeline(events, waybills);
+    this.timelineCache = { events, waybills, timeline };
+    return timeline;
+  }
+
+  /** Dernier kilométrage relevé pour ce tracteur avant cette date (plaque comparée sans tirets ni espaces). */
   lastOdometer(tractor: string, before: Date, excludeId?: string): number | null {
     const iso = before.toISOString();
+    const key = plateKey(tractor);
     const e = this.state.events.find(
-      (e) => e.id !== excludeId && e.tractor_plate === tractor && e.odometer_km != null && e.occurred_at <= iso,
+      (e) => e.id !== excludeId && plateKey(e.tractor_plate) === key && e.odometer_km != null && e.occurred_at <= iso,
     );
     return e?.odometer_km ?? null;
   }

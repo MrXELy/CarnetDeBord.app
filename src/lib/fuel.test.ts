@@ -71,8 +71,8 @@ describe('fuelIntervals', () => {
       plein('2026-10-14T07:00', 51000, 320, { tractor_plate: 'BB-222-BB' }),
     ]);
     expect(list.map((i) => [i.tractor, i.liters])).toEqual([
-      ['AA-111-AA', 300],
-      ['BB-222-BB', 320],
+      ['AA111AA', 300],
+      ['BB222BB', 320],
     ]);
   });
 

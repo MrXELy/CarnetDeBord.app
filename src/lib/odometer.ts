@@ -1,7 +1,5 @@
+import { MAX_GAP_KM } from './emptyKm';
 import { compressPhoto, invokeReader } from './photos';
-
-/** Au-delà, l'écart avec le relevé précédent est suspect (chiffre mal lu ?). */
-const MAX_GAP_KM = 2000;
 
 /** Kilométrage lu → km entiers comme au compteur (les dixièmes du chrono sont ignorés), ou null. */
 export function kmFromReading(value: number | null | undefined): number | null {
