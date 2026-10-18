@@ -38,6 +38,22 @@ interface Saved<T> {
 }
 
 /**
+ * Le serveur a refusé une ou plusieurs lignes précises (les autres sont parties). Distincte des erreurs qui
+ * concernent tout l'envoi (réseau, session, table absente) : celles-là arrêtent la synchro, celle-ci non.
+ */
+export class RowRefusedError extends Error {
+  constructor(
+    readonly table: string,
+    /** Première ligne refusée : « id : raison du serveur ». */
+    readonly first: string,
+    /** Nombre de lignes refusées dans cette table. */
+    readonly count: number,
+  ) {
+    super(`Ligne refusée par le serveur (${table}) ${first}`);
+  }
+}
+
+/**
  * Vrai si le serveur a refusé cette ligne précisément (contrainte, clé étrangère, valeur invalide…),
  * donc que renvoyer les autres lignes seules a un sens (classes 22 et 23 : valeur invalide, contraintes).
  * Faux pour ce qui concerne tout l'envoi et non une ligne : panne réseau (pas de code d'erreur), session expirée
@@ -113,7 +129,8 @@ export class Collection<T extends Row> {
     const toRow = ({ updated_at: _ignored, ...row }: T): Record<string, unknown> => row;
     const { error, status } = await supabase.from(this.table).upsert(sent.map(toRow));
     if (!error) return this.release(sent);
-    if (sent.length === 1 || !isRowRefusal(error, status)) throw new Error(error.message);
+    if (!isRowRefusal(error, status)) throw new Error(error.message);
+    if (sent.length === 1) throw new RowRefusedError(this.table, `${sent[0].id} : ${error.message}`, 1);
 
     const refused: string[] = [];
     for (const item of sent) {
@@ -122,12 +139,7 @@ export class Collection<T extends Row> {
       else if (!isRowRefusal(rowError, rowStatus)) throw new Error(rowError.message);
       else refused.push(`${item.id} : ${rowError.message}`);
     }
-    if (refused.length) {
-      throw new Error(
-        `Ligne refusée par le serveur (${this.table}) ${refused[0]}` +
-          (refused.length > 1 ? ` (et ${refused.length - 1} autre${refused.length > 2 ? 's' : ''})` : ''),
-      );
-    }
+    if (refused.length) throw new RowRefusedError(this.table, refused[0], refused.length);
   }
 
   /**
@@ -446,12 +458,22 @@ export class EventStore {
   private async run() {
     this.syncing = true;
     this.emit();
+    // Lignes refusées par le serveur : n'arrêtent pas la synchro, mais l'erreur affichée les nomme à la fin.
+    const refusals: RowRefusedError[] = [];
+    const tolerant = async (send: () => Promise<void>) => {
+      try {
+        await send();
+      } catch (err) {
+        if (!(err instanceof RowRefusedError)) throw err;
+        refusals.push(err);
+      }
+    };
     try {
       // Les étapes d'abord : une LV fait référence à ses étapes de chargement et de livraison.
-      await this.events.push();
+      await tolerant(() => this.events.push());
       await this.events.pull();
       try {
-        await this.waybills.push();
+        await tolerant(() => this.waybills.push());
         await this.waybills.pull();
       } catch (err) {
         throw new Error(
@@ -474,17 +496,24 @@ export class EventStore {
       }
       // Cartes des semaines : un échec ne bloque pas le reste.
       try {
-        await this.weekMaps.push();
+        await tolerant(() => this.weekMaps.push());
         await this.weekMaps.pull();
       } catch (err) {
         this.error = /week_maps/.test(String(err)) ? 'Table des cartes absente dans Supabase' : String(err);
       }
       // Réglages partagés : un échec ne bloque pas le reste non plus.
       try {
-        await this.userSettings.push();
+        await tolerant(() => this.userSettings.push());
         await this.userSettings.pull();
       } catch (err) {
         this.error = /user_settings/.test(String(err)) ? 'Table des réglages absente dans Supabase' : String(err);
+      }
+      // Une ligne refusée reste signalée (pastille rouge) même si tout le reste a réussi.
+      if (refusals.length && !this.error) {
+        const total = refusals.reduce((n, r) => n + r.count, 0);
+        this.error =
+          `Ligne refusée par le serveur (${refusals[0].table}) ${refusals[0].first}` +
+          (total > 1 ? ` (et ${total - 1} autre${total > 2 ? 's' : ''})` : '');
       }
     } catch (err) {
       this.error = err instanceof Error ? err.message : 'Erreur de synchronisation';

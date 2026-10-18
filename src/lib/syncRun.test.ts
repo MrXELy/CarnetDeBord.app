@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { TripEvent } from '../types';
+import { newWaybill, type TripEvent } from '../types';
 
 // Faux Supabase : compte les envois, peut être mis en pause (synchro longue), refuser des lignes,
 // et rejoue les pages de lecture comme PostgREST (tri par date puis id, filtre du curseur).
 type Row = Record<string, unknown> & { id: string; updated_at: string };
-const calls = { upserts: 0, rowUpserts: 0 };
+const calls = { upserts: 0, rowUpserts: 0, uploads: 0, pulls: [] as string[], upsertTables: [] as string[] };
 let gate: Promise<void> | null = null;
 /** Lignes présentes sur le « serveur », par table. */
 let server: Record<string, Row[]> = {};
@@ -44,6 +44,7 @@ function fakeQuery(table: string) {
       return q;
     },
     then: (resolve: (v: unknown) => void) => {
+      calls.pulls.push(table);
       const rows = (server[table] ?? [])
         .filter((r) => !cursor || cursor(r))
         .sort((a, b) => a.updated_at.localeCompare(b.updated_at) || a.id.localeCompare(b.id))
@@ -60,6 +61,7 @@ vi.mock('./supabase', () => ({
       ...fakeQuery(table),
       upsert: async (rows: Row[]) => {
         calls.upserts++;
+        calls.upsertTables.push(table);
         if (rows.length === 1) calls.rowUpserts++;
         await gate;
         if (batchErrorCode) return { error: { message: 'erreur de schéma', code: batchErrorCode }, status: 400 };
@@ -75,7 +77,10 @@ vi.mock('./photos', () => ({
   cleanOrphanPhotos: async () => ({ deleted: 0, waiting: 0 }),
   flushTrash: async () => {},
   trashPhotos: () => {},
-  uploadPending: async () => 0,
+  uploadPending: async () => {
+    calls.uploads++;
+    return 0;
+  },
 }));
 
 const { EventStore } = await import('./sync');
@@ -126,6 +131,9 @@ beforeEach(() => {
   pageSize = 1000;
   calls.upserts = 0;
   calls.rowUpserts = 0;
+  calls.uploads = 0;
+  calls.pulls = [];
+  calls.upsertTables = [];
   gate = null;
 });
 
@@ -314,5 +322,88 @@ describe('lecture : curseur (date, id)', () => {
     server.events = [];
     await store.sync();
     expect(store.getState().events).toHaveLength(3);
+  });
+});
+
+describe('envoi : une ligne refusée ne bloque pas le reste de la synchro', () => {
+  const serverEvent = (id: string): Row =>
+    ({
+      ...ev(id, '2026-10-13T08:00'),
+      user_id: 'x',
+      created_at: '',
+      updated_at: '2026-10-13T09:00:00+00:00',
+    }) as unknown as Row;
+
+  it('une étape refusée n’empêche ni la réception, ni l’envoi des LV, ni celui des photos', async () => {
+    const store = new EventStore('refus1');
+    await flush();
+    refusedIds = { bad: 'violates check constraint' };
+    server.events = [serverEvent('srv')];
+    calls.pulls = [];
+    calls.upsertTables = [];
+    calls.uploads = 0;
+    store.save(ev('bad', '2026-10-12T09:00'));
+    store.saveWaybill(newWaybill({ id: 'lv-ok' }));
+    await flush();
+    await flush();
+    expect(calls.pulls).toContain('events');
+    expect(store.getState().events.map((e) => e.id)).toContain('srv');
+    expect(calls.upsertTables).toContain('waybills');
+    expect(store.isPending('lv-ok')).toBe(false);
+    expect(calls.pulls).toContain('waybills');
+    expect(calls.uploads).toBeGreaterThan(0);
+    expect(store.isPending('bad')).toBe(true);
+  });
+
+  it('l’erreur affichée nomme la ligne refusée, même si tout le reste a réussi', async () => {
+    const store = new EventStore('refus2');
+    await flush();
+    refusedIds = { bad: 'violates check constraint' };
+    store.save(ev('bad', '2026-10-12T09:00'));
+    await flush();
+    await flush();
+    expect(store.getState().error).toMatch(/\(events\) bad : violates check constraint/);
+  });
+
+  it('plusieurs refus (étapes et LV) : la première ligne est nommée avec le nombre total', async () => {
+    const store = new EventStore('refus3');
+    await flush();
+    refusedIds = { bad1: 'refus', bad2: 'refus', 'lv-bad': 'refus' };
+    store.save(ev('bad1', '2026-10-12T09:00'));
+    store.save(ev('bad2', '2026-10-12T10:00'));
+    store.saveWaybill(newWaybill({ id: 'lv-bad' }));
+    await flush();
+    await flush();
+    await store.sync();
+    expect(store.getState().error).toMatch(/^Ligne refusée par le serveur \(events\) bad1 : refus \(et 2 autres\)$/);
+  });
+
+  it('une LV refusée n’affiche pas « Table des lettres de voiture absente »', async () => {
+    const store = new EventStore('refus4');
+    await flush();
+    refusedIds = { 'lv-bad': 'violates foreign key constraint' };
+    store.saveWaybill(newWaybill({ id: 'lv-bad' }));
+    await flush();
+    await flush();
+    const error = store.getState().error ?? '';
+    expect(error).toMatch(/\(waybills\) lv-bad : violates foreign key constraint/);
+    expect(error).not.toMatch(/Table des lettres de voiture absente/);
+  });
+
+  it('une panne réseau arrête toujours la synchro : ni réception, ni LV, ni photos', async () => {
+    const store = new EventStore('refus5');
+    await flush();
+    offline = true;
+    calls.pulls = [];
+    calls.upsertTables = [];
+    calls.uploads = 0;
+    store.save(ev('a', '2026-10-12T08:00'));
+    store.saveWaybill(newWaybill({ id: 'lv-a' }));
+    await flush();
+    await flush();
+    expect(calls.pulls).toEqual([]);
+    expect(calls.upsertTables.every((t) => t === 'events')).toBe(true);
+    expect(calls.uploads).toBe(0);
+    expect(store.getState().error).toMatch(/Failed to fetch/);
   });
 });
