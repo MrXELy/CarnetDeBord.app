@@ -137,8 +137,47 @@ describe('buildWeekSheet', () => {
       }),
     ]);
     expect(sheet.operations[1]).toEqual([
-      expect.objectContaining({ trailer: 'BB 222 BB', shipper: '', consignee: 'Client B', consigneeKm: 100_300 }),
+      // La livraison du lendemain répète la nature, le poids et le n° de la LV.
+      expect.objectContaining({
+        trailer: 'BB 222 BB',
+        shipper: '',
+        consignee: 'Client B',
+        consigneeKm: 100_300,
+        goods: 'sec',
+        weightKg: 24_000,
+        number: '123',
+      }),
       expect.objectContaining({ shipper: 'Usine C', consignee: 'Client D', consigneePlace: 'Périgueux 24' }),
+    ]);
+  });
+
+  it('réunit les LV d’un chargement sur sa ligne, chaque livraison gardant les siennes', () => {
+    const load = ev('chargement', '2026-03-02T08:00', 'Toulouse', '31', 100_050);
+    const first = ev('livraison', '2026-03-03T08:00', 'Narbonne', '11', 100_300);
+    const second = ev('livraison', '2026-03-03T10:00', 'Narbonne', '11', 100_310);
+    const waybills = [
+      newWaybill({
+        loading_event_id: load.id,
+        delivery_event_id: first.id,
+        number: '1',
+        goods: 'sec',
+        weight_kg: 10_000,
+      }),
+      newWaybill({
+        loading_event_id: load.id,
+        delivery_event_id: second.id,
+        number: '2',
+        goods: 'frais',
+        weight_kg: 5_000,
+      }),
+    ];
+    const sheet = buildWeekSheet([load, first, second], waybills, start, settings);
+    expect(sheet.operations[0]).toEqual([
+      expect.objectContaining({ goods: 'sec, frais', weightKg: 15_000, number: '1, 2' }),
+    ]);
+    expect(sheet.operations[1].map((r) => [r.trailer, r.goods, r.weightKg, r.number])).toEqual([
+      ['BB 222 BB', 'sec', 10_000, '1'],
+      ['', 'frais', 5_000, '2'],
     ]);
   });
 
