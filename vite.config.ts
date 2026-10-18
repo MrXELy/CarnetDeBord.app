@@ -1,10 +1,15 @@
 import { defineConfig } from 'vite';
+import basicSsl from '@vitejs/plugin-basic-ssl';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   base: '/CarnetDeBord.app/',
   plugins: [
+    // Serveur de test en https (certificat fait maison) : sur le téléphone, l'adresse en 192.168…
+    // n'est sinon pas une connexion sécurisée, et le navigateur bloque crypto.randomUUID et le GPS.
+    // Sans effet sur la version en ligne (build).
+    basicSsl(),
     react(),
     VitePWA({
       registerType: 'autoUpdate',

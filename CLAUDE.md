@@ -18,7 +18,7 @@ React 19, Vite, TypeScript, vite-plugin-pwa, date-fns (locale fr), lucide-react,
 ## Commandes
 
 - `npm install` : installer les dépendances.
-- `npx vite --host` : serveur de test, accessible depuis le téléphone sur le même Wi-Fi (adresse en `/CarnetDeBord.app/`).
+- `npx vite --host` : serveur de test **en https** (`@vitejs/plugin-basic-ssl`, certificat fait maison : la première fois, accepter l'avertissement du navigateur), accessible depuis le téléphone sur le même Wi-Fi (adresse en `/CarnetDeBord.app/`). Le https est nécessaire sur le téléphone : en http, `crypto.randomUUID` et le GPS sont bloqués (page noire sur « + »).
 - `npm test` : tests (vitest). `npm run build` : vérification TypeScript et build.
 - `gitleaks git -v` : chercher des secrets dans tout l'historique (installé avec `brew install gitleaks`).
 - Mode démo local : ajouter `?demo` à l'adresse (seulement en développement). Il lit `data/demo-events.json` et ne contacte pas Supabase ; `?demo=reset` recharge les données.
