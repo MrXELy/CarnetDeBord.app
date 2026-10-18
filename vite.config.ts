@@ -5,6 +5,9 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   base: '/CarnetDeBord.app/',
+  // jsPDF n'est importé qu'au clic sur « Feuille » : préparé dès le démarrage du serveur de test,
+  // sinon Vite le découvre à ce moment-là et recharge toute la page (retour à la semaine en cours).
+  optimizeDeps: { include: ['jspdf'] },
   plugins: [
     // Serveur de test en https (certificat fait maison) : sur le téléphone, l'adresse en 192.168…
     // n'est sinon pas une connexion sécurisée, et le navigateur bloque crypto.randomUUID et le GPS.
