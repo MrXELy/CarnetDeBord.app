@@ -1,5 +1,5 @@
 import { Camera, ChevronDown, LoaderCircle, ScanSearch, ScanText, X } from 'lucide-react';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { toLocalInput } from '../lib/dates';
 import { formatPlace, placeFromLabel, resolveCity } from '../lib/geo';
 import { demoReading, finalProgress, liveProgress, liveSteps, type ReadDetails } from '../lib/liveReading';
@@ -87,6 +87,15 @@ export default function WaybillForm(props: Props) {
   // Valeurs posées par la dernière lecture : une relecture peut les remplacer, pas ce qui a été tapé.
   const fromReading = useRef<Partial<ReadableFields>>({});
   const camera = useRef<HTMLInputElement>(null);
+
+  // Marchandise : une ligne si c'est court, la zone grandit avec le texte (saisi ou lu sur la photo).
+  const goodsField = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = goodsField.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+  }, [goods]);
   // Photos prises pendant cette saisie (envoyées au stockage pour la lecture, même si on les retire ensuite).
   const added = useRef<string[]>([]);
 
@@ -397,20 +406,27 @@ export default function WaybillForm(props: Props) {
                 <span className="label-line">N° lettre de voiture{readTag('number', number)}</span>
                 <input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="À compléter plus tard" />
               </label>
+              <label>
+                <span className="label-line">Marchandise{readTag('goods', goods)}</span>
+                <textarea
+                  ref={goodsField}
+                  className="auto-grow"
+                  rows={1}
+                  value={goods}
+                  onChange={(e) => setGoods(e.target.value)}
+                  placeholder="Palettes de plâtre…"
+                />
+              </label>
               <div className="row">
-                <label>
-                  <span className="label-line">Marchandise{readTag('goods', goods)}</span>
-                  <input value={goods} onChange={(e) => setGoods(e.target.value)} placeholder="Palettes de plâtre…" />
-                </label>
                 <label>
                   <span className="label-line">Poids (kg){readTag('weight_kg', weight)}</span>
                   <input type="text" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} />
                 </label>
+                <label>
+                  Remarques
+                  <input value={notes} onChange={(e) => setNotes(e.target.value)} />
+                </label>
               </div>
-              <label>
-                Remarque
-                <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
-              </label>
             </div>
 
             <button className="btn-primary btn-block">OK</button>

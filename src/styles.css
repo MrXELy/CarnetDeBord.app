@@ -72,6 +72,9 @@ textarea:focus {
 
 textarea { resize: vertical; }
 
+/* Zone qui grandit avec son texte (hauteur calculée par le code) : ni poignée ni barre de défilement. */
+textarea.auto-grow { display: block; resize: none; overflow: hidden; }
+
 .sr-only {
   position: absolute;
   width: 1px;
