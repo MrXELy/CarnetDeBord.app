@@ -202,11 +202,15 @@ function PhotoCleanup() {
   async function clean() {
     setState({ busy: true, message: null });
     try {
-      const n = await store.cleanPhotos();
-      setState({
-        busy: false,
-        message: n ? `${n} photo${n > 1 ? 's' : ''} effacée${n > 1 ? 's' : ''}.` : 'Aucune photo à effacer.',
-      });
+      const { deleted, waiting } = await store.cleanPhotos(true);
+      const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`;
+      const done = deleted
+        ? `${plural(deleted, 'photo')} effacée${deleted > 1 ? 's' : ''}.`
+        : 'Aucune photo à effacer.';
+      const later = waiting
+        ? ` ${plural(waiting, 'photo')} de moins d’1 h ${waiting > 1 ? 'seront effacées' : 'sera effacée'} plus tard.`
+        : '';
+      setState({ busy: false, message: done + later });
       setStats(await photoStats());
     } catch {
       setState({ busy: false, message: 'Ménage impossible (réseau, ou migration 007 pas lancée).' });
@@ -227,7 +231,7 @@ function PhotoCleanup() {
             {state.message ??
               (stats === undefined
                 ? 'Chargement…'
-                : 'Les photos qui ne sont plus dans aucune LV sont effacées chaque jour (après 24 h).')}
+                : 'Les photos qui ne sont plus dans aucune LV sont effacées chaque jour (après 24 h), ou ici (après 1 h).')}
           </span>
         </span>
         <button type="button" className="btn-secondary btn-icon" onClick={clean} disabled={state.busy}>

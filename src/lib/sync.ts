@@ -234,12 +234,12 @@ export class EventStore {
   }
 
   /**
-   * Ménage des photos qui ne sont dans aucune LV (plus de 24 h). Les photos des LV de ce téléphone,
-   * même pas encore envoyées, sont gardées. Renvoie le nombre de photos effacées.
+   * Ménage des photos qui ne sont dans aucune LV : plus de 24 h pour le ménage automatique,
+   * plus d'1 h à la demande. Les photos des LV de ce téléphone, même pas encore envoyées, sont gardées.
    */
-  async cleanPhotos(): Promise<number> {
+  cleanPhotos(onDemand = false) {
     const keep = new Set(this.waybills.alive().flatMap((w) => w.photo_paths));
-    return cleanOrphanPhotos(keep);
+    return cleanOrphanPhotos(keep, onDemand ? '1 hour' : '24 hours');
   }
 
   isPending(id: string) {

@@ -128,19 +128,29 @@ export async function flushTrash() {
   }
 }
 
-/**
- * Ménage : efface les photos de plus de 24 h qui ne sont dans aucune LV (fonction « orphan_waybill_photos »).
- * `keep` : photos des LV pas encore envoyées, jamais effacées. Renvoie le nombre de photos effacées.
- */
-export async function cleanOrphanPhotos(keep: Set<string>): Promise<number> {
-  const { data, error } = await supabase.rpc('orphan_waybill_photos');
+/** Photos de l'utilisateur dans aucune LV, envoyées depuis plus de « minAge » (intervalle SQL, ex. « 24 hours »). */
+async function orphanPhotos(minAge: string, keep: Set<string>): Promise<string[]> {
+  const { data, error } = await supabase.rpc('orphan_waybill_photos', { min_age: minAge });
   if (error) throw new Error(error.message);
-  const orphans = (data as { name: string }[]).map((r) => r.name).filter((name) => !keep.has(name));
+  return (data as { name: string }[]).map((r) => r.name).filter((name) => !keep.has(name));
+}
+
+/**
+ * Ménage : efface les photos qui ne sont dans aucune LV, envoyées depuis plus de « minAge »
+ * (24 h pour le ménage automatique, 1 h à la demande). `keep` : photos des LV pas encore envoyées,
+ * jamais effacées. Renvoie le nombre de photos effacées et celles, plus récentes, laissées pour plus tard.
+ */
+export async function cleanOrphanPhotos(
+  keep: Set<string>,
+  minAge = '24 hours',
+): Promise<{ deleted: number; waiting: number }> {
+  const orphans = await orphanPhotos(minAge, keep);
   for (let i = 0; i < orphans.length; i += 100) {
     const { error } = await supabase.storage.from(BUCKET).remove(orphans.slice(i, i + 100));
     if (error) throw new Error(error.message);
   }
-  return orphans.length;
+  const waiting = (await orphanPhotos('0 seconds', keep)).length;
+  return { deleted: orphans.length, waiting };
 }
 
 /** Nombre et poids des photos stockées (null si indisponible). */
