@@ -67,7 +67,7 @@ describe('placeFromLabel', () => {
   });
 
   it('est l’inverse de formatPlace', () => {
-    for (const label of ['Malemort (19)', 'Bastia (2B)', 'Barcelona (ES)']) {
+    for (const label of ['Toulouse (31)', 'Bastia (2B)', 'Barcelona (ES)']) {
       expect(formatPlace(placeFromLabel(label))).toBe(label);
     }
   });

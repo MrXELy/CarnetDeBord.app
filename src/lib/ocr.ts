@@ -32,11 +32,24 @@ export function clientName(name: string | null | undefined): string {
   return CLIENT_ALIASES.find(([pattern]) => pattern.test(n))?.[1] ?? n;
 }
 
-/** « Malemort » + « 19 » → « Malemort (19) ». */
+/** « Toulouse » + « 31 » → « Toulouse (31) ». */
 export function cityLabel(city: string | null, department: string | null): string {
   const c = text(city);
   const d = text(department);
   return c && d ? `${c} (${d})` : c;
+}
+
+/**
+ * Résumé d'une lecture sur une ligne : nombre de champs remplis, et de ceux qui restent vides
+ * (« non trouvés ») ; le détail est dans le panneau « Détails ».
+ */
+export function readingSummary(fields: ReadableFields, filled: (keyof ReadableFields)[]): string {
+  if (!filled.length) return 'Rien de nouveau sur la photo';
+  const missing = (Object.keys(FIELD_LABELS) as (keyof ReadableFields)[]).filter((k) => !fields[k].trim()).length;
+  const s = (n: number) => (n > 1 ? 's' : '');
+  return `${filled.length} champ${s(filled.length)} rempli${s(filled.length)} · ${
+    missing ? `${missing} non trouvé${s(missing)}` : 'à vérifier'
+  }`;
 }
 
 /**

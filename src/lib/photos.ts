@@ -1,4 +1,5 @@
 import { FunctionsHttpError } from '@supabase/supabase-js';
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from '../config';
 import { supabase } from './supabase';
 
 const BUCKET = 'waybill-photos';
@@ -170,6 +171,8 @@ export type LetterKind = 'printed' | 'handwritten';
 
 /** Ce que la fonction « read-waybill » lit sur la photo (null = absent ou illisible). */
 export interface WaybillReading {
+  /** Remarques de l'IA sur la photo et sa lecture (absentes avec une ancienne version du serveur). */
+  remarks?: string[];
   number: string | null;
   shipper_name: string | null;
   shipper_city: string | null;
@@ -182,14 +185,61 @@ export interface WaybillReading {
 }
 
 /**
- * Lit une photo déjà envoyée. Une seule tentative : jamais de nouvel essai automatique
- * (le serveur limite de toute façon à 2 lectures par photo).
+ * Lit une photo déjà envoyée, en direct : `onText` reçoit tout ce que l'IA a écrit jusque-là.
+ * Une seule tentative : jamais de nouvel essai automatique (le serveur limite à 2 lectures par photo).
  */
-export function readWaybillPhoto(
+export async function readWaybillPhoto(
   path: string,
   mode: LetterKind,
+  onText: (text: string) => void,
 ): Promise<{ reading: WaybillReading; cost_usd: number }> {
-  return invokeReader({ path, mode });
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) throw new Error('Non connecté');
+  let response: Response;
+  try {
+    response = await fetch(`${SUPABASE_URL}/functions/v1/read-waybill`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${data.session.access_token}`,
+        apikey: SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ path, mode, stream: true }),
+    });
+  } catch {
+    throw new Error('Service de lecture injoignable');
+  }
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.error ?? 'Lecture impossible');
+  }
+  // Serveur pas encore mis à jour : la réponse arrive en une fois.
+  if (!response.headers.get('Content-Type')?.includes('ndjson') || !response.body) return response.json();
+
+  // Une ligne JSON par message : « start », « text » (morceau de la réponse), puis « done » ou « error ».
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = '';
+  let text = '';
+  for (;;) {
+    let chunk: ReadableStreamReadResult<string>;
+    try {
+      chunk = await reader.read();
+    } catch {
+      throw new Error('Lecture interrompue : connexion perdue');
+    }
+    if (chunk.done) throw new Error('Lecture interrompue avant la fin');
+    buffer += chunk.value;
+    let end: number;
+    while ((end = buffer.indexOf('\n')) >= 0) {
+      const line = buffer.slice(0, end).trim();
+      buffer = buffer.slice(end + 1);
+      if (!line) continue;
+      const event = JSON.parse(line);
+      if (event.type === 'text') onText((text += event.text));
+      else if (event.type === 'done') return event;
+      else if (event.type === 'error') throw new Error(event.error);
+    }
+  }
 }
 
 /** Appelle la fonction de lecture et traduit ses erreurs en messages lisibles. */

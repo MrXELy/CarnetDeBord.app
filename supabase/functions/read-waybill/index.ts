@@ -3,6 +3,8 @@
 // « Relire en mode fiable » : Claude Opus 5.5.
 // Lit aussi le kilométrage sur une photo du chronotachygraphe ou du compteur (kind = 'odometer') :
 // la photo est alors envoyée directement dans la requête, sans être stockée.
+// Lecture en direct (LV, `stream: true`) : la réponse est transmise au fur et à mesure, une ligne JSON
+// par message (« start », « text », puis « done » ou « error ») ; l'appli affiche ce que l'IA écrit.
 //
 // Garde-fous (imposés ici, côté serveur, même si l'appli a un bug) :
 //   - 2 lectures maximum par photo, 30 par jour, 300 par mois et par utilisateur ;
@@ -44,14 +46,17 @@ const CORS = {
 
 const SYSTEM = `Tu lis des photos de lettres de voiture françaises (transport routier de marchandises), de n'importe quel format : formulaires pré-imprimés remplis à la main, ou documents entièrement imprimés.
 
-Extrais uniquement ce qui est réellement écrit sur le document :
+Commence par les remarques :
+- remarks : 1 à 4 remarques très courtes (10 mots au plus chacune), en français simple, pour le chauffeur : le type de document, ce qui gêne la lecture (photo floue, coupée, sombre, reflets, écriture difficile, case vide) et les informations dont tu doutes. Elles l'aident à comprendre une lecture incomplète. Exemples : « Lettre de voiture pré-imprimée, remplie à la main », « Bas de la photo flou : poids illisible », « Case destinataire vide ».
+
+Puis extrais uniquement ce qui est réellement écrit sur le document :
 - number : le numéro de la lettre de voiture, chiffres et lettres sans espaces, en gardant les zéros de tête. Il est imprimé en haut (« N° », ou à côté du logo CMR sur une lettre internationale). Ce n'est pas un numéro de mission, de bon de livraison (« Delivery Note », « BL »), de commande ni de code-barres.
 - shipper_* : l'expéditeur / remettant (case « Expéditeur », case 1 d'une CMR). Ce n'est PAS le transporteur dont le logo ou l'en-tête figure sur le formulaire (par exemple Doumen), ni le donneur d'ordres s'il est distinct. Si le nom est écrit à la main et qu'un tampon donne la raison sociale complète, prends le nom écrit à la main.
-- consignee_* : le destinataire (case « Destinataire », case 2 d'une CMR). Si le nom tient sur plusieurs lignes, réunis-les (ex. « Chantier France Travail SPE »).
+- consignee_* : le destinataire (case « Destinataire », case 2 d'une CMR). Si le nom tient sur plusieurs lignes, réunis-les (ex. « Chantier Exemple Logistique Sud »).
 - consignee_city / consignee_department : la ville où la marchandise est livrée. Sur une CMR, prends le « Lieu prévu pour la livraison » (case 3) s'il est rempli, sinon l'adresse du destinataire.
 - *_city : la ville seule, sans numéro de département, code postal, « CEDEX » ni numéro de rue.
 - *_department : le numéro de département français (ex. « 19 », « 2A ») s'il est écrit ou déductible du code postal ; sinon null.
-- goods : la nature de la marchandise avec la quantité, en une ligne courte (80 caractères maximum). Une seule ligne : recopie-la telle qu'écrite (ex. « 9 pal eurocoustic »). Plusieurs lignes : résume avec le total des quantités par unité et la nature générale (ex. « 21 pal + 40 pc plaques de plâtre et rails »).
+- goods : la nature de la marchandise avec la quantité, en une ligne courte (80 caractères maximum). Une seule ligne : recopie-la telle qu'écrite (ex. « 9 pal laine de roche »). Plusieurs lignes : résume avec le total des quantités par unité et la nature générale (ex. « 21 pal + 40 pc plaques de plâtre et rails »).
 - weight_kg : le poids brut TOTAL en kilogrammes. S'il y a une ligne de total, prends-la plutôt que d'additionner. Attention à la virgule décimale française : « 2,628t » → 2628 ; « 12 712 kg » → 12712 ; « 27 168,276 KG » → 27168.276.
 
 Si une information est absente, illisible ou incertaine, mets null : n'invente jamais rien. Si la photo montre d'autres papiers autour de la lettre, ignore-les.`;
@@ -67,6 +72,7 @@ const nullable = (type: 'string' | 'number') => ({ type: [type, 'null'] });
 const SCHEMA = {
   type: 'object',
   properties: {
+    remarks: { type: 'array', items: { type: 'string' } },
     number: nullable('string'),
     shipper_name: nullable('string'),
     shipper_city: nullable('string'),
@@ -78,6 +84,7 @@ const SCHEMA = {
     weight_kg: nullable('number'),
   },
   required: [
+    'remarks',
     'number',
     'shipper_name',
     'shipper_city',
@@ -124,6 +131,7 @@ Deno.serve(async (req) => {
     kind?: unknown;
     id?: unknown;
     image?: unknown;
+    stream?: unknown;
   };
   const odometer = body.kind === 'odometer';
   let path: string;
@@ -185,7 +193,10 @@ Deno.serve(async (req) => {
   if (insertError) return reply(500, { error: insertError.message });
   const finish = (fields: Record<string, unknown>) => admin.from('ocr_usage').update(fields).eq('id', row.id);
 
-  try {
+  // Lecture en direct : réservée aux LV, à la demande de l'appli.
+  const live = !odometer && body.stream === true;
+
+  async function readPhoto(onText?: (text: string) => void) {
     // 4. Photo : reçue dans la requête (kilométrage), ou téléchargée avec les droits de l'utilisateur (LV).
     let data = image;
     if (data == null) {
@@ -195,9 +206,9 @@ Deno.serve(async (req) => {
       data = encodeBase64(new Uint8Array(await blob.arrayBuffer()));
     }
 
-    // 5. Lecture par Claude.
+    // 5. Lecture par Claude, reçue morceau par morceau (transmis à l'appli en lecture en direct).
     const client = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY'), maxRetries: 1, timeout: 60_000 });
-    const response = await client.beta.messages.create({
+    const stream = client.beta.messages.stream({
       model: MODELS[mode],
       max_tokens: MAX_TOKENS,
       // Repli en cas de refus : disponible pour le modèle principal seulement (pas pour Haiku).
@@ -216,6 +227,8 @@ Deno.serve(async (req) => {
         },
       ],
     });
+    if (onText) stream.on('text', onText);
+    const response = await stream.finalMessage();
 
     const [inRate, outRate] = RATES[response.model] ?? DEFAULT_RATE;
     const usage = {
@@ -232,20 +245,49 @@ Deno.serve(async (req) => {
     const reading = JSON.parse(text.text);
 
     await finish({ status: 'ok', ...usage });
-    return reply(200, { reading, cost_usd: usage.cost_usd });
-  } catch (err) {
+    return { reading, cost_usd: usage.cost_usd, model: response.model };
+  }
+
+  /** Échec : enregistré dans le journal, puis traduit en message lisible. */
+  async function failure(err: unknown): Promise<string> {
     const usage = (err as { usage?: Record<string, unknown> }).usage ?? {};
     await finish({ status: 'erreur', ...usage });
-    const message =
-      err instanceof Anthropic.RateLimitError
-        ? 'Service de lecture saturé, réessaie plus tard'
-        : err instanceof Anthropic.AuthenticationError
-          ? 'Clé API Anthropic invalide'
-          : err instanceof Anthropic.APIError
-            ? `Erreur du service de lecture (${err.status})`
-            : err instanceof Error
-              ? err.message
-              : 'Erreur inconnue';
-    return reply(502, { error: message });
+    return err instanceof Anthropic.RateLimitError
+      ? 'Service de lecture saturé, réessaie plus tard'
+      : err instanceof Anthropic.AuthenticationError
+        ? 'Clé API Anthropic invalide'
+        : err instanceof Anthropic.APIError
+          ? `Erreur du service de lecture (${err.status})`
+          : err instanceof Error
+            ? err.message
+            : 'Erreur inconnue';
+  }
+
+  if (live) {
+    const encoder = new TextEncoder();
+    const events = new ReadableStream({
+      async start(controller) {
+        const send = (event: Record<string, unknown>) =>
+          controller.enqueue(encoder.encode(JSON.stringify(event) + '\n'));
+        try {
+          send({ type: 'start', model: MODELS[mode] });
+          const result = await readPhoto((text) => send({ type: 'text', text }));
+          send({ type: 'done', ...result });
+        } catch (err) {
+          send({ type: 'error', error: await failure(err) });
+        }
+        controller.close();
+      },
+    });
+    return new Response(events, {
+      headers: { ...CORS, 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-cache' },
+    });
+  }
+
+  try {
+    const { reading, cost_usd } = await readPhoto();
+    return reply(200, { reading, cost_usd });
+  } catch (err) {
+    return reply(502, { error: await failure(err) });
   }
 });

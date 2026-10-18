@@ -1,9 +1,10 @@
-import { Camera, LoaderCircle, ScanSearch, ScanText, X } from 'lucide-react';
+import { Camera, ChevronDown, LoaderCircle, ScanSearch, ScanText, X } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { toLocalInput } from '../lib/dates';
 import { formatPlace, placeFromLabel, resolveCity } from '../lib/geo';
+import { demoReading, finalProgress, liveProgress, liveSteps, type ReadDetails } from '../lib/liveReading';
 import { parseNum, numText } from '../lib/numbers';
-import { FIELD_LABELS, applyReading, type ReadableFields } from '../lib/ocr';
+import { applyReading, readingSummary, type ReadableFields } from '../lib/ocr';
 import {
   compressPhoto,
   newPhotoPath,
@@ -19,6 +20,7 @@ import { useStore } from '../lib/useEvents';
 import type { Place, Waybill } from '../types';
 import PhotoViewer, { PhotoThumb } from './PhotoViewer';
 import PlaceField, { EMPTY_PLACE } from './PlaceField';
+import ReadingDetails from './ReadingDetails';
 
 interface Props {
   waybill: Waybill;
@@ -55,6 +57,8 @@ function changedTime(value: string, iso: string | null | undefined): string | un
 export default function WaybillForm(props: Props) {
   const { waybill, isNew, context, initialPhoto, steps = {}, onSave, onDelete, onClose } = props;
   const store = useStore();
+  // Mode démo : lecture simulée, sans envoi de la photo ni appel au serveur.
+  const { demo } = store.getState();
   const [names] = useState(() => store.knownNames());
   const [number, setNumber] = useState(waybill.number ?? '');
   const [shipper, setShipper] = useState(waybill.shipper ?? '');
@@ -73,6 +77,9 @@ export default function WaybillForm(props: Props) {
   const [photos, setPhotos] = useState<string[]>(waybill.photo_paths);
   const [viewing, setViewing] = useState<string | null>(null);
   const [reading, setReading] = useState<Reading>({ state: 'idle' });
+  // Dernière lecture, pour le panneau « Détails » (gardé tant que la fiche est ouverte).
+  const [details, setDetails] = useState<ReadDetails | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
   // Photos déjà lues pendant cette saisie : jamais de nouvelle lecture automatique.
   const [read, setRead] = useState<Set<string>>(() => new Set());
   // Photos déjà relues en mode fiable : une seule relecture par photo.
@@ -132,19 +139,33 @@ export default function WaybillForm(props: Props) {
    * « Relire en mode fiable » relance la même photo avec le modèle le plus fiable.
    */
   async function readPhoto(path: string, mode: LetterKind = 'printed') {
-    if (!navigator.onLine) {
+    if (!navigator.onLine && !demo) {
       return setReading({ state: 'waiting', message: 'Photo enregistrée. Lecture possible au retour du réseau.' });
     }
     setRead((r) => new Set(r).add(path));
     if (mode === 'handwritten') setReliable((r) => new Set(r).add(path));
+    const startedAt = Date.now();
+    setDetails({ mode, progress: { remarks: [], found: [] } });
+    // Ligne en direct : la dernière remarque ou information écrite par l'IA.
+    const onText = (text: string) => {
+      const progress = liveProgress(text);
+      const steps = liveSteps(progress);
+      setDetails({ mode, progress });
+      if (steps.length) setReading({ state: 'busy', message: steps[steps.length - 1] });
+    };
     try {
       setReading({ state: 'busy', message: 'Envoi de la photo…' });
-      await uploadPending();
+      if (!demo) await uploadPending();
       setReading({
         state: 'busy',
-        message: mode === 'handwritten' ? 'Relecture en mode fiable…' : 'Lecture de la lettre…',
+        message: mode === 'handwritten' ? 'Relecture en mode fiable…' : 'L’IA regarde la photo…',
       });
-      const result = await readWaybillPhoto(path, mode);
+      const result = demo ? await demoReading(onText) : await readWaybillPhoto(path, mode, onText);
+      setDetails({
+        mode,
+        progress: finalProgress(result.reading),
+        done: { ms: Date.now() - startedAt, cost_usd: result.cost_usd },
+      });
       const { fields, filled } = applyReading(latest.current, result.reading, fromReading.current);
       if (filled.includes('planned_city')) {
         // Comme une ville choisie dans les suggestions : nom officiel, code postal, département.
@@ -163,12 +184,12 @@ export default function WaybillForm(props: Props) {
       for (const key of filled) fromReading.current[key] = fields[key];
       setReading({
         state: 'done',
-        message: filled.length
-          ? `Rempli d'après la photo : ${filled.map((k) => FIELD_LABELS[k]).join(', ')}. Vérifie avant de valider.`
-          : 'Rien de nouveau lu sur la photo : les champs étaient déjà remplis ou illisibles.',
+        message: readingSummary(fields, filled),
       });
     } catch (err) {
-      setReading({ state: 'error', message: err instanceof Error ? err.message : 'Lecture impossible.' });
+      const message = err instanceof Error ? err.message : 'Lecture impossible.';
+      setDetails((d) => d && { ...d, done: { ms: Date.now() - startedAt, error: message } });
+      setReading({ state: 'error', message: `Échec : ${message}` });
     }
   }
 
@@ -289,11 +310,23 @@ export default function WaybillForm(props: Props) {
                 />
               </div>
               {reading.state !== 'idle' && (
-                <p className={`reading reading-${reading.state}`}>
+                <div className={`reading reading-${reading.state}`}>
                   {reading.state === 'busy' && <LoaderCircle size={16} className="spin" />}
-                  {reading.message}
-                </p>
+                  <span className="reading-text">{reading.message}</span>
+                  {details && (
+                    <button
+                      type="button"
+                      className="reading-more"
+                      aria-expanded={showDetails}
+                      onClick={() => setShowDetails((v) => !v)}
+                    >
+                      Détails
+                      <ChevronDown size={14} />
+                    </button>
+                  )}
+                </div>
               )}
+              {details && showDetails && <ReadingDetails details={details} />}
               {canRead && (
                 <button type="button" className="btn-secondary btn-icon lv-add" onClick={() => void readPhoto(last)}>
                   <ScanText size={18} />

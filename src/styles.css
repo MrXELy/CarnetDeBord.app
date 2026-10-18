@@ -1177,6 +1177,51 @@ legend { margin-bottom: 6px; }
 .reading-error { background: rgba(248, 113, 113, 0.12); border-color: rgba(248, 113, 113, 0.3); color: #fecaca; }
 .reading-waiting { background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.3); color: #fde68a; }
 
+/*
+ * Lecture d'une LV : une seule ligne, coupée par « … » (le texte complet est dans « Détails »).
+ * La largeur de la ligne vient de la fiche, jamais de son texte (sinon un long texte élargit toute la fiche).
+ */
+.reading { contain: inline-size; }
+.reading-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.reading-more {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  border: none;
+  background: transparent;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: inherit;
+  opacity: 0.8;
+}
+
+.reading-more svg { transition: transform 0.2s var(--ease); }
+.reading-more[aria-expanded='true'] svg { transform: rotate(180deg); }
+
+/* Panneau « Détails » d'une lecture */
+.reading-details {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  background: var(--glass);
+  font-size: 0.85rem;
+  animation: fade-in 0.3s ease both;
+}
+
+.reading-details h3 { margin: 0 0 4px; font-size: 0.8rem; font-weight: 700; color: var(--muted); }
+.reading-details p { margin: 0; }
+.reading-details ul { margin: 0; padding-left: 18px; }
+.reading-details dl { display: grid; gap: 4px; margin: 0; }
+.reading-details dl div { display: flex; justify-content: space-between; gap: 12px; }
+.reading-details dt { color: var(--muted); }
+.reading-details dd { margin: 0; text-align: right; font-weight: 600; overflow-wrap: anywhere; }
+.reading-details dd.muted { font-weight: 400; }
+
 .photo-viewer {
   position: fixed;
   inset: 0;
