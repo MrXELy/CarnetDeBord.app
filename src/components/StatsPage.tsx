@@ -217,7 +217,7 @@ export default function StatsPage({ week, onClose }: Props) {
                   </span>
                   {before.km > 0 && (
                     <span className="st-compare">
-                      <Delta cur={stats.km} prev={before.km} mode="pct" />
+                      <Evolution cur={stats.km} prev={before.km} mode="pct" />
                       {compared} ({num(before.km)} km)
                     </span>
                   )}
@@ -260,7 +260,7 @@ function subtitle(period: Period, stats: PeriodStats, range: Range, now: Date): 
 }
 
 /** Pastille d'évolution : verte si c'est mieux, rouge si c'est moins bien, grise si ni l'un ni l'autre. */
-function Delta(props: {
+function Evolution(props: {
   cur: number | null;
   prev: number | null;
   mode?: 'pct' | 'abs';
@@ -301,6 +301,8 @@ function Tiles({ period, stats, before }: { period: Period; stats: PeriodStats; 
   const used = fuel.used != null ? `≈ ${liters(fuel.used)}` : '—';
   const perDay = (s: PeriodStats) => (s.days ? Math.round(s.km / s.days) : null);
   const hours = (n: number) => durationLabel(Math.round(n));
+  // Rien à comparer si la période d'avant n'a aucune étape (début de l'historique).
+  const Delta: typeof Evolution = before.days > 0 ? Evolution : () => null;
   return (
     <div className="st-tiles">
       {period.kind === 'jour' ? (

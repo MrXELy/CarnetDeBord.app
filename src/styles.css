@@ -210,6 +210,9 @@ textarea { resize: vertical; }
 }
 
 .topbar .icon-btn {
+  flex: none;
+  width: 38px;
+  height: 38px;
   border: 1px solid var(--glass-border);
   border-radius: 14px;
   background: var(--glass);
@@ -218,12 +221,16 @@ textarea { resize: vertical; }
 .topbar-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
-.brand { font-weight: 800; font-size: 1.05rem; margin-right: auto; }
+/* Sur téléphone étroit, le nom et l'état de synchro se raccourcissent plutôt que de pousser les boutons hors de l'écran. */
+.brand { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; font-size: 1.05rem; margin-right: auto; }
 
 .sync {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.78rem;
   font-weight: 600;
