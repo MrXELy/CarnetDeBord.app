@@ -54,10 +54,7 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
   function context(w: Waybill): string {
     const loading = store.event(w.loading_event_id);
     const delivery = store.event(w.delivery_event_id);
-    return [
-      `Chargée : ${stepLabel(loading)}`,
-      delivery ? `Livrée : ${stepLabel(delivery)}` : null,
-    ]
+    return [`Chargée : ${stepLabel(loading)}`, delivery ? `Livrée : ${stepLabel(delivery)}` : null]
       .filter(Boolean)
       .join(' — ');
   }
@@ -104,17 +101,14 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
 
             {list.length === 0 ? (
               <p className="empty muted">
-                {filter === 'a_completer' && !q ? 'Toutes les lettres de voiture sont complètes.' : 'Aucune lettre de voiture.'}
+                {filter === 'a_completer' && !q
+                  ? 'Toutes les lettres de voiture sont complètes.'
+                  : 'Aucune lettre de voiture.'}
               </p>
             ) : (
               <div className="lv-list">
                 {list.map((w) => (
-                  <WaybillLine
-                    key={w.id}
-                    waybill={w}
-                    onClick={() => setEditing(w)}
-                    showStatus
-                  />
+                  <WaybillLine key={w.id} waybill={w} onClick={() => setEditing(w)} showStatus />
                 ))}
               </div>
             )}
@@ -132,9 +126,13 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
             delivery: editingDelivery ? { at: editingDelivery.occurred_at } : undefined,
           }}
           onSave={(w, changes) => {
-            store.saveWaybill(w);
             // Lieu ou dates changés depuis la fiche : les étapes, et leurs autres LV, suivent.
-            applyStepChanges(store, editingLoading?.id, editingDelivery?.id, changes);
+            // Avant la LV : un chargement à créer doit exister avant qu'elle y fasse référence.
+            const plates = editingDelivery
+              ? { tractor: editingDelivery.tractor_plate, trailer: editingDelivery.trailer_plate }
+              : undefined;
+            applyStepChanges(store, editingLoading?.id, editingDelivery?.id, changes, plates);
+            store.saveWaybill(w);
           }}
           onDelete={(w) => store.removeWaybill(w)}
           onClose={() => setEditing(null)}

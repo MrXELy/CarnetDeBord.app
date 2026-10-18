@@ -13,12 +13,12 @@ import {
   uploadPending,
   type LetterKind,
 } from '../lib/photos';
-import { placeChanged, type LinkedSteps, type StepChanges } from '../lib/places';
+import { placeChanged, type LinkedSteps, type NewLoading, type StepChanges } from '../lib/places';
 import { useModal } from '../lib/useModal';
 import { useStore } from '../lib/useEvents';
 import type { Place, Waybill } from '../types';
 import PhotoViewer, { PhotoThumb } from './PhotoViewer';
-import PlaceField from './PlaceField';
+import PlaceField, { EMPTY_PLACE } from './PlaceField';
 
 interface Props {
   waybill: Waybill;
@@ -61,7 +61,10 @@ export default function WaybillForm(props: Props) {
   const [consignee, setConsignee] = useState(waybill.consignee ?? '');
   const [planned, setPlanned] = useState<Place>(() => placeFromLabel(waybill.planned_city ?? ''));
   const [plannedKey, setPlannedKey] = useState(0);
-  const [loading, setLoading] = useState<Place | null>(steps.loading?.place ?? null);
+  // Sans étape de chargement (LV créée à la livraison) : ville et date à remplir pour la créer.
+  const noLoading = !steps.loading;
+  const [loading, setLoading] = useState<Place>(steps.loading?.place ?? EMPTY_PLACE);
+  const [stepError, setStepError] = useState<string | null>(null);
   const [loadingWhen, setLoadingWhen] = useState(() => localTime(steps.loading?.at));
   const [deliveryWhen, setDeliveryWhen] = useState(() => localTime(steps.delivery?.at));
   const [goods, setGoods] = useState(waybill.goods ?? '');
@@ -163,11 +166,14 @@ export default function WaybillForm(props: Props) {
   function submit(e: FormEvent) {
     e.preventDefault();
     e.stopPropagation(); // ne pas valider le formulaire d'étape situé derrière
+    const newLoading = noLoading ? loadingToCreate() : undefined;
+    if (newLoading === null) return;
     // Photos retirées de la fiche : supprimées du stockage.
     for (const path of waybill.photo_paths) if (!photos.includes(path)) void deletePhoto(path).catch(() => {});
     onSave(
       {
         ...waybill,
+        ...(newLoading && { loading_event_id: newLoading.id }),
         number: clean(number),
         shipper: clean(shipper),
         consignee: clean(consignee),
@@ -179,12 +185,37 @@ export default function WaybillForm(props: Props) {
         photo_paths: photos,
       },
       {
-        loadingPlace: loading && steps.loading && placeChanged(loading, steps.loading.place) ? loading : undefined,
+        loadingPlace: steps.loading && placeChanged(loading, steps.loading.place) ? loading : undefined,
         loadingAt: changedTime(loadingWhen, steps.loading?.at),
         deliveryAt: changedTime(deliveryWhen, steps.delivery?.at),
+        newLoading,
       },
     );
     onClose();
+  }
+
+  /**
+   * Chargement à créer d'après la ville et la date saisies : rien si les deux sont vides,
+   * null (avec un message) s'il en manque une ou si la date tombe après la livraison.
+   */
+  function loadingToCreate(): NewLoading | undefined | null {
+    setStepError(null);
+    const city = loading.city.trim();
+    if (!city && !loadingWhen) return undefined;
+    if (!city || !loadingWhen) {
+      setStepError(city ? 'Indique aussi la date de chargement.' : 'Indique aussi la ville de chargement.');
+      return null;
+    }
+    const at = new Date(loadingWhen);
+    if (Number.isNaN(at.getTime())) {
+      setStepError('Date de chargement invalide.');
+      return null;
+    }
+    if (deliveryWhen && at >= new Date(deliveryWhen)) {
+      setStepError('Le chargement doit être avant la livraison.');
+      return null;
+    }
+    return { id: crypto.randomUUID(), place: { ...loading, city }, at: at.toISOString() };
   }
 
   function remove() {
@@ -283,18 +314,20 @@ export default function WaybillForm(props: Props) {
                 <span className="label-line">Client chargeur (expéditeur){readTag('shipper', shipper)}</span>
                 <input list="known-names" value={shipper} onChange={(e) => setShipper(e.target.value)} />
               </label>
-              {loading && (
-                <div className="label">
-                  Ville de chargement
-                  <PlaceField value={loading} onChange={setLoading} />
-                </div>
-              )}
-              {steps.loading?.at && (
+              <div className="label">
+                Ville de chargement
+                <PlaceField value={loading} onChange={setLoading} />
+              </div>
+              {(steps.loading?.at || noLoading) && (
                 <label>
                   Date et heure de chargement
                   <input type="datetime-local" value={loadingWhen} onChange={(e) => setLoadingWhen(e.target.value)} />
                 </label>
               )}
+              {noLoading && (
+                <p className="hint">Ville et date remplies : l’étape de chargement est ajoutée à ce jour-là.</p>
+              )}
+              {stepError && <p className="form-message">{stepError}</p>}
             </div>
 
             <div className="form-block">

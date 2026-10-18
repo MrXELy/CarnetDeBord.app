@@ -6,7 +6,15 @@ import { isFullTank } from '../lib/fuel';
 import { formatPlace } from '../lib/geo';
 import { numText, parseNum } from '../lib/numbers';
 import { odometerMessage, readOdometerPhoto } from '../lib/odometer';
-import { applyStepChanges, locateLater, placeOf, type LinkedSteps, type StepChanges } from '../lib/places';
+import {
+  addLoadingStep,
+  applyStepChanges,
+  locateLater,
+  placeOf,
+  type LinkedSteps,
+  type NewLoading,
+  type StepChanges,
+} from '../lib/places';
 import { useModal } from '../lib/useModal';
 import { useEvents } from '../lib/useEvents';
 import { isBlankWaybill, stepLabel } from '../lib/waybills';
@@ -66,6 +74,8 @@ export default function EventForm({ event, onClose }: Props) {
   const [loads, setLoads] = useState<Waybill[]>(originalLoads);
   const [checked, setChecked] = useState(() => new Set(originalDelivered.map((w) => w.id)));
   const [deliveryEdits, setDeliveryEdits] = useState<Map<string, Waybill>>(() => new Map());
+  // Chargements à créer pour des LV qui n'en avaient pas, par LV (enregistrés avec la livraison).
+  const [newLoadings, setNewLoadings] = useState<Map<string, NewLoading>>(() => new Map());
   const [editing, setEditing] = useState<Editing>(null);
   const scanInput = useRef<HTMLInputElement>(null);
   const kmCamera = useRef<HTMLInputElement>(null);
@@ -124,6 +134,12 @@ export default function EventForm({ event, onClose }: Props) {
 
     const now = new Date().toISOString();
     const changes = waybillChanges(now);
+    // Chargements créés depuis les fiches LV : avant les LV qui y font référence.
+    for (const [id, step] of newLoadings) {
+      if (changes.some((w) => w.id === id && !w.deleted_at && w.loading_event_id === step.id)) {
+        addLoadingStep(store, step, { tractor: tractor.trim(), trailer: trailer.trim() });
+      }
+    }
     const hasWaybills = (type === 'chargement' && loads.length > 0) || (type === 'livraison' && checked.size > 0);
 
     store.save(
@@ -244,13 +260,32 @@ export default function EventForm({ event, onClose }: Props) {
       };
     }
     const loading = store.event(w.loading_event_id);
+    // Chargement pas encore enregistré, demandé depuis cette fiche lors d'une ouverture précédente.
+    const pending = newLoadings.get(w.id);
     return {
       steps: {
-        loading: loading ? { place: placeOf(loading), at: loading.occurred_at } : undefined,
-        delivery: checked.has(w.id) ? { at: whenIso } : undefined,
+        loading: loading
+          ? { place: placeOf(loading), at: loading.occurred_at }
+          : pending
+            ? { place: pending.place, at: pending.at }
+            : undefined,
+        // Une nouvelle LV saisie ici est livrée ici.
+        delivery: checked.has(w.id) || editing.isNew ? { at: whenIso } : undefined,
       },
       apply: (changes) => {
-        applyStepChanges(store, loading?.id, null, changes);
+        if (pending) {
+          setNewLoadings(
+            new Map(newLoadings).set(w.id, {
+              ...pending,
+              place: changes.loadingPlace ?? pending.place,
+              at: changes.loadingAt ?? pending.at,
+            }),
+          );
+        } else if (changes.newLoading) {
+          setNewLoadings(new Map(newLoadings).set(w.id, changes.newLoading));
+        } else {
+          applyStepChanges(store, loading?.id, null, changes);
+        }
         if (changes.deliveryAt) setFormTime(changes.deliveryAt);
       },
     };
@@ -296,6 +331,8 @@ export default function EventForm({ event, onClose }: Props) {
     if (!editing) return;
     if (editing.side === 'load') return place.city ? `Chargée à ${place.city}` : undefined;
     const loading = store.event(editing.waybill.loading_event_id);
+    const pending = newLoadings.get(editing.waybill.id);
+    if (pending) return `Chargée à ${pending.place.city}`;
     return loading ? `Chargée : ${stepLabel(loading)}` : 'Chargement non renseigné';
   }
 
@@ -445,11 +482,7 @@ export default function EventForm({ event, onClose }: Props) {
                     <Camera size={18} />
                     Scanner une LV
                   </button>
-                  <button
-                    type="button"
-                    className="btn-secondary btn-icon lv-add"
-                    onClick={() => editLoad()}
-                  >
+                  <button type="button" className="btn-secondary btn-icon lv-add" onClick={() => editLoad()}>
                     <Plus size={18} />
                     Saisir
                   </button>

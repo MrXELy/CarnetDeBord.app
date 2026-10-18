@@ -1,4 +1,4 @@
-import type { Place } from '../types';
+import type { Place, TripEvent } from '../types';
 import { resolveCity } from './geo';
 import type { EventStore } from './sync';
 
@@ -40,15 +40,53 @@ export interface StepChanges {
   loadingPlace?: Place;
   loadingAt?: string;
   deliveryAt?: string;
+  /** LV sans étape de chargement : chargement à créer (son id est déjà dans la LV). */
+  newLoading?: NewLoading;
 }
 
-/** Enregistre sur des étapes déjà enregistrées les changements faits depuis une fiche LV. */
+export interface NewLoading {
+  id: string;
+  place: Place;
+  /** ISO */
+  at: string;
+}
+
+/** Étape de chargement créée depuis la fiche d'une LV qui n'en avait pas (sans km). */
+export function addLoadingStep(store: EventStore, step: NewLoading, plates: { tractor: string; trailer: string }) {
+  const event: TripEvent = {
+    ...placeOf(step.place),
+    id: step.id,
+    type: 'chargement',
+    occurred_at: step.at,
+    tractor_plate: plates.tractor,
+    trailer_plate: plates.trailer,
+    odometer_km: null,
+    notes: null,
+    client: null,
+    cmr_number: null,
+    station: null,
+    diesel_l: null,
+    adblue_l: null,
+    full_tank: null,
+    updated_at: '',
+    deleted_at: null,
+  };
+  store.save(event);
+  locateLater(store, step.id, step.place);
+}
+
+/**
+ * Enregistre sur des étapes déjà enregistrées les changements faits depuis une fiche LV,
+ * et crée l'étape de chargement demandée (avant la LV qui y fait référence).
+ */
 export function applyStepChanges(
   store: EventStore,
   loadingId: string | null | undefined,
   deliveryId: string | null | undefined,
   changes: StepChanges,
+  plates = store.lastPlates(),
 ) {
+  if (changes.newLoading) addLoadingStep(store, changes.newLoading, plates);
   if (loadingId && changes.loadingPlace) {
     store.setEventPlace(loadingId, changes.loadingPlace);
     locateLater(store, loadingId, changes.loadingPlace);
