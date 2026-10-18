@@ -55,7 +55,9 @@ export async function uploadPending(): Promise<number> {
   for (const path of paths) {
     const blob = await pendingBlob(path);
     if (blob) {
-      const { error } = await supabase.storage.from(BUCKET).upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+      const { error } = await supabase.storage
+        .from(BUCKET)
+        .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
       if (error) throw new Error(`Envoi de photo impossible : ${error.message}`);
     }
     await unqueue(path);
@@ -83,10 +85,69 @@ export async function photoUrl(path: string): Promise<string | null> {
   return url;
 }
 
-export async function deletePhoto(path: string) {
-  await unqueue(path);
-  urls.delete(path);
-  await supabase.storage.from(BUCKET).remove([path]);
+// ---------- Effacement ----------
+
+/** Photos à effacer du stockage, gardées jusqu'à ce que l'effacement réussisse (réseau absent, erreur). */
+const TRASH_KEY = 'cdb.photo-trash';
+
+function readTrash(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(TRASH_KEY) ?? '[]');
+  } catch {
+    return [];
+  }
+}
+
+function writeTrash(paths: string[]) {
+  try {
+    localStorage.setItem(TRASH_KEY, JSON.stringify(paths));
+  } catch {
+    // Stockage indisponible : le ménage quotidien rattrapera ces photos.
+  }
+}
+
+/** Met des photos à effacer : retirées tout de suite de la file d'envoi, effacées du stockage à la prochaine synchro. */
+export function trashPhotos(paths: string[]) {
+  if (!paths.length) return;
+  for (const path of paths) {
+    void unqueue(path).catch(() => {});
+    urls.delete(path);
+  }
+  writeTrash([...new Set([...readTrash(), ...paths])]);
+}
+
+/** Efface du stockage les photos mises à la corbeille. */
+export async function flushTrash() {
+  const paths = readTrash();
+  for (let i = 0; i < paths.length; i += 100) {
+    const batch = paths.slice(i, i + 100);
+    const { error } = await supabase.storage.from(BUCKET).remove(batch);
+    if (error) throw new Error(`Effacement de photo impossible : ${error.message}`);
+    // Ce qui a été ajouté pendant l'effacement reste dans la corbeille.
+    writeTrash(readTrash().filter((p) => !batch.includes(p)));
+  }
+}
+
+/**
+ * Ménage : efface les photos de plus de 24 h qui ne sont dans aucune LV (fonction « orphan_waybill_photos »).
+ * `keep` : photos des LV pas encore envoyées, jamais effacées. Renvoie le nombre de photos effacées.
+ */
+export async function cleanOrphanPhotos(keep: Set<string>): Promise<number> {
+  const { data, error } = await supabase.rpc('orphan_waybill_photos');
+  if (error) throw new Error(error.message);
+  const orphans = (data as { name: string }[]).map((r) => r.name).filter((name) => !keep.has(name));
+  for (let i = 0; i < orphans.length; i += 100) {
+    const { error } = await supabase.storage.from(BUCKET).remove(orphans.slice(i, i + 100));
+    if (error) throw new Error(error.message);
+  }
+  return orphans.length;
+}
+
+/** Nombre et poids des photos stockées (null si indisponible). */
+export async function photoStats(): Promise<{ photos: number; bytes: number } | null> {
+  const { data, error } = await supabase.rpc('waybill_photo_stats');
+  if (error || !data?.[0]) return null;
+  return { photos: Number(data[0].photos), bytes: Number(data[0].bytes) };
 }
 
 // ---------- Lecture automatique ----------

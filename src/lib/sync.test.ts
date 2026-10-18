@@ -140,3 +140,27 @@ describe('cartes des semaines et lieux complétés', () => {
     expect(store.getState().events[0]).toMatchObject({ city: 'Tours', postcode: '37000', lat: 47.39, lon: 0.69 });
   });
 });
+
+describe('photos des LV', () => {
+  const trash = () => JSON.parse(storage.get('cdb.photo-trash') ?? '[]') as string[];
+  beforeEach(() => storage.clear());
+
+  it('photos retirées d’une LV, puis LV supprimée : mises à l’effacement', () => {
+    const store = new EventStore('photos', { offline: true });
+    const w = newWaybill({ photo_paths: ['u/lv/a.jpg', 'u/lv/b.jpg'] });
+    store.saveWaybill(w);
+    expect(trash()).toEqual([]);
+    store.saveWaybill({ ...w, photo_paths: ['u/lv/b.jpg'] });
+    expect(trash()).toEqual(['u/lv/a.jpg']);
+    store.removeWaybill({ ...w, photo_paths: ['u/lv/b.jpg'] });
+    expect(trash()).toEqual(['u/lv/a.jpg', 'u/lv/b.jpg']);
+  });
+
+  it('chargement supprimé : photos de ses LV mises à l’effacement', () => {
+    const store = new EventStore('photos2', { offline: true });
+    const loading = ev('c1', 'chargement', '2026-01-12T08:00');
+    store.save(loading, [newWaybill({ loading_event_id: 'c1', photo_paths: ['u/lv/c.jpg'] })]);
+    store.remove(loading);
+    expect(trash()).toEqual(['u/lv/c.jpg']);
+  });
+});

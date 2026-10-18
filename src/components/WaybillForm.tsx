@@ -6,10 +6,10 @@ import { parseNum, numText } from '../lib/numbers';
 import { FIELD_LABELS, applyReading, type ReadableFields } from '../lib/ocr';
 import {
   compressPhoto,
-  deletePhoto,
   newPhotoPath,
   queuePhoto,
   readWaybillPhoto,
+  trashPhotos,
   uploadPending,
   type LetterKind,
 } from '../lib/photos';
@@ -80,6 +80,8 @@ export default function WaybillForm(props: Props) {
   // Valeurs posées par la dernière lecture : une relecture peut les remplacer, pas ce qui a été tapé.
   const fromReading = useRef<Partial<ReadableFields>>({});
   const camera = useRef<HTMLInputElement>(null);
+  // Photos prises pendant cette saisie (envoyées au stockage pour la lecture, même si on les retire ensuite).
+  const added = useRef<string[]>([]);
 
   // Valeurs à jour pour la lecture, qui se termine après quelques secondes de saisie possible.
   const latest = useRef<ReadableFields>(null!);
@@ -92,7 +94,13 @@ export default function WaybillForm(props: Props) {
     weight_kg: weight,
   };
 
-  useModal(onClose);
+  /** Fermeture sans enregistrer : les photos prises pendant cette saisie ne servent à rien, elles sont effacées. */
+  function discard() {
+    trashPhotos(added.current);
+    onClose();
+  }
+
+  useModal(discard);
 
   // « Scanner une LV » : la photo arrive avec la fiche (une seule fois, même en développement).
   const started = useRef(false);
@@ -111,6 +119,7 @@ export default function WaybillForm(props: Props) {
       const blob = await compressPhoto(file);
       path = newPhotoPath(store.userId, waybill.id);
       await queuePhoto(path, blob);
+      added.current.push(path);
       setPhotos((p) => [...p, path]);
     } catch {
       return setReading({ state: 'error', message: 'Photo illisible, réessaie.' });
@@ -168,8 +177,9 @@ export default function WaybillForm(props: Props) {
     e.stopPropagation(); // ne pas valider le formulaire d'étape situé derrière
     const newLoading = noLoading ? loadingToCreate() : undefined;
     if (newLoading === null) return;
-    // Photos retirées de la fiche : supprimées du stockage.
-    for (const path of waybill.photo_paths) if (!photos.includes(path)) void deletePhoto(path).catch(() => {});
+    // Photos déjà enregistrées puis retirées : effacées à l'enregistrement de la LV (voir EventStore) ;
+    // photos prises puis retirées pendant cette saisie : effacées tout de suite.
+    trashPhotos(added.current.filter((p) => !photos.includes(p)));
     onSave(
       {
         ...waybill,
@@ -221,7 +231,7 @@ export default function WaybillForm(props: Props) {
   function remove() {
     if (onDelete && confirm('Supprimer cette lettre de voiture ?')) {
       onDelete(waybill);
-      onClose();
+      discard();
     }
   }
 
@@ -237,10 +247,10 @@ export default function WaybillForm(props: Props) {
 
   return (
     <>
-      <div className="modal-backdrop stacked" onClick={onClose}>
+      <div className="modal-backdrop stacked" onClick={discard}>
         <form className="modal" onSubmit={submit} onClick={(e) => e.stopPropagation()}>
           <header className="modal-header">
-            <button type="button" className="icon-btn" onClick={onClose} aria-label="Fermer">
+            <button type="button" className="icon-btn" onClick={discard} aria-label="Fermer">
               <X size={22} />
             </button>
             <h2>{isNew ? 'Nouvelle lettre de voiture' : 'Lettre de voiture'}</h2>

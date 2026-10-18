@@ -1,8 +1,8 @@
-import { Download, LogOut, X } from 'lucide-react';
+import { Download, Eraser, LogOut, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { downloadCsv, eventsToCsv, waybillsToCsv } from '../lib/csv';
 import { averageRate, formatRate, intervalKm, recentIntervals } from '../lib/fuel';
-import { monthUsage } from '../lib/photos';
+import { monthUsage, photoStats } from '../lib/photos';
 import { updateSettings, useSettings } from '../lib/settings';
 import { supabase } from '../lib/supabase';
 import { useEvents, useStore } from '../lib/useEvents';
@@ -157,6 +157,8 @@ export default function Settings({ onClose }: { onClose: () => void }) {
             </div>
           </section>
 
+          {!demo && <PhotoCleanup />}
+
           <section className="settings-group">
             <h3>Compte</h3>
             <div className="setting-row">
@@ -183,5 +185,56 @@ export default function Settings({ onClose }: { onClose: () => void }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Photos des LV stockées, et ménage de celles qui ne sont plus dans aucune LV. */
+function PhotoCleanup() {
+  const store = useStore();
+  // undefined : chargement ; null : indisponible (hors ligne, migration 007 pas lancée).
+  const [stats, setStats] = useState<{ photos: number; bytes: number } | null | undefined>(undefined);
+  const [state, setState] = useState<{ busy: boolean; message: string | null }>({ busy: false, message: null });
+
+  useEffect(() => {
+    photoStats().then(setStats, () => setStats(null));
+  }, []);
+
+  async function clean() {
+    setState({ busy: true, message: null });
+    try {
+      const n = await store.cleanPhotos();
+      setState({
+        busy: false,
+        message: n ? `${n} photo${n > 1 ? 's' : ''} effacée${n > 1 ? 's' : ''}.` : 'Aucune photo à effacer.',
+      });
+      setStats(await photoStats());
+    } catch {
+      setState({ busy: false, message: 'Ménage impossible (réseau, ou migration 007 pas lancée).' });
+    }
+  }
+
+  const mb = (bytes: number) => `${(bytes / 1048576).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} Mo`;
+
+  return (
+    <section className="settings-group">
+      <h3>Photos des LV</h3>
+      <div className="setting-row">
+        <span className="setting-text">
+          <span className="setting-title">
+            {stats ? `${stats.photos} photo${stats.photos > 1 ? 's' : ''} · ${mb(stats.bytes)}` : 'Photos stockées'}
+          </span>
+          <span className="hint">
+            {state.message ??
+              (stats === undefined
+                ? 'Chargement…'
+                : 'Les photos qui ne sont plus dans aucune LV sont effacées chaque jour (après 24 h).')}
+          </span>
+        </span>
+        <button type="button" className="btn-secondary btn-icon" onClick={clean} disabled={state.busy}>
+          <Eraser size={18} />
+          Nettoyer
+        </button>
+      </div>
+    </section>
   );
 }

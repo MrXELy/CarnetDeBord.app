@@ -1,7 +1,7 @@
 import { isInTruck, type Place, type TripEvent, type Waybill, type WeekMap } from '../types';
 import { DEFAULT_ALLOWANCE_SETTINGS, computeAllowances, type Allowance, type AllowanceSettings } from './allowances';
 import { fuelIntervals, type FuelInterval } from './fuel';
-import { uploadPending } from './photos';
+import { cleanOrphanPhotos, flushTrash, trashPhotos, uploadPending } from './photos';
 import { supabase } from './supabase';
 
 export interface SyncState {
@@ -143,7 +143,7 @@ export class EventStore {
   /** Enregistre une étape et, éventuellement, les lettres de voiture modifiées avec elle. */
   save(event: TripEvent, waybills: Waybill[] = []) {
     this.events.save(event);
-    waybills.forEach((w) => this.waybills.save(w));
+    waybills.forEach((w) => this.putWaybill(w));
     if (!event.deleted_at) {
       this.write('plates', { tractor: event.tractor_plate, trailer: event.trailer_plate });
     }
@@ -158,8 +158,8 @@ export class EventStore {
     const now = new Date().toISOString();
     this.events.save({ ...event, deleted_at: now });
     for (const w of this.waybills.alive()) {
-      if (w.loading_event_id === event.id) this.waybills.save({ ...w, deleted_at: now });
-      else if (w.delivery_event_id === event.id) this.waybills.save({ ...w, delivery_event_id: null });
+      if (w.loading_event_id === event.id) this.putWaybill({ ...w, deleted_at: now });
+      else if (w.delivery_event_id === event.id) this.putWaybill({ ...w, delivery_event_id: null });
     }
     this.commit();
   }
@@ -217,12 +217,29 @@ export class EventStore {
   }
 
   saveWaybill(waybill: Waybill) {
-    this.waybills.save(waybill);
+    this.putWaybill(waybill);
     this.commit();
   }
 
   removeWaybill(waybill: Waybill) {
     this.saveWaybill({ ...waybill, deleted_at: new Date().toISOString() });
+  }
+
+  /** Enregistre une LV ; les photos qu'elle n'utilise plus (retirées, ou LV supprimée) partent à l'effacement. */
+  private putWaybill(waybill: Waybill) {
+    const before = this.waybills.items.get(waybill.id);
+    const kept = waybill.deleted_at ? [] : waybill.photo_paths;
+    if (before && !before.deleted_at) trashPhotos(before.photo_paths.filter((p) => !kept.includes(p)));
+    this.waybills.save(waybill);
+  }
+
+  /**
+   * Ménage des photos qui ne sont dans aucune LV (plus de 24 h). Les photos des LV de ce téléphone,
+   * même pas encore envoyées, sont gardées. Renvoie le nombre de photos effacées.
+   */
+  async cleanPhotos(): Promise<number> {
+    const keep = new Set(this.waybills.alive().flatMap((w) => w.photo_paths));
+    return cleanOrphanPhotos(keep);
   }
 
   isPending(id: string) {
@@ -321,6 +338,17 @@ export class EventStore {
       // Photos prises sans réseau : envoyées dès que possible.
       await uploadPending();
       this.error = null;
+      // Photos à effacer, puis ménage une fois par jour : un échec est simplement retenté plus tard.
+      try {
+        await flushTrash();
+        const last = this.read<string>('photos_cleaned');
+        if (!last || Date.now() - new Date(last).getTime() > 24 * 3600 * 1000) {
+          this.write('photos_cleaned', new Date().toISOString()); // une tentative par jour, même en cas d'échec
+          await this.cleanPhotos();
+        }
+      } catch {
+        // Fonction de ménage absente ou réseau coupé : rien de bloquant.
+      }
       // Cartes des semaines : un échec ne bloque pas le reste.
       try {
         await this.weekMaps.push();
