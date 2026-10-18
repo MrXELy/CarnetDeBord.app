@@ -1,4 +1,7 @@
+import { format, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import { timeLabel } from '../lib/dates';
+import { formatRate, intervalRate, isFullTank, type FuelInterval } from '../lib/fuel';
 import { formatPlace } from '../lib/geo';
 import { useStore } from '../lib/useEvents';
 import { namesOf } from '../lib/waybills';
@@ -29,6 +32,8 @@ export default function EventCard({ event: e, onOpen }: { event: TripEvent; onOp
     e.type === 'chargement' ? store.loadedAt(e.id) : e.type === 'livraison' ? store.deliveredAt(e.id) : [];
   const toComplete = waybills.filter((w) => waybillStatus(w) === 'a_completer').length;
 
+  const consumption = e.type === 'carburant' && isFullTank(e) ? consumptionLabel(store.fuelIntervals(), e.id) : null;
+
   const details: string[] = [];
   if (waybills.length > 0) {
     // Chargement : le client chargeur ; livraison : le client destinataire.
@@ -40,6 +45,7 @@ export default function EventCard({ event: e, onOpen }: { event: TripEvent; onOp
     if (e.cmr_number) details.push(`LV ${e.cmr_number}`);
   }
   if (e.station) details.push(e.station);
+  if (e.type === 'carburant') details.push(isFullTank(e) ? 'Plein' : 'Complément');
   if (e.diesel_l != null) details.push(`Gasoil ${litres(e.diesel_l)}`);
   if (e.adblue_l != null) details.push(`AdBlue ${litres(e.adblue_l)}`);
 
@@ -56,6 +62,7 @@ export default function EventCard({ event: e, onOpen }: { event: TripEvent; onOp
           {e.odometer_km != null && <span className="card-km">{e.odometer_km.toLocaleString('fr-FR')} km</span>}
         </span>
         {details.length > 0 && <span className="card-details">{details.join(' · ')}</span>}
+        {consumption && <span className="card-details">{consumption}</span>}
         {toComplete > 0 && (
           <span className="badge">
             {toComplete} LV à compléter
@@ -66,4 +73,13 @@ export default function EventCard({ event: e, onOpen }: { event: TripEvent; onOp
       {pending}
     </button>
   );
+}
+
+/** Plein complet : consommation depuis le plein précédent, ou pourquoi elle n'est pas calculée. */
+function consumptionLabel(intervals: FuelInterval[], eventId: string): string | null {
+  const interval = intervals.find((i) => i.toId === eventId);
+  if (!interval) return null;
+  if (interval.problem) return `Conso non calculée : ${interval.problem}`;
+  const since = format(parseISO(interval.start), 'd MMM', { locale: fr });
+  return `${formatRate(intervalRate(interval)!)} L/100 km depuis le plein du ${since}`;
 }

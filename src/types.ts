@@ -35,6 +35,8 @@ export interface TripEvent extends Place {
   station: Station | null;
   diesel_l: number | null;
   adblue_l: number | null;
+  /** Plein complet (réservoir rempli) ou simple complément ; absent sur les anciennes étapes. */
+  full_tank?: boolean | null;
   updated_at: string;
   deleted_at: string | null;
 }

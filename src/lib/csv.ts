@@ -1,5 +1,6 @@
 import { format, parseISO } from 'date-fns';
 import { WAYBILL_STATUS_LABEL, eventTypeInfo, waybillStatus, type TripEvent, type Waybill } from '../types';
+import { isFullTank } from './fuel';
 import { formatPlace } from './geo';
 
 type Value = string | number | null;
@@ -56,6 +57,7 @@ export function eventsToCsv(events: TripEvent[], waybills: Waybill[] = []): stri
     }],
     ['Station', (e) => e.station],
     ['Gasoil (L)', (e) => e.diesel_l],
+    ['Plein complet', (e) => (e.type === 'carburant' ? (isFullTank(e) ? 'Oui' : 'Non') : null)],
     ['AdBlue (L)', (e) => e.adblue_l],
     ['Remarques', (e) => e.notes],
   ];

@@ -2,6 +2,7 @@ import { parseISO } from 'date-fns';
 import { Camera, LoaderCircle, Pencil, Plus, X } from 'lucide-react';
 import { useRef, useState, type FormEvent } from 'react';
 import { toLocalInput } from '../lib/dates';
+import { isFullTank } from '../lib/fuel';
 import { formatPlace } from '../lib/geo';
 import { numText, parseNum } from '../lib/numbers';
 import { odometerMessage, readOdometerPhoto } from '../lib/odometer';
@@ -52,6 +53,7 @@ export default function EventForm({ event, onClose }: Props) {
   const [station, setStation] = useState<Station | null>(event?.station ?? null);
   const [diesel, setDiesel] = useState(numText(event?.diesel_l ?? null));
   const [adblue, setAdblue] = useState(numText(event?.adblue_l ?? null));
+  const [fullTank, setFullTank] = useState(event ? isFullTank(event) : false);
   const [notes, setNotes] = useState(event?.notes ?? '');
   const [error, setError] = useState<string | null>(null);
   // Change quand le lieu est prérempli, pour réafficher le champ avec la nouvelle valeur.
@@ -141,6 +143,7 @@ export default function EventForm({ event, onClose }: Props) {
         station: isFuel ? station : null,
         diesel_l: isFuel ? parseNum(diesel) : null,
         adblue_l: isFuel ? parseNum(adblue) : null,
+        full_tank: isFuel ? fullTank : null,
         updated_at: '',
         deleted_at: null,
       },
@@ -171,6 +174,12 @@ export default function EventForm({ event, onClose }: Props) {
     } catch (err) {
       setKmReading({ state: 'error', message: err instanceof Error ? err.message : 'Lecture impossible' });
     }
+  }
+
+  /** Toujours le plein chez Doumen ; ailleurs (AS24, DKV), des compléments. Modifiable ensuite. */
+  function chooseStation(value: Station) {
+    setStation(value);
+    setFullTank(value === 'Doumen');
   }
 
   /**
@@ -518,13 +527,28 @@ export default function EventForm({ event, onClose }: Props) {
                         type="button"
                         key={s}
                         className={station === s ? 'selected' : ''}
-                        onClick={() => setStation(s)}
+                        onClick={() => chooseStation(s)}
                       >
                         {s}
                       </button>
                     ))}
                   </div>
                 </fieldset>
+                <label className="setting-row">
+                  <span className="setting-text">
+                    <span className="setting-title">Plein complet</span>
+                    <span className="hint">
+                      {fullTank ? 'Réservoir rempli : sert au calcul de la consommation.' : 'Simple complément.'}
+                    </span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    className="switch"
+                    checked={fullTank}
+                    onChange={(e) => setFullTank(e.target.checked)}
+                  />
+                </label>
                 <div className="row">
                   <label>
                     Gasoil (L)

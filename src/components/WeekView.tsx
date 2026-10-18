@@ -1,5 +1,6 @@
 import { addWeeks, isSameDay } from 'date-fns';
 import {
+  ChartColumn,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -22,6 +23,7 @@ import WeekPicker from './WeekPicker';
 // Carte chargée seulement à son ouverture : ses contours de la France pèsent une centaine de Ko.
 const WeekMap = lazy(() => import('./WeekMap'));
 const MonthMap = lazy(() => import('./MonthMap'));
+const StatsPage = lazy(() => import('./StatsPage'));
 
 type Editing = { event: TripEvent | null } | null;
 
@@ -32,6 +34,7 @@ export default function WeekView() {
   const [slide, setSlide] = useState<'next' | 'prev' | 'fade'>('fade');
   const [editing, setEditing] = useState<Editing>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showStats, setShowStats] = useState(false);
   const [waybillFilter, setWaybillFilter] = useState<WaybillFilter | null>(null);
   const [pickingWeek, setPickingWeek] = useState(false);
   const [showMap, setShowMap] = useState(false);
@@ -98,6 +101,9 @@ export default function WeekView() {
           >
             <FileText size={20} />
             {toComplete > 0 && <span className="icon-badge">{toComplete}</span>}
+          </button>
+          <button className="icon-btn" title="Statistiques" aria-label="Statistiques" onClick={() => setShowStats(true)}>
+            <ChartColumn size={20} />
           </button>
           <button className="icon-btn" title="Options" aria-label="Options" onClick={() => setShowSettings(true)}>
             <SettingsIcon size={20} />
@@ -171,6 +177,11 @@ export default function WeekView() {
 
       {editing && <EventForm event={editing.event} onClose={() => setEditing(null)} />}
       {showSettings && <Settings onClose={() => setShowSettings(false)} />}
+      {showStats && (
+        <Suspense fallback={null}>
+          <StatsPage week={start} onClose={() => setShowStats(false)} />
+        </Suspense>
+      )}
       {waybillFilter && <WaybillsPage initialFilter={waybillFilter} onClose={() => setWaybillFilter(null)} />}
       {pickingWeek && (
         <WeekPicker

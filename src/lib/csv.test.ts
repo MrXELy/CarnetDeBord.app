@@ -29,7 +29,7 @@ describe('eventsToCsv', () => {
 
   it('utilise la virgule décimale et échappe les remarques', () => {
     expect(lines[2]).toBe(
-      '16/10/2026;10:10;Carburant;GH-512-KL;RT-998-AZ;241290;Mâcon;71000;71;FR;;;AS24;412,5;35;"Pompe 3; ""rapide"""',
+      '16/10/2026;10:10;Carburant;GH-512-KL;RT-998-AZ;241290;Mâcon;71000;71;FR;;;AS24;412,5;Non;35;"Pompe 3; ""rapide"""',
     );
   });
 });

@@ -1,9 +1,10 @@
 import { Download, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { downloadCsv, eventsToCsv, waybillsToCsv } from '../lib/csv';
+import { averageRate, formatRate, intervalKm, recentIntervals } from '../lib/fuel';
 import { monthUsage } from '../lib/photos';
 import { updateSettings, useSettings } from '../lib/settings';
-import { useEvents } from '../lib/useEvents';
+import { useEvents, useStore } from '../lib/useEvents';
 import { useModal } from '../lib/useModal';
 
 /** Lectures automatiques permises par mois (limite imposée par la fonction read-waybill). */
@@ -12,6 +13,12 @@ const MONTH_LIMIT = 300;
 export default function Settings({ onClose }: { onClose: () => void }) {
   const { events, waybills, demo } = useEvents();
   const { europe } = useSettings();
+  const store = useStore();
+  const intervals = store.fuelIntervals();
+  const recent = recentIntervals(intervals, new Date());
+  const rate = averageRate(recent);
+  const recentKm = recent.reduce((sum, i) => sum + intervalKm(i), 0);
+  const rejected = intervals.filter((i) => i.problem).length;
 
   useModal(onClose);
 
@@ -53,6 +60,26 @@ export default function Settings({ onClose }: { onClose: () => void }) {
                 onChange={(e) => updateSettings({ europe: e.target.checked })}
               />
             </label>
+          </section>
+
+          <section className="settings-group">
+            <h3>Gasoil</h3>
+            <div className="setting-row usage">
+              <span className="setting-title">Consommation moyenne</span>
+              {rate != null ? (
+                <span className="usage-count">
+                  <strong>{formatRate(rate)}</strong> L/100 km
+                </span>
+              ) : (
+                <span className="hint">Il faut au moins deux pleins complets avec leur kilométrage.</span>
+              )}
+              <span className="hint">
+                {rate != null &&
+                  `Sur les ${recent.length} derniers pleins complets (${recentKm.toLocaleString('fr-FR')} km). `}
+                Calculée d’un plein complet au suivant, compléments compris.
+                {rejected > 0 && ` ${rejected} intervalle${rejected > 1 ? 's' : ''} écarté${rejected > 1 ? 's' : ''} (km ou litres manquants).`}
+              </span>
+            </div>
           </section>
 
           <section className="settings-group">

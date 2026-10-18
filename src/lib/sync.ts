@@ -1,4 +1,5 @@
 import { isInTruck, type Place, type TripEvent, type Waybill, type WeekMap } from '../types';
+import { fuelIntervals, type FuelInterval } from './fuel';
 import { uploadPending } from './photos';
 import { supabase } from './supabase';
 
@@ -98,6 +99,7 @@ export class EventStore {
   private state: SyncState;
   private syncing = false;
   private error: string | null = null;
+  private fuelCache: { events: TripEvent[]; intervals: FuelInterval[] } | null = null;
 
   constructor(
     readonly userId: string,
@@ -248,6 +250,14 @@ export class EventStore {
     return { tractor: latest?.tractor_plate ?? '', trailer: latest?.trailer_plate ?? '' };
   }
 
+  /** Intervalles entre pleins complets, recalculés seulement quand les étapes changent. */
+  fuelIntervals(): FuelInterval[] {
+    if (this.fuelCache?.events !== this.state.events) {
+      this.fuelCache = { events: this.state.events, intervals: fuelIntervals(this.state.events) };
+    }
+    return this.fuelCache.intervals;
+  }
+
   /** Dernier kilométrage relevé pour ce tracteur avant cette date. */
   lastOdometer(tractor: string, before: Date, excludeId?: string): number | null {
     const iso = before.toISOString();
@@ -355,7 +365,7 @@ export class EventStore {
 const num = (v: unknown) => (v == null ? null : Number(v));
 
 function normalizeEvent(e: TripEvent): TripEvent {
-  return { ...e, diesel_l: num(e.diesel_l), adblue_l: num(e.adblue_l) };
+  return { ...e, diesel_l: num(e.diesel_l), adblue_l: num(e.adblue_l), full_tank: e.full_tank ?? null };
 }
 
 function normalizeWaybill(w: Waybill): Waybill {
