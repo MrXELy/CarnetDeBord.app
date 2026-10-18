@@ -67,7 +67,9 @@ export default function WeekView() {
   const showAllowancePill = days.length > 0;
 
   // Nouvelle semaine : la page repart du haut (l'étape trouvée par la recherche est rejointe juste après).
-  useEffect(() => window.scrollTo({ top: 0 }), [start]);
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [start]);
 
   // Recherche : fait défiler jusqu'à l'étape choisie. On attend que la fenêtre fermée ait rendu
   // son entrée d'historique (le retour arrière replacerait la page en haut) et que la semaine ait glissé.
