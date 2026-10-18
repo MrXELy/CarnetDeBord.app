@@ -20,15 +20,21 @@ React 19, Vite, TypeScript, vite-plugin-pwa, date-fns (locale fr), lucide-react,
 - `npm install` : installer les dépendances.
 - `npx vite --host` : serveur de test **en https** (`@vitejs/plugin-basic-ssl`, certificat fait maison : la première fois, accepter l'avertissement du navigateur), accessible depuis le téléphone sur le même Wi-Fi (adresse en `/CarnetDeBord.app/`). Le https est nécessaire sur le téléphone : en http, `crypto.randomUUID` et le GPS sont bloqués (page noire sur « + »).
 - `npm test` : tests (vitest). `npm run build` : vérification TypeScript et build.
-- `gitleaks git -v` : chercher des secrets dans tout l'historique (installé avec `brew install gitleaks`).
+- `gitleaks git -v` : chercher des secrets dans tout l'historique (installé avec `brew install gitleaks` sur macOS, `winget install Gitleaks.Gitleaks` sur Windows).
 - Mode démo local : ajouter `?demo` à l'adresse (seulement en développement). Il lit `data/demo-events.json` et ne contacte pas Supabase ; `?demo=reset` recharge les données.
 - Déployer la fonction Edge : `npx --yes supabase@2.121.0 functions deploy read-waybill --project-ref bjtqghlacclhbjjyarxj --use-api`.
-- Les migrations SQL (`supabase/migrations/`) sont lancées à la main par l'utilisateur dans l'éditeur SQL de Supabase.
+- Les migrations SQL (`supabase/migrations/`) sont lancées à la main par l'utilisateur dans l'éditeur SQL de Supabase. Pas de migration 001 : `supabase/schema.sql` en tient lieu (installation neuve, il reprend aussi l'index de la 008) ; les migrations vont de 002 à 008. La 008 ajoute l'index `events (user_id, updated_at)` pour la synchro.
 - Mise en ligne : chaque push sur `main` déploie sur GitHub Pages (https://mrxely.github.io/CarnetDeBord.app/) via GitHub Actions.
 
 ## Organisation
 
 - `src/lib/sync.ts` : synchro hors ligne d'abord (cache localStorage, file d'envoi), `EventStore`.
+  - Chaque `Collection` a un compteur `version` ; les listes `events` et `waybills` gardent le même tableau tant que rien ne change (les caches et les `useMemo` s'appuient dessus). **Tout code qui modifie `items` doit augmenter `version`.** `loadedAt` et `deliveredAt` utilisent un index mémorisé.
+  - Une synchro demandée pendant une synchro en cours est relancée une seule fois à sa fin.
+  - Si le lot d'envoi est refusé, les lignes repartent une par une (`isRowRefusal`) : la ligne refusée reste dans la file et l'erreur la nomme. Panne réseau, session expirée, colonne ou table absente : pas de renvoi ligne par ligne.
+  - Le curseur de réception est `date|id` (un ancien curseur, la date seule, est encore lu).
+- `src/lib/signOut.ts` : déconnexion. `src/lib/useSwipe.ts` : glissement (semaine, statistiques).
+- `src/components/stats/` : morceaux de `StatsPage.tsx` (tuiles, sections, calendrier…). À n'importer que depuis `StatsPage.tsx`, pour rester dans le morceau chargé à la demande. Options, Recherche et page LV, comme les cartes et les Statistiques, sont chargées avec `lazy`.
 - `src/lib/dates.ts` : la semaine commence le **dimanche à 22h**.
 - `src/components/MapSvg.tsx` : dessin commun des cartes (fond IGN, villes repères, tracés, export PNG).
 - `src/components/WeekMap.tsx` et `MonthMap.tsx` : cartes de la semaine et du mois ; `src/lib/weekMapGen.ts` calcule et enregistre les itinéraires d'une semaine.
@@ -46,6 +52,7 @@ React 19, Vite, TypeScript, vite-plugin-pwa, date-fns (locale fr), lucide-react,
 - **Km à vide** (`src/lib/emptyKm.ts`) : « dont X km à vide · Y % » sous le gros km (toutes les vues), section « Km à vide » (semaine, mois, année : barre en charge / à vide, part comparée à la période d'avant, nombre de trajets à vide et moyenne, le plus long qui ouvre son jour, détail par tracteur s'il y en a plusieurs, trajets incomplets signalés) et part à vide en gris dans les barres des km. Calcul mémorisé dans `EventStore.kmTimeline()`.
 - **Recherche globale** (loupe en haut, `SearchPage.tsx`, `src/lib/search.ts`) : dans toutes les étapes et leurs LV (ville, département, client, chargeur, destinataire, n° de LV, marchandise, notes, station, plaque avec ou sans tirets, km, type d'étape), sans accents ni majuscules, tous les mots doivent se retrouver. Résultats groupés par jour, les plus récents en premier (100 au plus) ; toucher une étape ferme la recherche et l'affiche dans sa semaine (défilement jusqu'à elle et brève lueur) ; la dernière recherche est gardée à la réouverture.
 - **Frais de déplacement** (`src/lib/allowances.ts`) : pastille « Frais … € » sous la semaine, à côté de la pastille « Carte » (carte de la semaine) (détail dans `AllowancesSheet.tsx`), tuile et section « Frais de route » dans les Statistiques (semaine, mois, année ; pas par jour). Bases et tarifs (avec date d'effet) dans les Options, enregistrés dans la table `user_settings` (migration `006_user_settings.sql`, une ligne par utilisateur, id = son identifiant), jamais dans le code.
+- **Déconnexion** (`src/lib/signOut.ts`, bouton en bas des Options) : envoie d'abord ce qui attend, avertit s'il reste des envois ou des photos non envoyés (perte à confirmer), puis efface les clés `cdb.<id>.*` et les photos de l'utilisateur, seulement si la session est vraiment fermée (sinon message et rechargement). Les réglages de l'appareil (`cdb.settings`) sont gardés.
 - **Options** : mode Europe pour la recherche de villes, exports CSV (étapes et LV), compteur des lectures automatiques du mois.
 
 ## Choix déjà faits (ne pas reproposer sans raison nouvelle)
