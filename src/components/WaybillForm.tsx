@@ -64,7 +64,8 @@ export default function WaybillForm(props: Props) {
   const store = useStore();
   // Une LV déjà remplie s'ouvre en lecture seule (rien ne peut s'effacer par erreur) ; « Modifier » ouvre la saisie.
   // Nouvelle LV ou LV encore vide : saisie directe.
-  const [editing, setEditing] = useState(() => isNew || isBlankWaybill(waybill));
+  const [blankAtOpen] = useState(() => isBlankWaybill(waybill));
+  const [editing, setEditing] = useState(() => isNew || blankAtOpen);
   // Mode démo : lecture simulée, sans envoi de la photo ni appel au serveur.
   const { demo } = store.getState();
   const [names] = useState(() => store.knownNames());
@@ -139,7 +140,14 @@ export default function WaybillForm(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * Ajoute une photo. Seule la première est lue automatiquement : les suivantes (bons de livraison…) sont
+   * seulement gardées, « Lire la photo » reste possible à la demande.
+   */
   async function addPhoto(file: Blob) {
+    const first = photos.length === 0;
+    // Ligne de la lecture précédente, remise après l'ajout d'une photo qui n'est pas lue.
+    const before = reading;
     setReading({ state: 'busy', message: 'Préparation de la photo…' });
     let path: string;
     try {
@@ -151,7 +159,8 @@ export default function WaybillForm(props: Props) {
     } catch {
       return setReading({ state: 'error', message: 'Photo illisible, réessaie.' });
     }
-    await readPhoto(path);
+    if (first) await readPhoto(path);
+    else setReading(before);
   }
 
   /**
@@ -293,6 +302,8 @@ export default function WaybillForm(props: Props) {
       <span className="read-tag">LU</span>
     ));
 
+  // LV vide à l'ouverture et encore sans photo : bouton « Scanner » à la place de la bande des photos.
+  const scanFirst = blankAtOpen && photos.length === 0;
   const last = photos[photos.length - 1];
   const canRead = last && reading.state !== 'busy' && !read.has(last);
   // Après une lecture économique (réussie ou non) : possibilité de relire avec le modèle le plus fiable.
@@ -369,33 +380,48 @@ export default function WaybillForm(props: Props) {
             {context && <p className="context-pill">{context}</p>}
 
             <div className="label">
-              Photos
-              <div className="photo-strip">
-                {photos.map((path) => (
-                  <PhotoThumb key={path} path={path} onOpen={() => setViewing(path)} />
-                ))}
+              {scanFirst ? (
+                // LV vide sans photo : un seul gros bouton pour la photographier (lue ensuite automatiquement).
                 <button
                   type="button"
-                  className="photo-add"
+                  className="btn-primary btn-icon lv-add"
                   onClick={() => camera.current?.click()}
                   disabled={reading.state === 'busy'}
                 >
-                  <Camera size={22} />
-                  <span>{photos.length ? 'Ajouter' : 'Photo de la LV'}</span>
+                  <Camera size={18} />
+                  Scanner la lettre de voiture
                 </button>
-                <input
-                  ref={camera}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  hidden
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = '';
-                    if (file) void addPhoto(file);
-                  }}
-                />
-              </div>
+              ) : (
+                <>
+                  Photos
+                  <div className="photo-strip">
+                    {photos.map((path) => (
+                      <PhotoThumb key={path} path={path} onOpen={() => setViewing(path)} />
+                    ))}
+                    <button
+                      type="button"
+                      className="photo-add"
+                      onClick={() => camera.current?.click()}
+                      disabled={reading.state === 'busy'}
+                    >
+                      <Camera size={22} />
+                      <span>{photos.length ? 'Ajouter' : 'Photo de la LV'}</span>
+                    </button>
+                  </div>
+                </>
+              )}
+              <input
+                ref={camera}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                hidden
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (file) void addPhoto(file);
+                }}
+              />
               {reading.state !== 'idle' && (
                 <div className={`reading reading-${reading.state}`}>
                   {reading.state === 'busy' && <LoaderCircle size={16} className="spin" />}
