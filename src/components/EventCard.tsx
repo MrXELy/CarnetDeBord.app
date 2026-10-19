@@ -1,4 +1,5 @@
 import { format, parseISO } from 'date-fns';
+import { TriangleAlert } from 'lucide-react';
 import { fr } from 'date-fns/locale';
 import { timeLabel } from '../lib/dates';
 import { formatRate, intervalRate, isFullTank, type FuelInterval } from '../lib/fuel';
@@ -16,6 +17,14 @@ export default function EventCard({ event: e, onOpen }: { event: TripEvent; onOp
 
   // Début et fin de journée : simple ligne de repère, plus discrète qu'une tuile.
   if (isDayBoundary(e.type)) {
+    // Repos trop court ou à vérifier (RSE) : pictogramme, le détail est dans la fiche.
+    const rest = e.type === 'debut_journee' ? store.restChecks().get(e.id) : undefined;
+    const problem = rest?.lines.find((l) => l.level === rest.level);
+    const restAlert = rest && rest.level !== 'ok' && (
+      <span className={`marker-alert rest-${rest.level}`} title={problem?.text} role="img" aria-label={problem?.text}>
+        <TriangleAlert size={15} aria-hidden />
+      </span>
+    );
     return (
       <button className={`marker tone-${e.type}`} onClick={onOpen}>
         <span className="dot" aria-hidden />
@@ -23,6 +32,7 @@ export default function EventCard({ event: e, onOpen }: { event: TripEvent; onOp
         <span className="marker-time">{timeLabel(e.occurred_at)}</span>
         <span className="marker-place">{formatPlace(e)}</span>
         {e.odometer_km != null && <span className="marker-km">{e.odometer_km.toLocaleString('fr-FR')} km</span>}
+        {restAlert}
         {pending}
       </button>
     );
@@ -63,11 +73,7 @@ export default function EventCard({ event: e, onOpen }: { event: TripEvent; onOp
         </span>
         {details.length > 0 && <span className="card-details">{details.join(' · ')}</span>}
         {consumption && <span className="card-details">{consumption}</span>}
-        {toComplete > 0 && (
-          <span className="badge">
-            {toComplete} LV à compléter
-          </span>
-        )}
+        {toComplete > 0 && <span className="badge">{toComplete} LV à compléter</span>}
         {e.notes && <span className="card-notes">{e.notes}</span>}
       </span>
       {pending}

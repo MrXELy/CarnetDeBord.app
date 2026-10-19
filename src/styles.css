@@ -474,6 +474,11 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
 .marker-km { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .marker .card-pending { top: 4px; right: 4px; }
 
+/* Repos trop court (RSE) sur un début de journée */
+.marker-alert { flex: none; display: flex; }
+.marker-alert.rest-warn { color: #f59e0b; }
+.marker-alert.rest-error { color: var(--danger); }
+
 .card-body {
   flex: 1;
   min-width: 0;
@@ -1802,3 +1807,25 @@ button.st-kv-item:active { transform: scale(0.97); }
 .st-cal-day.l4 { background: var(--accent); color: var(--accent-text); }
 .st-cal-day.today { box-shadow: inset 0 0 0 2px var(--text); }
 .st-cal-day.future { opacity: 0.35; }
+
+/* Repos depuis la fin de journée d'avant (RSE), sous la date d'un début de journée */
+.rest-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass);
+  font-size: 0.85rem;
+  color: var(--muted);
+  animation: fade-in 0.3s ease both;
+}
+
+.rest-notice svg { flex: none; margin-top: 1px; }
+.rest-notice ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.rest-notice.rest-warn { background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.3); color: #fde68a; }
+.rest-notice.rest-error { background: rgba(248, 113, 113, 0.12); border-color: rgba(248, 113, 113, 0.3); color: #fecaca; }
+.rest-notice.rest-error .rest-line-error { font-weight: 600; }
+.rest-notice:not(.rest-ok) .rest-line-ok { opacity: 0.8; }

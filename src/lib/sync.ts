@@ -2,6 +2,7 @@ import { isInTruck, plateKey, type Place, type TripEvent, type Waybill, type Wee
 import { DEFAULT_ALLOWANCE_SETTINGS, computeAllowances, type Allowance, type AllowanceSettings } from './allowances';
 import { kmTimeline, type KmTimeline } from './emptyKm';
 import { fuelIntervals, type FuelInterval } from './fuel';
+import { restChecks, type RestCheck } from './rest';
 import { cleanOrphanPhotos, flushTrash, trashPhotos, uploadPending } from './photos';
 import { supabase } from './supabase';
 import { DEFAULT_SHEET_SETTINGS, type SheetSettings } from './weekSheet';
@@ -201,6 +202,7 @@ export class EventStore {
     delivered: Map<string, Waybill[]>;
   } | null = null;
   private fuelCache: { events: TripEvent[]; intervals: FuelInterval[] } | null = null;
+  private restCache: { events: TripEvent[]; checks: Map<string, RestCheck> } | null = null;
   private timelineCache: { events: TripEvent[]; waybills: Waybill[]; timeline: KmTimeline } | null = null;
   private settingsCache: { row: UserSettingsRow | undefined; settings: AllowanceSettings } | null = null;
   private sheetCache: { row: UserSettingsRow | undefined; settings: SheetSettings } | null = null;
@@ -431,6 +433,14 @@ export class EventStore {
       this.fuelCache = { events: this.state.events, intervals: fuelIntervals(this.state.events) };
     }
     return this.fuelCache.intervals;
+  }
+
+  /** Contrôle des repos de chaque début de journée, recalculé seulement quand les étapes changent. */
+  restChecks(): Map<string, RestCheck> {
+    if (this.restCache?.events !== this.state.events) {
+      this.restCache = { events: this.state.events, checks: restChecks(this.state.events) };
+    }
+    return this.restCache.checks;
   }
 
   /** Tronçons de km (à vide ou en charge) de tout l'historique, recalculés seulement si les étapes ou les LV changent. */
