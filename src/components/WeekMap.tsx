@@ -9,7 +9,7 @@ import { useEvents } from '../lib/useEvents';
 import { shareFile } from '../lib/share';
 import { useSheet } from '../lib/useSheet';
 import { generateWeekMap } from '../lib/weekMapGen';
-import { buildStops, dayColor, dayKey, dayLegs, shortDay, stopsHash, type Stop } from '../lib/weekStops';
+import { buildStops, dayColor, dayKey, dayLegs, joinDayLegs, shortDay, stopsHash, type Stop } from '../lib/weekStops';
 import { eventTypeInfo, type Place, type TripEvent } from '../types';
 import MapSvg, { ImageButton, MapCredits, mapUnit, renderImage, stopPins, viewBox, type Point } from './MapSvg';
 
@@ -43,7 +43,7 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
   const showRoutes = mapRoutes && !!saved;
   const legs =
     showRoutes && saved
-      ? saved.legs.map((l) => ({ day: l.day, color: dayColor(l.day), coords: l.coords }))
+      ? joinDayLegs(saved.legs).map((l) => ({ day: l.day, color: dayColor(l.day), coords: l.coords }))
       : straight.map((l) => ({ day: l.day, color: l.color, coords: l.points }));
 
   const box = viewBox(

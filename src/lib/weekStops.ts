@@ -1,6 +1,6 @@
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { plateKey, type Place, type TripEvent } from '../types';
+import { plateKey, type MapLeg, type Place, type TripEvent } from '../types';
 import { workDay } from './dates';
 import type { RouteOption } from './route';
 
@@ -117,6 +117,23 @@ export interface StopSegment {
   to: Stop;
   /** Km au compteur entre les deux lieux, null si inconnu. */
   odometerKm: number | null;
+}
+
+/** Clé d'un tronçon : positions de départ et d'arrivée (à 10 m près), pour retrouver son itinéraire enregistré. */
+export function segmentKey(segment: { from: Stop; to: Stop }): string {
+  const at = (s: Stop) => `${s.lat.toFixed(4)},${s.lon.toFixed(4)}`;
+  return `${at(segment.from)}>${at(segment.to)}`;
+}
+
+/** Tracés à dessiner : les tronçons d'un même jour mis bout à bout (le point de jonction une seule fois). */
+export function joinDayLegs(legs: MapLeg[]): { day: string; coords: [number, number][] }[] {
+  const days: { day: string; coords: [number, number][] }[] = [];
+  for (const leg of legs) {
+    const last = days.at(-1);
+    if (last?.day === leg.day) last.coords.push(...leg.coords.slice(1));
+    else days.push({ day: leg.day, coords: [...leg.coords] });
+  }
+  return days;
 }
 
 /** Au-delà, l'écart entre deux relevés est jugé incohérent (même règle que les statistiques). */

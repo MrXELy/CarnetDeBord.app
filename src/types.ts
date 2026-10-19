@@ -105,11 +105,20 @@ export const isDayBoundary = (type: EventType) => type === 'debut_journee' || ty
 /** Plaque comparable : sans tirets, espaces ni minuscules (« ab-123 cd » = « AB123CD »). */
 export const plateKey = (plate: string | null | undefined) => (plate ?? '').toUpperCase().replace(/[\s-]/g, '');
 
-/** Tronçon de la carte : le trajet d'un jour, en points [latitude, longitude]. */
+/**
+ * Tronçon de la carte, en points [latitude, longitude] : d'un lieu au suivant
+ * (anciennes cartes : tout le trajet d'un jour, sans `key`).
+ */
 export interface MapLeg {
   /** Jour (« 2026-01-26 »). */
   day: string;
   coords: [number, number][];
+  /** Positions de départ et d'arrivée (voir segmentKey) : retrouve l'itinéraire d'un tronçon. */
+  key?: string;
+  /** Longueur de l'itinéraire, en km. */
+  km?: number;
+  /** Itinéraire choisi à la main : gardé tel quel à la régénération. */
+  manual?: boolean;
 }
 
 /** Carte d'une semaine : itinéraires calculés une fois puis enregistrés. */
