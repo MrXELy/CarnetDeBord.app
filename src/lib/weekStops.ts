@@ -1,7 +1,8 @@
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import type { Place, TripEvent } from '../types';
+import { plateKey, type Place, type TripEvent } from '../types';
 import { workDay } from './dates';
+import type { RouteOption } from './route';
 
 /** Couleur de chaque jour, du lundi au dimanche (lisibles sur fond sombre). */
 export const DAY_COLORS = ['#60a5fa', '#34d399', '#fbbf24', '#f472b6', '#a78bfa', '#fb923c', '#94a3b8'];
@@ -107,6 +108,44 @@ export function dayLegs(stops: Stop[]): MapLegPoints[] {
     previous = stop;
   }
   return legs.filter((l) => l.points.length >= 2);
+}
+
+/** Tronçon entre deux lieux qui se suivent, rangé au jour du lieu d'arrivée (comme dayLegs). */
+export interface StopSegment {
+  day: string;
+  from: Stop;
+  to: Stop;
+  /** Km au compteur entre les deux lieux, null si inconnu. */
+  odometerKm: number | null;
+}
+
+/** Au-delà, l'écart entre deux relevés est jugé incohérent (même règle que les statistiques). */
+const MAX_JUMP_KM = 2000;
+
+/**
+ * Km au compteur entre deux lieux : dernier relevé du départ, premier relevé de l'arrivée,
+ * avec le même tracteur. Null s'il manque un relevé ou si l'écart est incohérent.
+ */
+export function odometerKm(from: Stop, to: Stop): number | null {
+  const start = [...from.events].reverse().find((e) => e.odometer_km != null);
+  const end = to.events.find((e) => e.odometer_km != null);
+  if (!start || !end || plateKey(start.tractor_plate) !== plateKey(end.tractor_plate)) return null;
+  const km = end.odometer_km! - start.odometer_km!;
+  return km > 0 && km <= MAX_JUMP_KM ? km : null;
+}
+
+/** Tronçons entre chaque lieu et le suivant, avec les km relevés au compteur. */
+export function stopSegments(stops: Stop[]): StopSegment[] {
+  return stops.slice(1).map((to, i) => ({ day: to.day, from: stops[i], to, odometerKm: odometerKm(stops[i], to) }));
+}
+
+/**
+ * Itinéraire le plus proche des km relevés au compteur.
+ * Sans relevé : le premier proposé (le plus rapide), comme avant.
+ */
+export function closestRoute(options: RouteOption[], km: number | null): RouteOption {
+  if (km == null) return options[0];
+  return options.reduce((best, o) => (Math.abs(o.km - km) < Math.abs(best.km - km) ? o : best));
 }
 
 /** Empreinte des lieux et de leur ordre : si elle change, la carte est à régénérer. */

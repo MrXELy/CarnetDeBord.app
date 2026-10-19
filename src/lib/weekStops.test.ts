@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Place, TripEvent } from '../types';
 import { routeLeg, routeOptions, simplify } from './route';
-import { buildStops, dayLegs, distanceKm, stopsHash } from './weekStops';
+import { buildStops, closestRoute, dayLegs, distanceKm, stopSegments, stopsHash } from './weekStops';
 
 function ev(id: string, occurred: string, at: [number, number] | null, extra: Partial<TripEvent> = {}): TripEvent {
   return {
@@ -67,6 +67,55 @@ describe('dayLegs', () => {
     expect(legs).toHaveLength(1); // jeudi : un seul lieu, pas de trajet
     expect(legs[0].day).toBe('2026-01-30');
     expect(legs[0].points).toEqual([NARBONNE, CARCASSONNE, TOULOUSE, PERIGUEUX]);
+  });
+});
+
+describe('stopSegments', () => {
+  const withKm = (e: TripEvent, km: number | null, plate = 'AB-123-CD') => ({ ...e, odometer_km: km, tractor_plate: plate });
+
+  it('donne chaque tronçon avec les km relevés au compteur', () => {
+    const [fin29, deb30, liv30, cha30, fin30] = week;
+    const events = [
+      withKm(fin29, 1000),
+      withKm(deb30, 1000),
+      withKm(liv30, 1062),
+      withKm(cha30, null), // pas de relevé : tronçons avant et après inconnus
+      withKm(fin30, 1400),
+    ];
+    const segments = stopSegments(buildStops(events).stops);
+    expect(segments.map((s) => [s.day, s.from.events[0].id, s.to.events[0].id, s.odometerKm])).toEqual([
+      ['2026-01-30', 'fin29', 'liv30', 62],
+      ['2026-01-30', 'liv30', 'cha30', null],
+      ['2026-01-30', 'cha30', 'fin30', null],
+    ]);
+  });
+
+  it('ignore les km d’un autre tracteur ou incohérents', () => {
+    const [fin29, , liv30, cha30, fin30] = week;
+    const events = [
+      withKm(fin29, 1000),
+      withKm(liv30, 1062, 'ZZ-999-ZZ'), // changement de tracteur
+      withKm(cha30, 1050, 'zz 999 zz'), // km qui baisse (même tracteur, écrit autrement)
+      withKm(fin30, 5000, 'ZZ999ZZ'), // saut de plus de 2000 km
+    ];
+    expect(stopSegments(buildStops(events).stops).map((s) => s.odometerKm)).toEqual([null, null, null]);
+  });
+});
+
+describe('closestRoute', () => {
+  const options = [
+    { coords: [], km: 300, minutes: 180 },
+    { coords: [], km: 340, minutes: 200 },
+    { coords: [], km: 315, minutes: 190 },
+  ];
+
+  it('choisit l’itinéraire le plus proche des km au compteur', () => {
+    expect(closestRoute(options, 322).km).toBe(315);
+    expect(closestRoute(options, 345).km).toBe(340);
+  });
+
+  it('garde le premier (le plus rapide) sans relevé', () => {
+    expect(closestRoute(options, null).km).toBe(300);
   });
 });
 
