@@ -1436,13 +1436,12 @@ legend { margin-bottom: 6px; }
 .map-stop-body { display: grid; gap: 1px; font-size: 0.9rem; }
 .map-stop-event { font-size: 0.82rem; color: var(--muted); }
 
-/* Itinéraire du tronçon qui arrive à ce lieu : ouvre son choix */
+/* Itinéraire d'un tronçon, entre ses deux lieux (aligné sur le texte des lieux) : ouvre son choix */
+.map-stops .map-route-row { padding-left: 34px; }
 .map-route-btn {
-  justify-self: start;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-top: 4px;
   padding: 4px 10px;
   border: 1px solid var(--glass-border);
   border-radius: 999px;

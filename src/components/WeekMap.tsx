@@ -1,7 +1,7 @@
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { LoaderCircle, Route, X } from 'lucide-react';
-import { lazy, Suspense, useMemo, useRef, useState } from 'react';
+import { Fragment, lazy, Suspense, useMemo, useRef, useState } from 'react';
 import { summarizeDay, summarizeWeek, timeLabel, weekLabel } from '../lib/dates';
 import { formatPlace } from '../lib/geo';
 import { updateSettings, useSettings } from '../lib/settings';
@@ -258,14 +258,21 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
                 </p>
 
                 <ol className="map-stops">
-                  {stops.map((s) => (
-                    <StopItem
-                      key={s.number}
-                      stop={s}
-                      route={routeLegs.get(s.number)}
-                      onChooseRoute={busy ? undefined : (r) => setChoosing(segmentKey(r.segment))}
-                    />
-                  ))}
+                  {stops.map((s) => {
+                    // Itinéraire du tronçon qui arrive à ce lieu : entre le lieu précédent et celui-ci.
+                    const route = routeLegs.get(s.number);
+                    return (
+                      <Fragment key={s.number}>
+                        {route && (
+                          <RouteItem
+                            route={route}
+                            onChoose={busy ? undefined : () => setChoosing(segmentKey(route.segment))}
+                          />
+                        )}
+                        <StopItem stop={s} />
+                      </Fragment>
+                    );
+                  })}
                 </ol>
 
                 {missing.length > 0 && (
@@ -309,14 +316,22 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
   );
 }
 
-interface StopItemProps {
-  stop: Stop;
-  /** Tronçon qui arrive à ce lieu, si son itinéraire est enregistré. */
-  route?: RouteLeg;
-  onChooseRoute?: (route: RouteLeg) => void;
+/** Bouton de l'itinéraire d'un tronçon, posé entre ses deux lieux : ouvre son choix. */
+function RouteItem({ route, onChoose }: { route: RouteLeg; onChoose?: () => void }) {
+  if (route.leg.km == null) return null;
+  return (
+    <li className="map-route-row">
+      <button type="button" className="map-route-btn" disabled={!onChoose} onClick={onChoose}>
+        <Route size={14} />
+        Itinéraire : {Math.round(route.leg.km).toLocaleString('fr-FR')} km
+        {route.segment.odometerKm != null && ` · compteur ${route.segment.odometerKm.toLocaleString('fr-FR')} km`}
+        {route.leg.manual && ' · choisi'}
+      </button>
+    </li>
+  );
 }
 
-function StopItem({ stop: s, route, onChooseRoute }: StopItemProps) {
+function StopItem({ stop: s }: { stop: Stop }) {
   const first = s.events[0];
   return (
     <li>
@@ -332,19 +347,6 @@ function StopItem({ stop: s, route, onChooseRoute }: StopItemProps) {
             {e.client && ` — ${e.client}`}
           </span>
         ))}
-        {route?.leg.km != null && (
-          <button
-            type="button"
-            className="map-route-btn"
-            disabled={!onChooseRoute}
-            onClick={() => onChooseRoute?.(route)}
-          >
-            <Route size={14} />
-            Depuis le {route.segment.from.number} : {Math.round(route.leg.km).toLocaleString('fr-FR')} km
-            {route.segment.odometerKm != null && ` · compteur ${route.segment.odometerKm.toLocaleString('fr-FR')} km`}
-            {route.leg.manual && ' · choisi'}
-          </button>
-        )}
       </span>
     </li>
   );
