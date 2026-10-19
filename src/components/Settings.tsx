@@ -1,3 +1,4 @@
+import { format, parseISO } from 'date-fns';
 import { Download, Eraser, LogOut, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { downloadCsv, eventsToCsv, waybillsToCsv } from '../lib/csv';
@@ -219,6 +220,12 @@ export default function Settings({ onClose }: { onClose: () => void }) {
               </button>
             </div>
           </section>
+
+          {/* Version installée : commit et heure de construction (serveur de test : heure de son démarrage). */}
+          <p className="hint app-version">
+            Version {__BUILD_COMMIT__} du {format(parseISO(__BUILD_DATE__), "dd/MM/yyyy 'à' HH:mm")}
+            {import.meta.env.DEV && ' · test local'}
+          </p>
         </div>
       </div>
     </div>

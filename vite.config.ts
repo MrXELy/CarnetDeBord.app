@@ -1,10 +1,24 @@
+import { execSync } from 'node:child_process';
 import { defineConfig } from 'vite';
 import basicSsl from '@vitejs/plugin-basic-ssl';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// Version affichée en bas des Options : commit construit et heure de construction.
+function buildCommit(): string {
+  try {
+    return execSync('git rev-parse --short HEAD').toString().trim();
+  } catch {
+    return 'inconnu';
+  }
+}
+
 export default defineConfig({
   base: '/CarnetDeBord.app/',
+  define: {
+    __BUILD_COMMIT__: JSON.stringify(buildCommit()),
+    __BUILD_DATE__: JSON.stringify(new Date().toISOString()),
+  },
   // jsPDF n'est importé qu'au clic sur « Feuille » : préparé dès le démarrage du serveur de test,
   // sinon Vite le découvre à ce moment-là et recharge toute la page (retour à la semaine en cours).
   optimizeDeps: { include: ['jspdf'] },

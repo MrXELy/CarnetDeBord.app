@@ -781,6 +781,9 @@ legend { margin-bottom: 6px; }
 
 .hint-err { color: var(--danger); }
 
+/* Bas des Options : version installée */
+.app-version { margin: 0; text-align: center; }
+
 .form-message {
   margin: 0;
   padding: 10px 12px;
