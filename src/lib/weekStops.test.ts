@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Place, TripEvent } from '../types';
-import { routeLeg, routeOptions, simplify } from './route';
+import { decodePolyline6, routeOptions, simplify } from './route';
 import { buildStops, closestRoute, dayLegs, distanceKm, stopSegments, stopsHash } from './weekStops';
 
 function ev(id: string, occurred: string, at: [number, number] | null, extra: Partial<TripEvent> = {}): TripEvent {
@@ -145,58 +145,79 @@ describe('simplify', () => {
   });
 });
 
-describe('routeLeg', () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it('renvoie le tracé en [latitude, longitude]', async () => {
-    vi.stubGlobal('fetch', async () => ({
-      ok: true,
-      json: async () => ({ code: 'Ok', routes: [{ geometry: { coordinates: [[3.004, 43.184], [2.7, 43.2], [2.349, 43.213]] } }] }),
-    }));
-    expect(await routeLeg([NARBONNE, CARCASSONNE])).toEqual([[43.184, 3.004], [43.2, 2.7], [43.213, 2.349]]);
-  });
-
-  it('renvoie null si le service échoue ou répond mal', async () => {
-    vi.stubGlobal('fetch', async () => ({ ok: true, json: async () => ({ code: 'NoRoute', routes: [] }) }));
-    expect(await routeLeg([NARBONNE, CARCASSONNE])).toBeNull();
-    vi.stubGlobal('fetch', async () => {
-      throw new Error('hors ligne');
-    });
-    expect(await routeLeg([NARBONNE, CARCASSONNE])).toBeNull();
-  });
-});
-
 describe('routeOptions', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('renvoie chaque itinéraire proposé avec sa longueur en km', async () => {
+  // Narbonne → Carcassonne en polyline à 6 décimales, puis par un point intermédiaire.
+  const direct = '_wvjqA_ejvDosw@nh~f@';
+  const detour = '_wvjqA_ejvD~`cD~lmKou{EnzoZ';
+
+  it('décode un tracé Valhalla', () => {
+    expect(decodePolyline6(direct)).toEqual([NARBONNE, CARCASSONNE]);
+  });
+
+  it('renvoie l’itinéraire Valhalla (camion) et ses autres propositions', async () => {
     let asked = '';
     vi.stubGlobal('fetch', async (url: string) => {
-      asked = url;
+      asked = decodeURIComponent(url);
       return {
         ok: true,
         json: async () => ({
-          code: 'Ok',
-          routes: [
-            { distance: 60500, duration: 3000, geometry: { coordinates: [[3.004, 43.184], [2.349, 43.213]] } },
-            { distance: 72000, duration: 3600, geometry: { coordinates: [[3.004, 43.184], [2.8, 43.1], [2.349, 43.213]] } },
-            { distance: 80000, geometry: { coordinates: [] } }, // tracé vide : ignoré
+          trip: { legs: [{ shape: direct }], summary: { length: 60.5, time: 3000 } },
+          alternates: [
+            { trip: { legs: [{ shape: detour }], summary: { length: 72, time: 3600 } } },
+            { trip: { legs: [{ shape: '' }], summary: { length: 80, time: 4000 } } }, // tracé vide : ignoré
           ],
         }),
       };
     });
     const options = await routeOptions(NARBONNE, CARCASSONNE);
-    expect(asked).toContain('alternatives=3');
-    expect(options).toEqual([
-      { coords: [[43.184, 3.004], [43.213, 2.349]], km: 60.5, minutes: 50 },
-      { coords: [[43.184, 3.004], [43.1, 2.8], [43.213, 2.349]], km: 72, minutes: 60 },
+    expect(asked).toContain('valhalla');
+    expect(asked).toContain('"costing":"truck"');
+    expect(options?.map((o) => [o.km, o.minutes, o.coords.length])).toEqual([
+      [60.5, 50, 2],
+      [72, 60, 3],
     ]);
   });
 
-  it('renvoie null si le service échoue ou ne trouve rien', async () => {
-    vi.stubGlobal('fetch', async () => ({ ok: true, json: async () => ({ code: 'NoRoute', routes: [] }) }));
+  it('se rabat sur OSRM si Valhalla ne répond pas', async () => {
+    vi.stubGlobal('fetch', async (url: string) =>
+      url.includes('valhalla')
+        ? { ok: false }
+        : {
+            ok: true,
+            json: async () => ({
+              code: 'Ok',
+              routes: [
+                {
+                  distance: 61000,
+                  duration: 3000,
+                  geometry: {
+                    coordinates: [
+                      [3.004, 43.184],
+                      [2.349, 43.213],
+                    ],
+                  },
+                },
+              ],
+            }),
+          },
+    );
+    expect(await routeOptions(NARBONNE, CARCASSONNE)).toEqual([
+      { coords: [NARBONNE, CARCASSONNE], km: 61, minutes: 50 },
+    ]);
+  });
+
+  it('renvoie null si aucun service ne trouve d’itinéraire', async () => {
+    vi.stubGlobal('fetch', async (url: string) =>
+      url.includes('valhalla')
+        ? { ok: true, json: async () => ({ error: 'No path' }) }
+        : { ok: true, json: async () => ({ code: 'NoRoute', routes: [] }) },
+    );
     expect(await routeOptions(NARBONNE, CARCASSONNE)).toBeNull();
-    vi.stubGlobal('fetch', async () => ({ ok: false }));
+    vi.stubGlobal('fetch', async () => {
+      throw new Error('hors ligne');
+    });
     expect(await routeOptions(NARBONNE, CARCASSONNE)).toBeNull();
   });
 });

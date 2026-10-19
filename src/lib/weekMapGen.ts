@@ -1,8 +1,8 @@
 import type { Place, TripEvent, WeekMap } from '../types';
 import { resolveCity } from './geo';
-import { routeLeg, simplify } from './route';
+import { routeOptions, simplify } from './route';
 import type { EventStore } from './sync';
-import { buildStops, dayLegs, stopsHash } from './weekStops';
+import { buildStops, closestRoute, stopSegments, stopsHash } from './weekStops';
 
 /** Identifiant fixe de la carte d'une semaine : une seule carte par semaine, même sur deux appareils. */
 export function weekMapId(userId: string, start: Date): string {
@@ -19,7 +19,7 @@ export function weekMapId(userId: string, start: Date): string {
 /**
  * Calcule et enregistre la carte d'une semaine :
  * 1. ville retrouvée pour les étapes sans position (centre de la commune) ;
- * 2. itinéraires, jour après jour ;
+ * 2. itinéraires, tronçon par tronçon : parmi ceux proposés, le plus proche des km relevés au compteur ;
  * 3. enregistrement : la carte s'affichera ensuite sans aucun calcul, sur tous les appareils.
  * `found` est complétée avec les villes retrouvées. Lève une erreur si un itinéraire est indisponible.
  */
@@ -42,14 +42,19 @@ export async function generateWeekMap(
   }
 
   const stops = buildStops(events, found).stops;
-  const legs = dayLegs(stops);
-  const routed: WeekMap['legs'] = [];
-  for (const [i, leg] of legs.entries()) {
-    onProgress(`Calcul des itinéraires (${i + 1}/${legs.length})…`);
-    const coords = await routeLeg(leg.points);
-    if (!coords) throw new Error('Itinéraire indisponible');
-    routed.push({ day: leg.day, coords: simplify(coords) });
+  const segments = stopSegments(stops);
+  const days: WeekMap['legs'] = [];
+  for (const [i, segment] of segments.entries()) {
+    onProgress(`Calcul des itinéraires (${i + 1}/${segments.length})…`);
+    const options = await routeOptions([segment.from.lat, segment.from.lon], [segment.to.lat, segment.to.lon]);
+    if (!options) throw new Error('Itinéraire indisponible');
+    const { coords } = closestRoute(options, segment.odometerKm);
+    // Tracés d'un même jour mis bout à bout (le point de jonction une seule fois).
+    const day = days.at(-1);
+    if (day?.day === segment.day) day.coords.push(...coords.slice(1));
+    else days.push({ day: segment.day, coords: [...coords] });
   }
+  const routed = days.map((d) => ({ day: d.day, coords: simplify(d.coords) }));
 
   store.saveWeekMap({
     id: store.weekMap(start)?.id ?? weekMapId(store.userId, start),

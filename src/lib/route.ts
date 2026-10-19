@@ -1,26 +1,12 @@
-/** Service public de calcul d'itinéraire (OSRM, profil voiture). */
+/**
+ * Services publics de calcul d'itinéraire :
+ * - Valhalla (FOSSGIS), profil camion, qui propose d'autres itinéraires ;
+ * - OSRM, profil voiture, en secours : son serveur public ne propose jamais d'autre itinéraire.
+ */
+const VALHALLA = 'https://valhalla1.openstreetmap.de/route';
 const OSRM = 'https://router.project-osrm.org/route/v1/driving';
 
 type Point = [number, number];
-
-/**
- * Itinéraire réel passant par ces points, dans l'ordre ([latitude, longitude]).
- * Renvoie null si le service ne répond pas ou ne trouve pas d'itinéraire.
- */
-export async function routeLeg(points: Point[], signal?: AbortSignal): Promise<Point[] | null> {
-  if (points.length < 2) return null;
-  const path = points.map(([lat, lon]) => `${lon.toFixed(5)},${lat.toFixed(5)}`).join(';');
-  try {
-    const res = await fetch(`${OSRM}/${path}?overview=full&geometries=geojson`, { signal });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const coords: unknown = data?.routes?.[0]?.geometry?.coordinates;
-    if (data?.code !== 'Ok' || !Array.isArray(coords) || coords.length < 2) return null;
-    return (coords as [number, number][]).map(([lon, lat]) => [lat, lon]);
-  } catch {
-    return null;
-  }
-}
 
 /** Un itinéraire possible entre deux étapes. */
 export interface RouteOption {
@@ -30,32 +16,97 @@ export interface RouteOption {
   minutes: number;
 }
 
-/**
- * Jusqu'à 3 itinéraires entre deux points (le premier est le plus rapide selon OSRM).
- * OSRM ne propose d'autres itinéraires qu'entre deux points, d'où un appel par tronçon.
- * Renvoie null si le service ne répond pas ou ne trouve pas d'itinéraire.
- */
-export async function routeOptions(from: Point, to: Point, signal?: AbortSignal): Promise<RouteOption[] | null> {
-  const path = [from, to].map(([lat, lon]) => `${lon.toFixed(5)},${lat.toFixed(5)}`).join(';');
+/** Décode un tracé Valhalla (« polyline » à 6 décimales) en points [latitude, longitude]. */
+export function decodePolyline6(encoded: string): Point[] {
+  const points: Point[] = [];
+  let index = 0;
+  let lat = 0;
+  let lon = 0;
+  const next = () => {
+    let result = 0;
+    let shift = 0;
+    let byte: number;
+    do {
+      byte = encoded.charCodeAt(index++) - 63;
+      result |= (byte & 0x1f) << shift;
+      shift += 5;
+    } while (byte >= 0x20 && index < encoded.length);
+    return result & 1 ? ~(result >> 1) : result >> 1;
+  };
+  while (index < encoded.length) {
+    lat += next();
+    lon += next();
+    points.push([lat / 1e6, lon / 1e6]);
+  }
+  return points;
+}
+
+/** Itinéraires Valhalla (profil camion) : le principal puis jusqu'à 2 autres. */
+async function valhallaOptions(from: Point, to: Point, signal?: AbortSignal): Promise<RouteOption[] | null> {
+  const request = {
+    locations: [from, to].map(([lat, lon]) => ({ lat: +lat.toFixed(5), lon: +lon.toFixed(5) })),
+    costing: 'truck',
+    alternates: 2,
+    units: 'kilometers',
+    directions_type: 'none',
+  };
   try {
-    const res = await fetch(`${OSRM}/${path}?overview=full&geometries=geojson&alternatives=3`, { signal });
+    // Requête GET (paramètre json) : pas de demande préalable du navigateur.
+    const res = await fetch(`${VALHALLA}?json=${encodeURIComponent(JSON.stringify(request))}`, { signal });
     if (!res.ok) return null;
     const data = await res.json();
-    if (data?.code !== 'Ok' || !Array.isArray(data.routes)) return null;
+    const trips: unknown[] = [
+      data?.trip,
+      ...(Array.isArray(data?.alternates) ? data.alternates.map((a: { trip?: unknown }) => a?.trip) : []),
+    ];
     const options: RouteOption[] = [];
-    for (const route of data.routes) {
-      const coords: unknown = route?.geometry?.coordinates;
-      if (!Array.isArray(coords) || coords.length < 2 || typeof route.distance !== 'number') continue;
-      options.push({
+    for (const trip of trips as { legs?: { shape?: unknown }[]; summary?: { length?: unknown; time?: unknown } }[]) {
+      const shape = trip?.legs?.[0]?.shape;
+      const km = trip?.summary?.length;
+      if (typeof shape !== 'string' || typeof km !== 'number') continue;
+      const coords = decodePolyline6(shape);
+      if (coords.length < 2) continue;
+      const time = trip.summary?.time;
+      options.push({ coords, km, minutes: typeof time === 'number' ? time / 60 : 0 });
+    }
+    return options.length ? options : null;
+  } catch (e) {
+    if (signal?.aborted) throw e;
+    return null;
+  }
+}
+
+/** Itinéraire OSRM (profil voiture), un seul. */
+async function osrmOptions(from: Point, to: Point, signal?: AbortSignal): Promise<RouteOption[] | null> {
+  const path = [from, to].map(([lat, lon]) => `${lon.toFixed(5)},${lat.toFixed(5)}`).join(';');
+  try {
+    const res = await fetch(`${OSRM}/${path}?overview=full&geometries=geojson`, { signal });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const route = data?.routes?.[0];
+    const coords: unknown = route?.geometry?.coordinates;
+    if (data?.code !== 'Ok' || !Array.isArray(coords) || coords.length < 2 || typeof route.distance !== 'number') {
+      return null;
+    }
+    return [
+      {
         coords: (coords as [number, number][]).map(([lon, lat]) => [lat, lon]),
         km: route.distance / 1000,
         minutes: (route.duration ?? 0) / 60,
-      });
-    }
-    return options.length ? options : null;
+      },
+    ];
   } catch {
     return null;
   }
+}
+
+/**
+ * Jusqu'à 3 itinéraires entre deux points (le premier est le plus rapide) : Valhalla, sinon OSRM.
+ * Les autres itinéraires ne sont proposés qu'entre deux points, d'où un appel par tronçon.
+ * Renvoie null si aucun service ne répond ou ne trouve d'itinéraire.
+ */
+export async function routeOptions(from: Point, to: Point, signal?: AbortSignal): Promise<RouteOption[] | null> {
+  return (await valhallaOptions(from, to, signal)) ?? (await osrmOptions(from, to, signal));
 }
 
 /** Distance d'un point au segment [a, b] (en degrés, suffisant pour simplifier un tracé). */
