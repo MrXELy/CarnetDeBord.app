@@ -8,7 +8,7 @@ import { useSheet } from '../lib/useSheet';
 import { generateWeekMap } from '../lib/weekMapGen';
 import { WEEK_COLORS, buildStops, dayKey, dayLegs, shortDay, stopsHash } from '../lib/weekStops';
 import { eventTypeInfo, type Place, type TripEvent } from '../types';
-import MapSvg, { ImageButton, mapUnit, project, renderImage, viewBox, type MapPin, type Point } from './MapSvg';
+import MapSvg, { ImageButton, MapCredits, mapUnit, project, renderImage, viewBox, type MapPin, type Point } from './MapSvg';
 
 interface Props {
   /** Mois tel qu'affiché dans la liste des semaines : « Janvier 2026 ». */
@@ -281,10 +281,7 @@ export default function MonthMap({ month, onPickWeek, onEdit, onClose }: Props) 
                 </div>
               )}
 
-              <p className="hint">
-                Itinéraires calculés pour une voiture (OSRM, © OpenStreetMap) : ils peuvent différer de la route prise
-                en poids lourd. Fond de carte : IGN Admin Express.
-              </p>
+              <MapCredits />
             </>
           )}
         </div>

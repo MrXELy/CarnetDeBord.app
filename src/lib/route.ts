@@ -8,6 +8,26 @@ const OSRM = 'https://router.project-osrm.org/route/v1/driving';
 
 type Point = [number, number];
 
+/**
+ * Règle des serveurs publics (FOSSGIS : « une requête par seconde au maximum ») :
+ * au moins `gapMs` entre deux demandes à un même serveur. Modifiable pour les tests.
+ */
+export const routing = { gapMs: 1100 };
+const lastSent = new Map<string, number>();
+const queues = new Map<string, Promise<void>>();
+
+/** Demande à un serveur d'itinéraires, chacune à son tour, au moins `gapMs` après l'envoi de la précédente. */
+async function politeFetch(server: string, url: string, signal?: AbortSignal): Promise<Response> {
+  const turn = (queues.get(server) ?? Promise.resolve()).then(async () => {
+    const wait = (lastSent.get(server) ?? 0) + routing.gapMs - Date.now();
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    lastSent.set(server, Date.now());
+  });
+  queues.set(server, turn);
+  await turn;
+  return fetch(url, { signal });
+}
+
 /** Un itinéraire possible entre deux étapes. */
 export interface RouteOption {
   coords: Point[];
@@ -52,7 +72,7 @@ async function valhallaOptions(from: Point, to: Point, signal?: AbortSignal): Pr
   };
   try {
     // Requête GET (paramètre json) : pas de demande préalable du navigateur.
-    const res = await fetch(`${VALHALLA}?json=${encodeURIComponent(JSON.stringify(request))}`, { signal });
+    const res = await politeFetch(VALHALLA, `${VALHALLA}?json=${encodeURIComponent(JSON.stringify(request))}`, signal);
     if (!res.ok) return null;
     const data = await res.json();
     const trips: unknown[] = [
@@ -80,7 +100,7 @@ async function valhallaOptions(from: Point, to: Point, signal?: AbortSignal): Pr
 async function osrmOptions(from: Point, to: Point, signal?: AbortSignal): Promise<RouteOption[] | null> {
   const path = [from, to].map(([lat, lon]) => `${lon.toFixed(5)},${lat.toFixed(5)}`).join(';');
   try {
-    const res = await fetch(`${OSRM}/${path}?overview=full&geometries=geojson`, { signal });
+    const res = await politeFetch(OSRM, `${OSRM}/${path}?overview=full&geometries=geojson`, signal);
     if (!res.ok) return null;
     const data = await res.json();
     const route = data?.routes?.[0];

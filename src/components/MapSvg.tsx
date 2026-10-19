@@ -337,3 +337,21 @@ export async function renderImage(svg: SVGSVGElement, title: string, lines: stri
   );
 }
 
+
+/** Sources de la carte : attribution et lien pour signaler une erreur, demandés par OpenStreetMap et FOSSGIS. */
+export function MapCredits() {
+  return (
+    <p className="hint">
+      Itinéraires calculés pour une voiture (Valhalla de FOSSGIS, sinon OSRM), choisis d’après les km au compteur : ils
+      peuvent différer de la route prise en poids lourd. Données ©{' '}
+      <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+        contributeurs OpenStreetMap
+      </a>{' '}
+      (ODbL),{' '}
+      <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noreferrer">
+        signaler une erreur
+      </a>
+      . Fond de carte : IGN Admin Express.
+    </p>
+  );
+}

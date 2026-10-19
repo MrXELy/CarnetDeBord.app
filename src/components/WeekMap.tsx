@@ -11,7 +11,7 @@ import { useSheet } from '../lib/useSheet';
 import { generateWeekMap } from '../lib/weekMapGen';
 import { buildStops, dayColor, dayKey, dayLegs, shortDay, stopsHash, type Stop } from '../lib/weekStops';
 import { eventTypeInfo, type Place, type TripEvent } from '../types';
-import MapSvg, { ImageButton, mapUnit, renderImage, stopPins, viewBox, type Point } from './MapSvg';
+import MapSvg, { ImageButton, MapCredits, mapUnit, renderImage, stopPins, viewBox, type Point } from './MapSvg';
 
 interface Props {
   start: Date;
@@ -249,10 +249,7 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
                 </div>
               )}
 
-              <p className="hint">
-                Itinéraires calculés pour une voiture (OSRM, © OpenStreetMap) : ils peuvent différer de la route prise
-                en poids lourd. Fond de carte : IGN Admin Express.
-              </p>
+              <MapCredits />
             </>
           )}
         </div>

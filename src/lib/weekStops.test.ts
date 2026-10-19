@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Place, TripEvent } from '../types';
-import { decodePolyline6, routeOptions, simplify } from './route';
+import { decodePolyline6, routeOptions, routing, simplify } from './route';
 import { buildStops, closestRoute, dayLegs, distanceKm, stopSegments, stopsHash } from './weekStops';
 
 function ev(id: string, occurred: string, at: [number, number] | null, extra: Partial<TripEvent> = {}): TripEvent {
@@ -146,6 +146,9 @@ describe('simplify', () => {
 });
 
 describe('routeOptions', () => {
+  beforeEach(() => {
+    routing.gapMs = 0; // pas d'attente entre les demandes, sauf dans le test qui la vérifie
+  });
   afterEach(() => vi.unstubAllGlobals());
 
   // Narbonne → Carcassonne en polyline à 6 décimales, puis par un point intermédiaire.
@@ -154,6 +157,20 @@ describe('routeOptions', () => {
 
   it('décode un tracé Valhalla', () => {
     expect(decodePolyline6(direct)).toEqual([NARBONNE, CARCASSONNE]);
+  });
+
+  it('laisse un écart minimum entre deux demandes au même serveur', async () => {
+    routing.gapMs = 60;
+    const times: number[] = [];
+    vi.stubGlobal('fetch', async () => {
+      times.push(Date.now());
+      return { ok: true, json: async () => ({ trip: { legs: [{ shape: direct }], summary: { length: 60, time: 3000 } } }) };
+    });
+    await Promise.all([routeOptions(NARBONNE, CARCASSONNE), routeOptions(NARBONNE, CARCASSONNE)]);
+    await routeOptions(NARBONNE, CARCASSONNE);
+    expect(times).toHaveLength(3);
+    expect(times[1] - times[0]).toBeGreaterThanOrEqual(55);
+    expect(times[2] - times[1]).toBeGreaterThanOrEqual(55);
   });
 
   it('renvoie l’itinéraire Valhalla et ses autres propositions', async () => {
