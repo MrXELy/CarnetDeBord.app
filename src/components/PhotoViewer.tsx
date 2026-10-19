@@ -33,7 +33,8 @@ export default function PhotoViewer({
   onClose,
 }: {
   path: string;
-  onDelete: () => void;
+  /** Absent : photo seulement à regarder (fiche LV en lecture seule). */
+  onDelete?: () => void;
   onClose: () => void;
 }) {
   const url = usePhotoUrl(path);
@@ -45,19 +46,21 @@ export default function PhotoViewer({
         <button type="button" className="icon-btn" onClick={onClose} aria-label="Fermer">
           <X size={24} />
         </button>
-        <button
-          type="button"
-          className="icon-btn"
-          aria-label="Supprimer la photo"
-          onClick={() => {
-            if (confirm('Supprimer cette photo ?')) {
-              onDelete();
-              onClose();
-            }
-          }}
-        >
-          <Trash2 size={22} />
-        </button>
+        {onDelete && (
+          <button
+            type="button"
+            className="icon-btn"
+            aria-label="Supprimer la photo"
+            onClick={() => {
+              if (confirm('Supprimer cette photo ?')) {
+                onDelete();
+                onClose();
+              }
+            }}
+          >
+            <Trash2 size={22} />
+          </button>
+        )}
       </div>
       {url ? (
         <img src={url} alt="Photo de la lettre de voiture" onClick={(e) => e.stopPropagation()} />

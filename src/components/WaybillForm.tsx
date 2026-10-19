@@ -1,4 +1,5 @@
-import { Camera, ChevronDown, LoaderCircle, ScanSearch, ScanText, X } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import { Camera, ChevronDown, LoaderCircle, Pencil, ScanSearch, ScanText, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { toLocalInput } from '../lib/dates';
 import { formatPlace, placeFromLabel, resolveCity } from '../lib/geo';
@@ -17,6 +18,7 @@ import {
 import { placeChanged, type LinkedSteps, type NewLoading, type StepChanges } from '../lib/places';
 import { useSheet } from '../lib/useSheet';
 import { useStore } from '../lib/useEvents';
+import { isBlankWaybill } from '../lib/waybills';
 import type { Place, Waybill } from '../types';
 import PhotoViewer, { PhotoThumb } from './PhotoViewer';
 import PlaceField, { EMPTY_PLACE } from './PlaceField';
@@ -47,6 +49,9 @@ const plannedText = (p: Place) => (p.country_code ? formatPlace(p) : p.city);
 /** Date ISO → valeur d'un champ « date et heure » (vide si absente). */
 const localTime = (iso: string | null | undefined) => (iso ? toLocalInput(new Date(iso)) : '');
 
+/** Date d'une étape en lecture : « 16/10/2026 06:30 ». */
+const shownTime = (iso: string | null | undefined) => (iso ? format(parseISO(iso), 'dd/MM/yyyy HH:mm') : '');
+
 /** Nouvelle date ISO si le champ a été changé et reste valide, sinon rien. */
 function changedTime(value: string, iso: string | null | undefined): string | undefined {
   if (!iso || !value || value === localTime(iso)) return undefined;
@@ -57,6 +62,9 @@ function changedTime(value: string, iso: string | null | undefined): string | un
 export default function WaybillForm(props: Props) {
   const { waybill, isNew, context, initialPhoto, steps = {}, onSave, onDelete, onClose } = props;
   const store = useStore();
+  // Une LV déjà remplie s'ouvre en lecture seule (rien ne peut s'effacer par erreur) ; « Modifier » ouvre la saisie.
+  // Nouvelle LV ou LV encore vide : saisie directe.
+  const [editing, setEditing] = useState(() => isNew || isBlankWaybill(waybill));
   // Mode démo : lecture simulée, sans envoi de la photo ni appel au serveur.
   const { demo } = store.getState();
   const [names] = useState(() => store.knownNames());
@@ -97,7 +105,7 @@ export default function WaybillForm(props: Props) {
     if (!el) return;
     el.style.height = 'auto';
     el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
-  }, [goods]);
+  }, [goods, editing]);
   // Photos prises pendant cette saisie (envoyées au stockage pour la lecture, même si on les retire ensuite).
   const added = useRef<string[]>([]);
 
@@ -300,10 +308,64 @@ export default function WaybillForm(props: Props) {
               <X size={22} />
             </button>
             <h2>{isNew ? 'Nouvelle lettre de voiture' : 'Lettre de voiture'}</h2>
-            <button className="btn-primary btn-small">OK</button>
+            {editing ? (
+              <button key="ok" className="btn-primary btn-small">
+                OK
+              </button>
+            ) : (
+              // Passe la fiche en saisie. Clé différente de « OK » : React ne réutilise pas ce bouton en le
+              // changeant en bouton d'envoi pendant le toucher (le formulaire partirait et la fiche se fermerait).
+              <button
+                key="edit"
+                type="button"
+                className="btn-primary btn-small btn-icon"
+                onClick={() => setEditing(true)}
+              >
+                <Pencil size={16} aria-hidden />
+                Modifier
+              </button>
+            )}
           </header>
 
-          <div className="modal-body">
+          {!editing && (
+            <div className="modal-body">
+              {context && <p className="context-pill">{context}</p>}
+              {photos.length > 0 && (
+                <div className="label">
+                  Photos
+                  <div className="photo-strip">
+                    {photos.map((path) => (
+                      <PhotoThumb key={path} path={path} onOpen={() => setViewing(path)} />
+                    ))}
+                  </div>
+                </div>
+              )}
+              <Fields
+                rows={[
+                  ['Client chargeur (expéditeur)', shipper],
+                  ['Ville de chargement', steps.loading ? formatPlace(steps.loading.place) : ''],
+                  ['Date et heure de chargement', shownTime(steps.loading?.at)],
+                ]}
+              />
+              <Fields
+                rows={[
+                  ['Client destinataire', consignee],
+                  ['Ville de livraison prévue', plannedText(planned)],
+                  ['Date et heure de livraison', shownTime(steps.delivery?.at)],
+                ]}
+              />
+              <Fields
+                rows={[
+                  ['N° lettre de voiture', number || 'À compléter'],
+                  ['Marchandise', goods],
+                  ['Poids', weight && `${weight} kg`],
+                  ['Remarques', notes],
+                ]}
+              />
+            </div>
+          )}
+
+          <div className="modal-body" hidden={!editing}>
             {context && <p className="context-pill">{context}</p>}
 
             <div className="label">
@@ -458,10 +520,27 @@ export default function WaybillForm(props: Props) {
       {viewing && (
         <PhotoViewer
           path={viewing}
-          onDelete={() => setPhotos((p) => p.filter((x) => x !== viewing))}
+          // En lecture seule, la photo se regarde sans pouvoir être supprimée.
+          onDelete={editing ? () => setPhotos((p) => p.filter((x) => x !== viewing)) : undefined}
           onClose={() => setViewing(null)}
         />
       )}
     </>
+  );
+}
+
+/** Informations de la LV en lecture seule ; une ligne vide n'est pas affichée, ni un bloc tout vide. */
+function Fields({ rows }: { rows: [string, string][] }) {
+  const shown = rows.filter(([, value]) => value.trim());
+  if (!shown.length) return null;
+  return (
+    <dl className="form-block lv-fields">
+      {shown.map(([label, value]) => (
+        <div key={label}>
+          <dt>{label}</dt>
+          <dd>{value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }

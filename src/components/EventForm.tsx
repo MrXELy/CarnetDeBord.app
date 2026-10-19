@@ -1,5 +1,5 @@
 import { parseISO } from 'date-fns';
-import { Camera, LoaderCircle, Pencil, Plus, X } from 'lucide-react';
+import { Camera, Eye, LoaderCircle, Plus, X } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { toLocalInput } from '../lib/dates';
 import { isDoumenCity, isFullTank } from '../lib/fuel';
@@ -477,10 +477,11 @@ export default function EventForm({ event, onClose }: Props) {
                           <button
                             type="button"
                             className="icon-btn"
-                            aria-label="Retirer la lettre"
-                            onClick={() => setLoads(loads.filter((l) => l.id !== w.id))}
+                            aria-label="Voir la lettre"
+                            title="Voir la lettre"
+                            onClick={() => setEditing({ waybill: w, isNew: false, side: 'load' })}
                           >
-                            <X size={18} />
+                            <Eye size={16} />
                           </button>
                         }
                       />
@@ -543,10 +544,11 @@ export default function EventForm({ event, onClose }: Props) {
                           <button
                             type="button"
                             className="icon-btn"
-                            aria-label="Modifier la lettre"
+                            aria-label="Voir la lettre"
+                            title="Voir la lettre"
                             onClick={() => setEditing({ waybill: w, isNew: false, side: 'delivery' })}
                           >
-                            <Pencil size={16} />
+                            <Eye size={16} />
                           </button>
                         }
                       />
