@@ -1,9 +1,9 @@
-import { BedDouble, TriangleAlert } from 'lucide-react';
-import type { RestCheck } from '../lib/rest';
+import { BedDouble, TriangleAlert, type LucideIcon } from 'lucide-react';
+import type { RestAdvice } from '../lib/rest';
 
-/** Repos depuis la fin de journée d'avant (RSE) : discret s'il est correct, orange ou rouge sinon. */
-export default function RestNotice({ check }: { check: RestCheck }) {
-  const Icon = check.level === 'ok' ? BedDouble : TriangleAlert;
+/** Repos (RSE) : discret s'il est correct, orange ou rouge sinon. */
+export default function RestNotice({ check, icon }: { check: RestAdvice; icon?: LucideIcon }) {
+  const Icon = check.level === 'ok' ? (icon ?? BedDouble) : TriangleAlert;
   return (
     <div className={`rest-notice rest-${check.level}`}>
       <Icon size={18} aria-hidden />

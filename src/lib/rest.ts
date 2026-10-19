@@ -29,9 +29,13 @@ export interface RestLine {
   text: string;
 }
 
+export type RestKind = 'journalier' | 'journalier_reduit' | 'hebdo' | 'hebdo_reduit' | 'insuffisant';
+
 export interface RestCheck {
   /** Le plus grave des messages. */
   level: RestLevel;
+  /** Sorte de repos ; null si la fin de journée d'avant manque. */
+  kind: RestKind | null;
   /** Durée du repos en minutes ; null si la fin de journée d'avant manque. */
   minutes: number | null;
   lines: RestLine[];
@@ -48,11 +52,12 @@ const MAX_REDUCED_DAILY = 3;
 
 const RANK: Record<RestLevel, number> = { ok: 0, warn: 1, error: 2 };
 
-/** « 11 h 20 », « 9 h », « 52 h 05 ». */
+/** « 11 h 20 », « 9 h », « 52 h 05 », « 30 min ». */
 export function hoursLabel(minutes: number): string {
   const m = Math.round(minutes);
   const h = Math.floor(m / 60);
   const rest = m % 60;
+  if (h === 0) return `${rest} min`;
   return rest ? `${h} h ${String(rest).padStart(2, '0')}` : `${h} h`;
 }
 
@@ -87,6 +92,11 @@ interface Debt {
 
 /** Contrôle des repos de chaque début de journée de l'historique (clé : id de l'étape). */
 export function restChecks(events: readonly RestEvent[]): Map<string, RestCheck> {
+  return walk(events).checks;
+}
+
+/** Parcourt l'historique dans l'ordre : contrôle de chaque début de journée, et état à la fin. */
+function walk(events: readonly RestEvent[]) {
   // Par heure (les dates ne sont pas toujours écrites pareil) ; à la même heure, le début de journée d'abord, la fin en dernier.
   const order = (e: RestEvent) => (e.type === 'debut_journee' ? 0 : e.type === 'fin_journee' ? 2 : 1);
   const sorted = [...events]
@@ -115,6 +125,7 @@ export function restChecks(events: readonly RestEvent[]): Map<string, RestCheck>
     const start = new Date(e.occurred_at);
     const lines: RestLine[] = [];
     let minutes: number | null = null;
+    let kind: RestKind | null = null;
 
     if (lastBoundary?.type === 'debut_journee') {
       lines.push({
@@ -142,6 +153,7 @@ export function restChecks(events: readonly RestEvent[]): Map<string, RestCheck>
 
       if (r >= WEEKLY_REDUCED) {
         const reduced = r < WEEKLY;
+        kind = reduced ? 'hebdo_reduit' : 'hebdo';
         const here = { reduced, abroad: abroad(lastBoundary) && abroad(e) };
         if (inWindow < DAILY_REDUCED) lines.push(lateLine());
         if (!reduced) {
@@ -186,6 +198,7 @@ export function restChecks(events: readonly RestEvent[]): Map<string, RestCheck>
       } else {
         const counted = Math.min(r, inWindow);
         if (counted < DAILY_REDUCED) {
+          kind = 'insuffisant';
           lines.push(
             r < DAILY_REDUCED
               ? {
@@ -195,6 +208,7 @@ export function restChecks(events: readonly RestEvent[]): Map<string, RestCheck>
               : lateLine(),
           );
         } else if (counted < DAILY) {
+          kind = 'journalier_reduit';
           reducedDaily++;
           const n = reducedDaily;
           // Repos de 11 h et plus commencé tard : seule sa part dans les 24 h compte.
@@ -213,6 +227,7 @@ export function restChecks(events: readonly RestEvent[]): Map<string, RestCheck>
                 },
           );
         } else {
+          kind = 'journalier';
           lines.push({ level: 'ok', text: `Repos : ${hoursLabel(r)} depuis la fin de journée ${endText}.` });
         }
       }
@@ -272,12 +287,192 @@ export function restChecks(events: readonly RestEvent[]): Map<string, RestCheck>
     }
 
     if (lines.length > 0) {
-      const level = lines.reduce<RestLevel>((worst, l) => (RANK[l.level] > RANK[worst] ? l.level : worst), 'ok');
-      checks.set(e.id, { level, minutes, lines });
+      checks.set(e.id, { level: worst(lines), kind, minutes, lines });
     }
     lastBoundary = e;
     dayStart = e;
     workDuringRest = null;
   }
-  return checks;
+  return { checks, lastBoundary, dayStart, reducedDaily, weeklies, debts };
+}
+
+export type RestAdvice = Pick<RestCheck, 'level' | 'lines'>;
+
+const worst = (lines: RestLine[]): RestLevel =>
+  lines.reduce<RestLevel>((w, l) => (RANK[l.level] > RANK[w] ? l.level : w), 'ok');
+
+/** Heure dite depuis un moment de référence : « à 18:00 », « demain à 05:30 », « lun. 20 oct. à 04:00 ». */
+function at(date: Date, ref: Date): string {
+  const days = differenceInCalendarDays(date, ref);
+  const time = format(date, 'HH:mm');
+  if (days === 0) return `à ${time}`;
+  if (days === 1) return `demain à ${time}`;
+  return `${format(date, 'EEE d MMM', { locale: fr })} à ${time}`;
+}
+
+/** Heure limite : « avant 18:00 », « avant demain 01:00 ». */
+function by(date: Date, ref: Date): string {
+  const text = at(date, ref);
+  return text.startsWith('à ') ? `avant ${text.slice(2)}` : `avant ${text.replace(' à ', ' ')}`;
+}
+
+const remainingText = (n: number) => `${n} restant${n > 1 ? 's' : ''} sur 3`;
+
+/** Étapes jusqu'à ce moment compris (sans l'étape modifiée). */
+const before = (events: readonly RestEvent[], date: Date, excludeId?: string) =>
+  events.filter((e) => e.id !== excludeId && Date.parse(e.occurred_at) <= date.getTime());
+
+/**
+ * Fin de journée : heure de reprise possible (repos normal ou réduit ; hebdomadaire du vendredi au dimanche),
+ * et rattrapage d'un repos hebdomadaire réduit à prendre.
+ */
+export function restartAdvice(events: readonly RestEvent[], end: RestEvent): RestAdvice | null {
+  const endAt = new Date(end.occurred_at);
+  if (Number.isNaN(endAt.getTime())) return null;
+  const state = walk([...before(events, endAt, end.id), end]);
+  const lines: RestLine[] = [];
+  const remaining = Math.max(0, MAX_REDUCED_DAILY - state.reducedDaily);
+  const plus = (minutes: number) => at(new Date(endAt.getTime() + minutes * 60_000), endAt);
+
+  const start = state.dayStart ? new Date(state.dayStart.occurred_at) : null;
+  const amplitude = start ? differenceInMinutes(endAt, start) : null;
+  if (start && amplitude != null && amplitude >= 0 && amplitude <= 24 * H && amplitude > 24 * H - DAILY) {
+    // Plus de 13 h : 11 h de repos ne tiennent plus dans les 24 h après le début de journée.
+    const dayText = `Journée de ${hoursLabel(amplitude)} (début ${since(start, endAt)})`;
+    if (amplitude > 24 * H - DAILY_REDUCED) {
+      lines.push({
+        level: 'error',
+        text: `${dayText} : moins de 9 h de repos possibles dans les 24 h, il fallait s’arrêter ${by(addHours(start, 15), endAt)}.`,
+      });
+    } else if (remaining === 0) {
+      lines.push({
+        level: 'error',
+        text: `${dayText} : il fallait s’arrêter ${by(addHours(start, 13), endAt)}, plus de repos réduit possible avant le repos hebdomadaire.`,
+      });
+    } else {
+      lines.push({
+        level: 'warn',
+        text: `${dayText} : le repos comptera comme réduit (${remainingText(remaining)}). Reprise au plus tôt ${plus(DAILY_REDUCED)}.`,
+      });
+    }
+  } else {
+    lines.push({
+      level: 'ok',
+      text:
+        `Reprise au plus tôt ${plus(DAILY)} (11 h de repos)` +
+        (remaining > 0
+          ? `, ou ${plus(DAILY_REDUCED)} avec un repos réduit (${remainingText(remaining)}).`
+          : ' : plus de repos réduit possible avant le repos hebdomadaire.'),
+    });
+  }
+
+  // Vendredi, samedi ou dimanche : repos hebdomadaire.
+  const weekend = [0, 5, 6].includes(endAt.getDay());
+  if (weekend) {
+    const prev = state.weeklies[state.weeklies.length - 1];
+    const reducedOf3 = state.weeklies.slice(-3).filter((w) => w.reduced).length;
+    const regularOnly = (prev?.reduced && !(prev.abroad && abroad(end))) || reducedOf3 >= 2;
+    lines.push({
+      level: 'ok',
+      text:
+        `Repos hebdomadaire : reprise au plus tôt ${plus(WEEKLY)} (45 h)` +
+        (regularOnly
+          ? ' : repos normal obligatoire, le précédent était réduit.'
+          : `, ou ${plus(WEEKLY_REDUCED)} avec un repos réduit (24 h, à rattraper).`),
+    });
+  }
+
+  const debt = state.debts.find((d) => d.deadline > endAt);
+  if (debt) {
+    const base = weekend ? WEEKLY : DAILY;
+    lines.push({
+      level: 'ok',
+      text: sentence(
+        `Pour rattraper les ${hoursLabel(debt.owed)} du repos réduit du ${dayDate(debt.from)} (avant la fin du ${dayDate(subDays(debt.deadline, 1))}) : reprise ${plus(base + debt.owed)} (${hoursLabel(base)} + ${hoursLabel(debt.owed)})`,
+      ),
+    });
+  }
+  return { level: worst(lines), lines };
+}
+
+/** Journée en cours (début noté, pas encore de fin) : heure limite de fin pour garder le repos dans les 24 h. */
+export function dayLimit(events: readonly RestEvent[], now: Date): RestAdvice | null {
+  const state = walk(before(events, now));
+  if (state.lastBoundary?.type !== 'debut_journee' || !state.dayStart) return null;
+  const start = new Date(state.dayStart.occurred_at);
+  if (now.getTime() - start.getTime() >= 24 * 3600_000) return null; // fin de journée sans doute oubliée
+  const remaining = Math.max(0, MAX_REDUCED_DAILY - state.reducedDaily);
+  const normal = addHours(start, 13);
+  const reduced = addHours(start, 15);
+  const last = remaining > 0 ? reduced : normal;
+  const lines: RestLine[] = [];
+
+  if (now > last) {
+    lines.push({
+      level: 'error',
+      text: `Limite dépassée de ${hoursLabel(differenceInMinutes(now, last))} : moins de ${remaining > 0 ? 9 : 11} h de repos possibles dans les 24 h après le début de journée (${format(start, 'HH:mm')}).`,
+    });
+  } else {
+    const level: RestLevel = last.getTime() - now.getTime() <= 3600_000 ? 'warn' : 'ok';
+    let text: string;
+    if (remaining === 0) {
+      text = `Fin de journée ${by(normal, now)} : plus de repos réduit possible avant le repos hebdomadaire.`;
+    } else if (now > normal) {
+      text = `Fin de journée ${by(reduced, now)} au plus tard (repos réduit, ${remainingText(remaining)}).`;
+    } else {
+      text = `Fin de journée ${by(normal, now)} pour 11 h de repos, ${by(reduced, now)} au plus tard (repos réduit, ${remainingText(remaining)}).`;
+    }
+    lines.push({ level, text });
+  }
+  return { level: worst(lines), lines };
+}
+
+export interface RestDebt {
+  /** Début du repos hebdomadaire réduit. */
+  from: Date;
+  owed: number;
+  /** Dernier jour pour le rattraper. */
+  lastDay: Date;
+}
+
+/** Repos hebdomadaires réduits pas encore rattrapés à ce moment (et encore dans les temps). */
+export function openDebts(events: readonly RestEvent[], now: Date): RestDebt[] {
+  return walk(before(events, now))
+    .debts.filter((d) => d.deadline > now)
+    .map((d) => ({ from: d.from, owed: d.owed, lastDay: subDays(d.deadline, 1) }));
+}
+
+export interface RestSummary {
+  daily: number;
+  dailyReduced: number;
+  weekly: number;
+  weeklyReduced: number;
+  /** Débuts de journée avec une alerte (orange ou rouge), dans l'ordre. */
+  alerts: { id: string; at: Date; level: RestLevel; text: string }[];
+}
+
+/** Repos d'une période : comptés au début de journée qui les termine. */
+export function restSummary(
+  events: readonly RestEvent[],
+  checks: Map<string, RestCheck>,
+  range: { start: Date; end: Date },
+): RestSummary {
+  const summary: RestSummary = { daily: 0, dailyReduced: 0, weekly: 0, weeklyReduced: 0, alerts: [] };
+  for (const e of events) {
+    const at = new Date(e.occurred_at);
+    if (e.type !== 'debut_journee' || at < range.start || at >= range.end) continue;
+    const check = checks.get(e.id);
+    if (!check) continue;
+    if (check.kind === 'journalier' || check.kind === 'journalier_reduit' || check.kind === 'insuffisant')
+      summary.daily++;
+    if (check.kind === 'journalier_reduit') summary.dailyReduced++;
+    if (check.kind === 'hebdo' || check.kind === 'hebdo_reduit') summary.weekly++;
+    if (check.kind === 'hebdo_reduit') summary.weeklyReduced++;
+    if (check.level !== 'ok') {
+      const line = check.lines.find((l) => l.level === check.level)!;
+      summary.alerts.push({ id: e.id, at, level: check.level, text: line.text });
+    }
+  }
+  summary.alerts.sort((a, b) => a.at.getTime() - b.at.getTime());
+  return summary;
 }

@@ -1829,3 +1829,55 @@ button.st-kv-item:active { transform: scale(0.97); }
 .rest-notice.rest-error { background: rgba(248, 113, 113, 0.12); border-color: rgba(248, 113, 113, 0.3); color: #fecaca; }
 .rest-notice.rest-error .rest-line-error { font-weight: 600; }
 .rest-notice:not(.rest-ok) .rest-line-ok { opacity: 0.8; }
+
+/* Haut de l'accueil : heure limite de fin de journée et échéances proches */
+.home-notices { position: relative; z-index: 1; display: grid; gap: 8px; padding: 12px 12px 0; }
+.rest-notice.reminder { align-items: center; padding: 4px 4px 4px 12px; }
+.reminder-text {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.reminder-text svg { flex: none; margin-top: 1px; }
+.reminder-snooze {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  background: none;
+  border: none;
+  border-radius: 12px;
+  color: inherit;
+}
+.reminder-snooze:active { background: var(--glass-hover); }
+
+/* Options : échéances */
+.reminder-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.reminder-hint { margin: 0 4px; }
+
+/* Statistiques : alertes de repos, toucher ouvre le jour */
+.st-rest-alerts { display: grid; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; }
+.st-rest-alert {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: rgba(245, 158, 11, 0.1);
+  color: #fde68a;
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+}
+.st-rest-alert.rest-error { border-color: rgba(248, 113, 113, 0.3); background: rgba(248, 113, 113, 0.1); color: #fecaca; }
+.st-rest-alert b { font-size: 0.75rem; text-transform: capitalize; }
+.st-rest-alert:active { transform: scale(0.98); }

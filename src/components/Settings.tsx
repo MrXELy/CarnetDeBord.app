@@ -11,12 +11,14 @@ import { signOutAndClear, type SignOutStep } from '../lib/signOut';
 import { useEvents, useStore } from '../lib/useEvents';
 import { useSheet } from '../lib/useSheet';
 import AllowanceSettingsSection from './AllowanceSettings';
+import ReminderSettingsSection from './ReminderSettings';
 import WeekSheetSettingsSection from './WeekSheetSettings';
 
 /** Lectures automatiques permises par mois (limite imposée par la fonction read-waybill). */
 const MONTH_LIMIT = 300;
 
-export default function Settings({ onClose }: { onClose: () => void }) {
+/** `section` : id d'une section à montrer à l'ouverture (« reminders » : échéances). */
+export default function Settings({ onClose, section }: { onClose: () => void; section?: string }) {
   const { events, waybills, demo } = useEvents();
   const { europe } = useSettings();
   const store = useStore();
@@ -27,6 +29,10 @@ export default function Settings({ onClose }: { onClose: () => void }) {
   const rejected = intervals.filter((i) => i.problem).length;
 
   const sheet = useSheet(onClose);
+
+  useEffect(() => {
+    if (section) document.getElementById(section)?.scrollIntoView({ block: 'start' });
+  }, [section]);
 
   // Déconnexion en cours (envoi de ce qui attend, puis fermeture de la session) : bouton occupé, pas de double clic.
   const [signingOut, setSigningOut] = useState<SignOutStep>(null);
@@ -89,6 +95,8 @@ export default function Settings({ onClose }: { onClose: () => void }) {
               </span>
             </div>
           </section>
+
+          <ReminderSettingsSection />
 
           <AllowanceSettingsSection />
 

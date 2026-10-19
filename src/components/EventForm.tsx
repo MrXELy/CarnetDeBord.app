@@ -1,12 +1,12 @@
 import { parseISO } from 'date-fns';
-import { Camera, Eye, LoaderCircle, Pencil, Plus, X } from 'lucide-react';
+import { AlarmClock, Camera, Eye, LoaderCircle, Pencil, Plus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { toLocalInput } from '../lib/dates';
 import { isDoumenCity, isFullTank } from '../lib/fuel';
 import { formatPlace } from '../lib/geo';
 import { numText, parseNum } from '../lib/numbers';
 import { odometerMessage, readOdometerPhoto } from '../lib/odometer';
-import { restChecks } from '../lib/rest';
+import { restartAdvice, restChecks } from '../lib/rest';
 import {
   addLoadingStep,
   applyStepChanges,
@@ -99,10 +99,12 @@ export default function EventForm({ event, onClose }: Props) {
   deliveryEdits.forEach((w, id) => pool.set(id, w));
   const deliveryPool = [...pool.values()];
 
-  // Début de journée : repos depuis la fin de journée d'avant (RSE), recalculé quand l'heure ou le lieu change.
+  // Repos (RSE), recalculé quand l'heure ou le lieu change : au début de journée, celui depuis la fin de journée
+  // d'avant ; à la fin de journée, l'heure de reprise possible.
   const restCheck = useMemo(() => {
-    if (type !== 'debut_journee' || !whenIso) return null;
+    if (!whenIso || (type !== 'debut_journee' && type !== 'fin_journee')) return null;
     const draft = { id: eventId, type, occurred_at: whenIso, country_code: place.country_code };
+    if (type === 'fin_journee') return restartAdvice(events, draft);
     return restChecks([...events.filter((e) => e.id !== eventId), draft]).get(eventId) ?? null;
   }, [events, type, whenIso, eventId, place.country_code]);
   const candidates = deliveryPool.filter((w) => !w.deleted_at);
@@ -476,7 +478,7 @@ export default function EventForm({ event, onClose }: Props) {
               Date et heure
               <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} required />
             </label>
-            {restCheck && <RestNotice check={restCheck} />}
+            {restCheck && <RestNotice check={restCheck} icon={type === 'fin_journee' ? AlarmClock : undefined} />}
 
             {type === 'chargement' && (
               <div className="label">

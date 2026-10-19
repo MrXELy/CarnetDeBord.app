@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TripEvent } from '../types';
-import { hoursLabel, restChecks } from './rest';
+import { dayLimit, hoursLabel, openDebts, restartAdvice, restChecks, restSummary } from './rest';
 
 let n = 0;
 type Ev = Pick<TripEvent, 'id' | 'type' | 'occurred_at' | 'country_code'>;
@@ -196,6 +196,110 @@ describe('repos hebdomadaire', () => {
     expect(c.lines.map((l) => l.text)).toContain(
       '11 h du repos hebdomadaire réduit du sam. 17 oct. pas rattrapées à temps (avant la fin du dim. 8 nov.).',
     );
+  });
+});
+
+describe('reprise après la fin de journée', () => {
+  it('11 h, ou 9 h avec un repos réduit', () => {
+    const start = ev('debut_journee', '2026-10-14T05:00'); // mercredi
+    const end = ev('fin_journee', '2026-10-14T17:30');
+    const advice = restartAdvice([...day('2026-10-13T05:00', '2026-10-13T17:00'), start], end)!;
+    expect(advice.level).toBe('ok');
+    expect(advice.lines.map((l) => l.text)).toEqual([
+      'Reprise au plus tôt demain à 04:30 (11 h de repos), ou demain à 02:30 avec un repos réduit (3 restants sur 3).',
+    ]);
+  });
+
+  it('journée de plus de 13 h : repos réduit obligatoire', () => {
+    const start = ev('debut_journee', '2026-10-14T05:00');
+    const end = ev('fin_journee', '2026-10-14T19:00');
+    const advice = restartAdvice([start], end)!;
+    expect(advice.level).toBe('warn');
+    expect(advice.lines[0].text).toBe(
+      'Journée de 14 h (début à 05:00) : le repos comptera comme réduit (3 restants sur 3). Reprise au plus tôt demain à 04:00.',
+    );
+  });
+
+  it('journée de plus de 15 h : trop tard', () => {
+    const start = ev('debut_journee', '2026-10-14T05:00');
+    const end = ev('fin_journee', '2026-10-14T21:00');
+    expect(restartAdvice([start], end)!.lines[0]).toEqual({
+      level: 'error',
+      text: 'Journée de 16 h (début à 05:00) : moins de 9 h de repos possibles dans les 24 h, il fallait s’arrêter avant 20:00.',
+    });
+  });
+
+  it('le vendredi : repos hebdomadaire, normal obligatoire après un réduit', () => {
+    const events = [
+      ...day('2026-10-10T05:00', '2026-10-10T12:00'),
+      ...day('2026-10-11T22:00', '2026-10-12T08:00'), // hebdo réduit de 34 h
+      ...[13, 14, 15].flatMap((d) => day(`2026-10-${d}T05:00`, `2026-10-${d}T16:00`)),
+      ev('debut_journee', '2026-10-16T05:00'),
+    ];
+    const end = ev('fin_journee', '2026-10-16T15:00');
+    const lines = restartAdvice(events, end)!.lines.map((l) => l.text);
+    expect(lines[1]).toBe(
+      'Repos hebdomadaire : reprise au plus tôt dim. 18 oct. à 12:00 (45 h) : repos normal obligatoire, le précédent était réduit.',
+    );
+    expect(lines[2]).toBe(
+      'Pour rattraper les 11 h du repos réduit du sam. 10 oct. (avant la fin du dim. 1 nov.) : reprise dim. 18 oct. à 23:00 (45 h + 11 h).',
+    );
+  });
+});
+
+describe('heure limite de la journée en cours', () => {
+  const events = [...day('2026-10-13T05:00', '2026-10-13T17:00'), ev('debut_journee', '2026-10-14T05:00')];
+
+  it('11 h ou repos réduit', () => {
+    expect(dayLimit(events, new Date('2026-10-14T10:00'))).toEqual({
+      level: 'ok',
+      lines: [
+        {
+          level: 'ok',
+          text: 'Fin de journée avant 18:00 pour 11 h de repos, avant 20:00 au plus tard (repos réduit, 3 restants sur 3).',
+        },
+      ],
+    });
+  });
+
+  it('orange dans la dernière heure, rouge après', () => {
+    expect(dayLimit(events, new Date('2026-10-14T19:15'))!.level).toBe('warn');
+    expect(dayLimit(events, new Date('2026-10-14T19:15'))!.lines[0].text).toBe(
+      'Fin de journée avant 20:00 au plus tard (repos réduit, 3 restants sur 3).',
+    );
+    const late = dayLimit(events, new Date('2026-10-14T20:30'))!;
+    expect(late.level).toBe('error');
+    expect(late.lines[0].text).toBe(
+      'Limite dépassée de 30 min : moins de 9 h de repos possibles dans les 24 h après le début de journée (05:00).',
+    );
+  });
+
+  it('rien une fois la fin notée', () => {
+    const ended = [...events, ev('fin_journee', '2026-10-14T16:00')];
+    expect(dayLimit(ended, new Date('2026-10-14T17:00'))).toBeNull();
+  });
+});
+
+describe('repos d’une période', () => {
+  it('compte les repos et liste les alertes', () => {
+    const events = [
+      ...day('2026-10-10T05:00', '2026-10-10T12:00'),
+      ...day('2026-10-11T22:00', '2026-10-12T08:00'), // hebdo réduit (34 h)
+      ...day('2026-10-12T18:00', '2026-10-13T06:00'), // 10 h : réduit
+      ...day('2026-10-13T14:00', '2026-10-13T20:00'), // 8 h : trop court
+      ev('debut_journee', '2026-10-14T08:00'), // 12 h
+    ];
+    const s = restSummary(events, restChecks(events), {
+      start: new Date('2026-10-11T22:00'),
+      end: new Date('2026-10-18T22:00'),
+    });
+    expect(s).toMatchObject({ daily: 3, dailyReduced: 1, weekly: 1, weeklyReduced: 1 });
+    expect(s.alerts.map((a) => a.level)).toEqual(['warn', 'error']);
+    expect(s.alerts[1].text).toContain('Repos trop court : 8 h');
+    // Les 11 h du repos réduit restent à rattraper.
+    expect(openDebts(events, new Date('2026-10-16T12:00'))).toEqual([
+      { from: new Date('2026-10-10T12:00'), owed: 11 * 60, lastDay: new Date('2026-11-01T00:00') },
+    ]);
   });
 });
 

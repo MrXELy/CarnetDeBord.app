@@ -2,6 +2,7 @@ import { isInTruck, plateKey, type Place, type TripEvent, type Waybill, type Wee
 import { DEFAULT_ALLOWANCE_SETTINGS, computeAllowances, type Allowance, type AllowanceSettings } from './allowances';
 import { kmTimeline, type KmTimeline } from './emptyKm';
 import { fuelIntervals, type FuelInterval } from './fuel';
+import { DEFAULT_REMINDER_SETTINGS, type ReminderSettings } from './reminders';
 import { restChecks, type RestCheck } from './rest';
 import { cleanOrphanPhotos, flushTrash, trashPhotos, uploadPending } from './photos';
 import { supabase } from './supabase';
@@ -20,6 +21,8 @@ export interface SyncState {
   allowanceSettings: AllowanceSettings;
   /** Nom, agence et dépôts de la feuille de semaine. */
   sheetSettings: SheetSettings;
+  /** Échéances (carte, FCO, visite médicale, contrôles techniques, chrono). */
+  reminderSettings: ReminderSettings;
 }
 
 /** Réglages partagés entre les appareils : une seule ligne, identifiée par l'utilisateur. */
@@ -27,6 +30,8 @@ interface UserSettingsRow extends Row {
   allowances: AllowanceSettings | null;
   /** Colonne ajoutée par la migration 009 : absente des anciennes lignes. */
   week_sheet?: SheetSettings | null;
+  /** Colonne ajoutée par la migration 010 : absente des anciennes lignes. */
+  reminders?: ReminderSettings | null;
 }
 
 const PAGE = 1000;
@@ -206,6 +211,7 @@ export class EventStore {
   private timelineCache: { events: TripEvent[]; waybills: Waybill[]; timeline: KmTimeline } | null = null;
   private settingsCache: { row: UserSettingsRow | undefined; settings: AllowanceSettings } | null = null;
   private sheetCache: { row: UserSettingsRow | undefined; settings: SheetSettings } | null = null;
+  private reminderCache: { row: UserSettingsRow | undefined; settings: ReminderSettings } | null = null;
   private allowanceCache: { events: TripEvent[]; settings: AllowanceSettings; list: Allowance[] } | null = null;
 
   constructor(
@@ -289,6 +295,20 @@ export class EventStore {
       allowances: null,
       ...row,
       week_sheet: settings,
+    });
+    this.commit();
+  }
+
+  /** Enregistre les échéances et l'ensemble routier principal. */
+  saveReminderSettings(settings: ReminderSettings) {
+    const row = this.userSettings.items.get(this.userId);
+    this.userSettings.save({
+      id: this.userId,
+      updated_at: '',
+      deleted_at: null,
+      allowances: null,
+      ...row,
+      reminders: settings,
     });
     this.commit();
   }
@@ -538,9 +558,11 @@ export class EventStore {
       } catch (err) {
         this.error = /week_sheet/.test(String(err))
           ? 'Réglages de la feuille de semaine : migration 009 à lancer dans Supabase'
-          : /user_settings/.test(String(err))
-            ? 'Table des réglages absente dans Supabase'
-            : String(err);
+          : /reminders/.test(String(err))
+            ? 'Échéances : migration 010 à lancer dans Supabase'
+            : /user_settings/.test(String(err))
+              ? 'Table des réglages absente dans Supabase'
+              : String(err);
       }
       // Une ligne refusée reste signalée (pastille rouge) même si tout le reste a réussi.
       if (refusals.length && !this.error) {
@@ -591,6 +613,7 @@ export class EventStore {
       demo: !!this.options.offline,
       allowanceSettings: this.allowanceSettings(),
       sheetSettings: this.sheetSettings(),
+      reminderSettings: this.reminderSettings(),
     };
   }
 
@@ -613,6 +636,15 @@ export class EventStore {
     if (this.sheetCache && this.sheetCache.row === row) return this.sheetCache.settings;
     const settings = { ...DEFAULT_SHEET_SETTINGS, ...row?.week_sheet };
     this.sheetCache = { row, settings };
+    return settings;
+  }
+
+  /** Échéances ; même objet tant que la ligne ne change pas. */
+  private reminderSettings(): ReminderSettings {
+    const row = this.userSettings.items.get(this.userId);
+    if (this.reminderCache && this.reminderCache.row === row) return this.reminderCache.settings;
+    const settings = { ...DEFAULT_REMINDER_SETTINGS, ...row?.reminders };
+    this.reminderCache = { row, settings };
     return settings;
   }
 
