@@ -229,27 +229,27 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
                   </p>
                 )}
 
-                <div className="map-generate-row">
-                  {/* Toujours proposé : une carte à jour peut être recalculée (nouvelle méthode d'itinéraires). */}
+                {/* Toujours proposé : une carte à jour peut être recalculée (nouvelle méthode d'itinéraires). */}
+                <button
+                  type="button"
+                  className={`${!saved || outdated ? 'btn-primary' : 'btn-secondary'} btn-icon lv-add map-generate`}
+                  onClick={generate}
+                  disabled={busy}
+                >
+                  <Route size={18} />
+                  {saved ? 'Régénérer' : 'Générer la carte'}
+                </button>
+                {/* Boutons d'itinéraire entre les lieux de la liste : cachés tant qu'on ne les demande pas. */}
+                {routeLegs.size > 0 && (
                   <button
                     type="button"
-                    className={`${!saved || outdated ? 'btn-primary' : 'btn-secondary'} btn-icon lv-add map-generate`}
-                    onClick={generate}
-                    disabled={busy}
+                    className="btn-link map-route-toggle"
+                    aria-expanded={mapRouteButtons}
+                    onClick={() => updateSettings({ mapRouteButtons: !mapRouteButtons })}
                   >
-                    <Route size={18} />
-                    {saved ? 'Régénérer' : 'Générer la carte'}
+                    {mapRouteButtons ? 'Cacher le choix d’itinéraire' : 'Choix d’itinéraire'}
                   </button>
-                  {/* Boutons d'itinéraire entre les lieux de la liste, à cacher (réglage de l'appareil). */}
-                  <label className="map-toggle" title="Boutons d’itinéraire dans la liste des lieux">
-                    <input
-                      type="checkbox"
-                      checked={mapRouteButtons}
-                      onChange={(e) => updateSettings({ mapRouteButtons: e.target.checked })}
-                    />
-                    Trajets
-                  </label>
-                </div>
+                )}
 
                 <div className="map-legend">
                   {days.map((d) => (

@@ -1398,8 +1398,7 @@ legend { margin-bottom: 6px; }
 .map-image-btn:disabled:not([aria-busy='true']) { opacity: 0.45; }
 
 .map-generate { width: 100%; }
-.map-generate-row { display: flex; align-items: center; gap: 12px; }
-.map-generate-row .map-generate { flex: 1; width: auto; }
+.map-route-toggle { justify-self: center; margin-top: -6px; font-size: 0.85rem; }
 
 .map-legend {
   display: flex;
