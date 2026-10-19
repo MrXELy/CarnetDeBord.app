@@ -39,6 +39,7 @@ describe('cameraAt', () => {
     expect(view.width).toBeLessThan(full.width);
     expect(view.width).toBeGreaterThan(2.49);
     expect(view.width / view.height).toBeCloseTo(ratio);
+  
   });
 
   it('bouge en douceur : pas de saut d’une image à la suivante', () => {
@@ -57,5 +58,11 @@ describe('cameraAt', () => {
     expect(end.x).toBeCloseTo(full.x);
     expect(end.y).toBeCloseTo(full.y);
     expect(end.width).toBeCloseTo(full.width);
+  });
+
+  it('suit la largeur de vue choisie', () => {
+    const wide = cameraTrack(replay, full, ratio, 600);
+    expect(cameraAt(wide, 0).width).toBeCloseTo(Math.min(600 / 111, full.width));
+    expect(cameraAt(wide, 0).width).toBeGreaterThan(cameraAt(track, 0).width);
   });
 });

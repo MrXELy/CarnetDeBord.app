@@ -22,7 +22,13 @@ const DURATIONS = [15, 30, 45, 60, 90, 120];
 
 /** La semaine rejouée : animation des trajets dans l'ordre chronologique, au format et à la durée choisis. */
 export default function WeekReplay({ start, stops, legs, onClose }: Props) {
-  const { replayFormat: fmt, replayDuration: duration, mapCities, mapDepartments } = useSettings();
+  const {
+    replayFormat: fmt,
+    replayDuration: duration,
+    replayViewKm: viewKm,
+    mapCities,
+    mapDepartments,
+  } = useSettings();
   const sheet = useSheet(onClose);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [progress, setProgress] = useState(0);
@@ -31,8 +37,8 @@ export default function WeekReplay({ start, stops, legs, onClose }: Props) {
   const replay = useMemo(() => buildReplay(stops, legs, duration), [stops, legs, duration]);
   const layout = replayLayout(fmt);
   const camera = useMemo(
-    () => cameraTrack(replay, replayBox(replay, fmt), layout.width / layout.mapHeight),
-    [replay, fmt, layout.width, layout.mapHeight],
+    () => cameraTrack(replay, replayBox(replay, fmt), layout.width / layout.mapHeight, viewKm),
+    [replay, fmt, layout.width, layout.mapHeight, viewKm],
   );
   const title = weekLabel(start);
   // Durée totale : la semaine, puis le dézoom final et la pause sur la carte complète.
@@ -168,6 +174,20 @@ export default function WeekReplay({ start, stops, legs, onClose }: Props) {
                   </button>
                 ))}
               </div>
+              {/* Largeur de la vue pendant la semaine (la caméra recule quand même sur les longs trajets). */}
+              <label className="replay-view">
+                <span>
+                  Largeur de la vue : <strong>{viewKm} km</strong>
+                </span>
+                <input
+                  type="range"
+                  min={100}
+                  max={1000}
+                  step={20}
+                  value={viewKm}
+                  onChange={(e) => updateSettings({ replayViewKm: Number(e.target.value) })}
+                />
+              </label>
               {duration < replay.readableDuration && (
                 <p className="hint">
                   Arrêts et nuits raccourcis à cette durée : pour les lire tranquillement, choisis au moins{' '}

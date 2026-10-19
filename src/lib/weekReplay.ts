@@ -139,7 +139,7 @@ export function buildReplay(stops: Stop[], legs: MapLeg[] = [], duration = 30): 
         push(REST_SECONDS, {
           kind: 'rest',
           stop: index,
-          caption: restLabel(time(e) - time(last)),
+          caption: `${restLabel(time(e) - time(last))} — ${placeOf(stop)}`,
           realFrom: time(last),
           realTo: time(e),
           day: dayKey(last.occurred_at),
@@ -176,7 +176,7 @@ export function buildReplay(stops: Stop[], legs: MapLeg[] = [], duration = 30): 
         push(REST_SECONDS, {
           kind: 'rest',
           stop: stops.indexOf(segment.from),
-          caption: restLabel(restEnd - realFrom),
+          caption: `${restLabel(restEnd - realFrom)} — ${placeOf(segment.from)}`,
           realFrom,
           realTo: restEnd,
           day: dayKey(departure.occurred_at),

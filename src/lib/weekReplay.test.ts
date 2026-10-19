@@ -36,7 +36,7 @@ describe('buildReplay', () => {
       ['stop', 'Chargement — Carcassonne'],
       ['drive', 'Vers Toulouse'],
       ['stop', 'Fin — Toulouse'],
-      ['rest', 'Repos · 18 h'],
+      ['rest', 'Repos · 18 h — Toulouse'],
       ['stop', 'Début — Toulouse'],
       ['drive', 'Vers Périgueux'],
       ['stop', 'Livraison · Fin — Périgueux'],

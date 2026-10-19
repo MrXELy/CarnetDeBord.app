@@ -14,8 +14,10 @@ export const OUTRO_SECONDS = ZOOM_OUT_SECONDS + FINAL_HOLD_SECONDS;
 
 /** Pas de calcul de la caméra (secondes). */
 const TICK = 0.1;
-/** Largeur minimale de la vue, en unités de la carte (1 ≈ 111 km) : environ 280 km. */
-const MIN_WIDTH = 2.5;
+/** Largeur de la vue par défaut pendant la semaine, en km (réglable). */
+export const DEFAULT_VIEW_KM = 280;
+/** Km par unité de la carte (1 degré de latitude ; les longitudes sont resserrées d'autant). */
+const KM_PER_UNIT = 111;
 /** La vue couvre le trajet du camion sur ± 2,5 s autour de l'instant (elle recule sur les longs trajets). */
 const LOOK_SECONDS = 2.5;
 /** Marge autour de ce trajet. */
@@ -36,16 +38,17 @@ export interface CameraTrack {
 }
 
 /** Prépare la caméra de toute l'animation (une fois par animation et par format). */
-export function cameraTrack(replay: Replay, full: Box, ratio: number): CameraTrack {
+export function cameraTrack(replay: Replay, full: Box, ratio: number, viewKm = DEFAULT_VIEW_KM): CameraTrack {
+  const minWidth = viewKm / KM_PER_UNIT;
   const n = Math.max(1, Math.ceil(replay.total / TICK) + 1);
   const pos = Array.from({ length: n }, (_, i): Point => project(truckAt(replay, i * TICK)));
-  // Largeur voulue à chaque pas : le trajet proche dans le temps, avec une marge, au moins MIN_WIDTH.
+  // Largeur voulue à chaque pas : le trajet proche dans le temps, avec une marge, au moins la largeur choisie.
   const look = Math.round(LOOK_SECONDS / TICK);
   const raw = pos.map((_, i) => {
     const near = pos.slice(Math.max(0, i - look), i + look + 1);
     const ex = Math.max(...near.map((p) => p[0])) - Math.min(...near.map((p) => p[0]));
     const ey = Math.max(...near.map((p) => p[1])) - Math.min(...near.map((p) => p[1]));
-    return Math.min(full.width, Math.max(MIN_WIDTH, ex * MARGIN, ey * MARGIN * ratio));
+    return Math.min(full.width, Math.max(minWidth, ex * MARGIN, ey * MARGIN * ratio));
   });
   // Lissage (poids en cloche) : centre et largeur évoluent sans à-coups.
   const sigma = SMOOTH_SECONDS / TICK;

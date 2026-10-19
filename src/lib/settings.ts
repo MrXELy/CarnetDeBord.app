@@ -16,6 +16,8 @@ export interface Settings {
   /** Semaine rejouée : format (carré ou vertical) et durée de l'animation en secondes. */
   replayFormat: 'square' | 'vertical';
   replayDuration: number;
+  /** Semaine rejouée : largeur de la vue autour du camion, en km. */
+  replayViewKm: number;
   /** Cartes de la semaine et du mois : cadrées sur les trajets, ou sur toute la France. */
   mapFrame: 'trips' | 'france';
 }
@@ -30,6 +32,7 @@ const DEFAULTS: Settings = {
   mapRouteButtons: false,
   replayFormat: 'vertical',
   replayDuration: 30,
+  replayViewKm: 280,
   mapFrame: 'trips',
 };
 const listeners = new Set<() => void>();

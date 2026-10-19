@@ -1411,6 +1411,9 @@ legend { margin-bottom: 6px; }
 .replay-controls { display: flex; align-items: center; gap: 12px; }
 .replay-controls .replay-play { position: static; flex: none; }
 .replay-seek { flex: 1; accent-color: var(--accent); }
+.replay-view { display: grid; gap: 4px; font-size: 0.9rem; color: var(--muted); }
+.replay-view strong { color: var(--text); }
+.replay-view input { accent-color: var(--accent); }
 
 .map-generate { width: 100%; }
 .map-route-toggle { justify-self: center; margin-top: -6px; font-size: 0.85rem; }
