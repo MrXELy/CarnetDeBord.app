@@ -11,6 +11,8 @@ export interface Settings {
   mapDepartments: boolean;
   /** Carte de la semaine : numéros des étapes dans les pastilles (sinon simples points). */
   mapNumbers: boolean;
+  /** Carte de la semaine : boutons d'itinéraire entre les lieux de la liste. */
+  mapRouteButtons: boolean;
   /** Cartes de la semaine et du mois : cadrées sur les trajets, ou sur toute la France. */
   mapFrame: 'trips' | 'france';
 }
@@ -22,6 +24,7 @@ const DEFAULTS: Settings = {
   mapCities: true,
   mapDepartments: true,
   mapNumbers: true,
+  mapRouteButtons: true,
   mapFrame: 'trips',
 };
 const listeners = new Set<() => void>();

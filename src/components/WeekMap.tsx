@@ -45,7 +45,7 @@ type Status = { state: 'idle' } | { state: 'busy'; message: string } | { state: 
 export default function WeekMap({ start, events, onEdit, onClose }: Props) {
   const { store } = useEvents();
   // Réglages de la carte, mémorisés sur cet appareil.
-  const { mapRoutes, mapCities, mapDepartments, mapNumbers, mapFrame } = useSettings();
+  const { mapRoutes, mapCities, mapDepartments, mapNumbers, mapFrame, mapRouteButtons } = useSettings();
   const saved = store.weekMap(start);
   const [found, setFound] = useState<Map<string, Place>>(() => new Map());
   const [status, setStatus] = useState<Status>({ state: 'idle' });
@@ -229,16 +229,27 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
                   </p>
                 )}
 
-                {/* Toujours proposé : une carte à jour peut être recalculée (nouvelle méthode d'itinéraires). */}
-                <button
-                  type="button"
-                  className={`${!saved || outdated ? 'btn-primary' : 'btn-secondary'} btn-icon lv-add map-generate`}
-                  onClick={generate}
-                  disabled={busy}
-                >
-                  <Route size={18} />
-                  {saved ? 'Régénérer' : 'Générer la carte'}
-                </button>
+                <div className="map-generate-row">
+                  {/* Toujours proposé : une carte à jour peut être recalculée (nouvelle méthode d'itinéraires). */}
+                  <button
+                    type="button"
+                    className={`${!saved || outdated ? 'btn-primary' : 'btn-secondary'} btn-icon lv-add map-generate`}
+                    onClick={generate}
+                    disabled={busy}
+                  >
+                    <Route size={18} />
+                    {saved ? 'Régénérer' : 'Générer la carte'}
+                  </button>
+                  {/* Boutons d'itinéraire entre les lieux de la liste, à cacher (réglage de l'appareil). */}
+                  <label className="map-toggle" title="Boutons d’itinéraire dans la liste des lieux">
+                    <input
+                      type="checkbox"
+                      checked={mapRouteButtons}
+                      onChange={(e) => updateSettings({ mapRouteButtons: e.target.checked })}
+                    />
+                    Trajets
+                  </label>
+                </div>
 
                 <div className="map-legend">
                   {days.map((d) => (
@@ -263,7 +274,7 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
                     const route = routeLegs.get(s.number);
                     return (
                       <Fragment key={s.number}>
-                        {route && (
+                        {route && mapRouteButtons && (
                           <RouteItem
                             route={route}
                             onChoose={busy ? undefined : () => setChoosing(segmentKey(route.segment))}
