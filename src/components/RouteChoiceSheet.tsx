@@ -1,4 +1,4 @@
-import { Check, Crosshair, LoaderCircle, MapPinPlus, X } from 'lucide-react';
+import { Check, LoaderCircle, MapPinPlus, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { communeAt, formatPlace } from '../lib/geo';
 import { orderWaypoints, routeOptions, routeVia, type RouteOption, type ViaMode } from '../lib/route';
@@ -68,8 +68,8 @@ const sameKm = (a: number, b: number) => Math.abs(a - b) < 0.5;
 /**
  * Choix de l'itinéraire d'un tronçon parmi ceux proposés, comparés aux km relevés au compteur.
  * « Passer par une ville… » ajoute deux itinéraires imposés : par le centre de la ville, et par la grande
- * route la plus proche (contournement, voie rapide). « Placer un point » : un point touché sur la carte, pris tel
- * quel (déplaçable au doigt). Villes et points se cumulent, rangés du départ vers l'arrivée.
+ * route la plus proche (contournement, voie rapide). Bouton rond sur la carte : un point touché sur la carte,
+ * pris tel quel (déplaçable au doigt). Villes et points se cumulent, rangés du départ vers l'arrivée.
  */
 export default function RouteChoiceSheet({ segment, current, onChoose, onClose }: Props) {
   const [options, setOptions] = useState<RouteOption[] | null>(null);
@@ -244,20 +244,36 @@ export default function RouteChoiceSheet({ segment, current, onChoose, onClose }
             </span>
           </p>
 
-          <RouteMap
-            lines={lines}
-            selected={all.length ? shown : 0}
-            markers={markers}
-            onSelect={(i) => all[i] && setSelected(all[i].key)}
-            placing={placing}
-            onPlace={placePoint}
-            onMove={movePoint}
-            fitKey={fitKey}
-            label="Itinéraires proposés pour ce trajet"
-          />
+          <div className="route-map-frame">
+            <RouteMap
+              lines={lines}
+              selected={all.length ? shown : 0}
+              markers={markers}
+              onSelect={(i) => all[i] && setSelected(all[i].key)}
+              placing={placing}
+              onPlace={placePoint}
+              onMove={movePoint}
+              fitKey={fitKey}
+              label="Itinéraires proposés pour ce trajet"
+            />
+            {/* Placer un point de passage : bouton rond posé sur la carte (le retoucher annule). */}
+            {(options || failed) && !draft && (
+              <button
+                type="button"
+                className={`map-image-btn route-place-btn${placing ? ' active' : ''}`}
+                aria-label={placing ? 'Annuler le point' : 'Placer un point de passage'}
+                aria-pressed={placing}
+                title={placing ? 'Annuler le point' : 'Placer un point de passage'}
+                onClick={() => setPlacing((p) => !p)}
+                disabled={viaState === 'busy'}
+              >
+                {placing ? <X size={18} /> : <MapPinPlus size={18} />}
+              </button>
+            )}
+          </div>
           <p className={`hint route-map-hint${placing ? ' placing' : ''}`}>
             {placing
-              ? 'Touche la carte à l’endroit voulu (zoome d’abord pour viser juste).'
+              ? 'Touche la carte à l’endroit voulu (zoome d’abord pour viser juste) ; la croix annule.'
               : ordered.some((v) => v.kind === 'point')
                 ? 'Fais glisser un point blanc pour l’ajuster ; touche un tracé pour le choisir.'
                 : 'Zoome et déplace la carte ; touche un tracé pour le choisir.'}
@@ -335,37 +351,20 @@ export default function RouteChoiceSheet({ segment, current, onChoose, onClose }
                 Annuler
               </button>
             </div>
-          ) : placing ? (
-            <button
-              type="button"
-              className="btn-secondary btn-icon lv-add map-generate"
-              onClick={() => setPlacing(false)}
-            >
-              <X size={18} />
-              Annuler le point
-            </button>
           ) : (
             (options || failed) && (
-              <div className="route-via-buttons">
-                <button
-                  type="button"
-                  className="btn-secondary btn-icon lv-add"
-                  onClick={() => setDraft(EMPTY_PLACE)}
-                  disabled={viaState === 'busy'}
-                >
-                  <MapPinPlus size={18} />
-                  {hasCity ? 'Autre ville' : 'Passer par une ville'}
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary btn-icon lv-add"
-                  onClick={() => setPlacing(true)}
-                  disabled={viaState === 'busy'}
-                >
-                  <Crosshair size={18} />
-                  Placer un point
-                </button>
-              </div>
+              <button
+                type="button"
+                className="btn-secondary btn-icon lv-add map-generate"
+                onClick={() => {
+                  setPlacing(false);
+                  setDraft(EMPTY_PLACE);
+                }}
+                disabled={viaState === 'busy'}
+              >
+                <Search size={18} />
+                {hasCity ? 'Ajouter une autre ville' : 'Passer par une ville…'}
+              </button>
             )
           )}
 

@@ -1522,7 +1522,10 @@ legend { margin-bottom: 6px; }
   background: none;
   color: var(--muted);
 }
-.route-via-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* Bouton rond « placer un point » posé en bas à droite de la carte, au-dessus de la mention des sources */
+.route-map-frame { position: relative; }
+.route-place-btn { bottom: 26px; z-index: 1; }
+.route-place-btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 .route-via-field { display: grid; gap: 4px; }
 .route-via-field .btn-link { justify-self: center; }
 

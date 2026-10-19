@@ -130,7 +130,8 @@ export default function RouteMap({
     const m = map.current;
     const points = [...lines.flatMap((l) => l.coords), ...markers.map((p) => p.at)];
     if (!m || !points.length) return;
-    m.fitBounds(L.latLngBounds(points), { padding: [24, 24] });
+    // Marge du bas plus grande : la mention des sources ne cache pas une étape.
+    m.fitBounds(L.latLngBounds(points), { paddingTopLeft: [24, 24], paddingBottomRight: [24, 44] });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitKey]);
 
