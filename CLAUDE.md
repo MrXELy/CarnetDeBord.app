@@ -33,7 +33,7 @@ React 19, Vite, TypeScript, vite-plugin-pwa, date-fns (locale fr), lucide-react,
   - Une synchro demandée pendant une synchro en cours est relancée une seule fois à sa fin.
   - Si le lot d'envoi est refusé, les lignes repartent une par une (`isRowRefusal`) : la ligne refusée reste dans la file, l'erreur la nomme (`RowRefusedError`) et la synchro continue (réception, LV, photos, cartes, réglages) ; une LV qui pointe vers une étape refusée est refusée seule. Panne réseau, session expirée, colonne ou table absente : pas de renvoi ligne par ligne.
   - Le curseur de réception est `date|id` (un ancien curseur, la date seule, est encore lu).
-- `src/lib/weekSheet.ts` : contenu de la feuille de semaine (calcul pur, testé) ; `src/lib/weekSheetPdf.ts` : son dessin en PDF (jsPDF, importé à la demande) ; `src/lib/share.ts` : partage ou téléchargement d'un fichier (PDF, images des cartes).
+- `src/lib/weekSheet.ts` : contenu de la feuille de semaine (calcul pur, testé) ; `src/lib/weekSheetPdf.ts` : son dessin en PDF (jsPDF, importé à la demande) ; `src/lib/share.ts` : partage ou téléchargement d'un fichier (PDF, images des cartes) ; le téléchargement est forcé (type `application/octet-stream`), jamais une ouverture dans un onglet (about:blank dans l'appli installée Firefox Android).
 - `src/lib/signOut.ts` : déconnexion. `src/lib/useSwipe.ts` : glissement (semaine, statistiques).
 - `src/components/stats/` : morceaux de `StatsPage.tsx` (tuiles, sections, calendrier…). À n'importer que depuis `StatsPage.tsx`, pour rester dans le morceau chargé à la demande. Options, Recherche et page LV, comme les cartes et les Statistiques, sont chargées avec `lazy`.
 - `src/lib/dates.ts` : la semaine commence le **dimanche à 22h**.
