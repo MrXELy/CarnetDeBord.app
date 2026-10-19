@@ -11,6 +11,16 @@ import { plateKey, type TripEvent } from '../types';
 /** Plein complet : choisi à la saisie ; pour les anciennes étapes, toujours chez Doumen, jamais ailleurs. */
 export const isFullTank = (e: TripEvent) => e.full_tank ?? e.station === 'Doumen';
 
+/** Sans accents, majuscules ni tirets, pour comparer des noms de villes. */
+export const plainCity = (s: string) =>
+  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[-'’]/g, ' ').replace(/\s+/g, ' ').trim();
+
+/** Villes des stations Doumen : un plein noté là y est fait d'office (station choisie à la saisie). */
+const DOUMEN_CITIES = ['Saint-Loubès', 'Aimargues', 'Villeneuve-sur-Lot', 'Monteux', 'Boulazac-Isle-Manoire'].map(
+  plainCity,
+);
+export const isDoumenCity = (city: string) => DOUMEN_CITIES.includes(plainCity(city));
+
 /** Conso crédible d'un poids lourd (L/100 km) : en dehors, l'intervalle est écarté. */
 export const MIN_RATE = 15;
 export const MAX_RATE = 50;

@@ -649,6 +649,13 @@ legend { margin-bottom: 6px; }
   letter-spacing: 0.04em;
 }
 
+/* L'IA n'est pas sûre de sa lecture : à vérifier en priorité */
+.read-tag-doubt {
+  background: rgba(251, 146, 60, 0.16);
+  color: #fdba74;
+}
+.reading-details dd .read-tag { margin-left: 8px; }
+
 /* Fiche LV : champs regroupés en blocs (chargeur, destinataire, numéro et marchandise) */
 .form-block {
   display: grid;

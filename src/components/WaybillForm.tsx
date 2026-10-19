@@ -4,7 +4,7 @@ import { toLocalInput } from '../lib/dates';
 import { formatPlace, placeFromLabel, resolveCity } from '../lib/geo';
 import { demoReading, finalProgress, liveProgress, liveSteps, type ReadDetails } from '../lib/liveReading';
 import { parseNum, numText } from '../lib/numbers';
-import { applyReading, readingSummary, type ReadableFields } from '../lib/ocr';
+import { applyReading, readingSummary, uncertainFields, type ReadableFields } from '../lib/ocr';
 import {
   compressPhoto,
   newPhotoPath,
@@ -86,6 +86,8 @@ export default function WaybillForm(props: Props) {
   const [reliable, setReliable] = useState<Set<string>>(() => new Set());
   // Valeurs posées par la dernière lecture : une relecture peut les remplacer, pas ce qui a été tapé.
   const fromReading = useRef<Partial<ReadableFields>>({});
+  // Champs remplis par la lecture dont l'IA n'est pas sûre (étiquette « LU » orange).
+  const doubtful = useRef(new Set<keyof ReadableFields>());
   const camera = useRef<HTMLInputElement>(null);
 
   // Marchandise : une ligne si c'est court, la zone grandit avec le texte (saisi ou lu sur la photo).
@@ -190,7 +192,12 @@ export default function WaybillForm(props: Props) {
       setConsignee(fields.consignee);
       setGoods(fields.goods);
       setWeight(fields.weight_kg);
-      for (const key of filled) fromReading.current[key] = fields[key];
+      const doubts = uncertainFields(result.reading);
+      for (const key of filled) {
+        fromReading.current[key] = fields[key];
+        if (doubts.includes(key)) doubtful.current.add(key);
+        else doubtful.current.delete(key);
+      }
       setReading({
         state: 'done',
         message: readingSummary(fields, filled),
@@ -265,9 +272,17 @@ export default function WaybillForm(props: Props) {
     }
   }
 
-  /** Étiquette « LU » sur un champ encore tel que la lecture automatique l'a rempli. */
+  /** Étiquette « LU » sur un champ encore tel que la lecture automatique l'a rempli (orange si l'IA doute). */
   const readTag = (key: keyof ReadableFields, value: string) =>
-    value.trim() !== '' && fromReading.current[key] === value && <span className="read-tag">LU</span>;
+    value.trim() !== '' &&
+    fromReading.current[key] === value &&
+    (doubtful.current.has(key) ? (
+      <span className="read-tag read-tag-doubt" title="L’IA n’est pas sûre de cette lecture">
+        LU
+      </span>
+    ) : (
+      <span className="read-tag">LU</span>
+    ));
 
   const last = photos[photos.length - 1];
   const canRead = last && reading.state !== 'busy' && !read.has(last);

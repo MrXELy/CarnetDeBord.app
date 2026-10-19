@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { TripEvent } from '../types';
-import { averageRate, fuelIntervals, fuelReport, intervalRate, isFullTank, recentIntervals } from './fuel';
+import {
+  averageRate,
+  fuelIntervals,
+  fuelReport,
+  intervalRate,
+  isDoumenCity,
+  isFullTank,
+  recentIntervals,
+} from './fuel';
 
 let n = 0;
 function ev(occurred: string, extra: Partial<TripEvent> = {}): TripEvent {
@@ -148,5 +156,15 @@ describe('fuelReport', () => {
     const r = fuelReport(events, new Date('2026-10-18T22:00'), new Date('2026-10-25T22:00'));
     // 102000 → 103000 mesurés à 30 L/100, 103000 → 104000 estimés à 30 L/100.
     expect(r).toMatchObject({ bought: 650, km: 2000, used: 600, measuredKm: 1000, rate: 30 });
+  });
+});
+
+describe('isDoumenCity', () => {
+  it('reconnaît les villes des stations, sans tenir compte des accents ni des tirets', () => {
+    expect(isDoumenCity('Monteux')).toBe(true);
+    expect(isDoumenCity('saint loubes')).toBe(true);
+    expect(isDoumenCity('Boulazac Isle Manoire')).toBe(true);
+    expect(isDoumenCity('Toulouse')).toBe(false);
+    expect(isDoumenCity('')).toBe(false);
   });
 });

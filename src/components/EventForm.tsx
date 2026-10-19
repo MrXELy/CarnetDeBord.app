@@ -1,8 +1,8 @@
 import { parseISO } from 'date-fns';
 import { Camera, LoaderCircle, Pencil, Plus, X } from 'lucide-react';
-import { useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { toLocalInput } from '../lib/dates';
-import { isFullTank } from '../lib/fuel';
+import { isDoumenCity, isFullTank } from '../lib/fuel';
 import { formatPlace } from '../lib/geo';
 import { numText, parseNum } from '../lib/numbers';
 import { odometerMessage, readOdometerPhoto } from '../lib/odometer';
@@ -197,6 +197,11 @@ export default function EventForm({ event, onClose }: Props) {
     setStation(value);
     setFullTank(value === 'Doumen');
   }
+
+  // Plein dans une ville de station Doumen : Doumen choisi d'office, si aucune station ne l'est encore.
+  useEffect(() => {
+    if (isFuel && !station && isDoumenCity(place.city)) chooseStation('Doumen');
+  }, [isFuel, station, place.city]);
 
   /**
    * Un chargement saisi reçoit d'office une LV vide, à compléter plus tard.

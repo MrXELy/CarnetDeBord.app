@@ -15,7 +15,8 @@ export const READING_LABELS: [Exclude<keyof WaybillReading, 'remarks'>, string][
 /** Ce que l'IA a déjà écrit : ses remarques terminées et les informations complètes (null = non trouvée). */
 export interface LiveProgress {
   remarks: string[];
-  found: { label: string; value: string | null }[];
+  /** `doubt` : l'IA a donné l'information mais n'en est pas sûre (connu seulement à la fin). */
+  found: { label: string; value: string | null; doubt?: boolean }[];
 }
 
 /** Chaîne JSON complète (guillemets compris), commençant exactement à la position donnée. */
@@ -66,7 +67,10 @@ export function finalProgress(reading: WaybillReading): LiveProgress {
         : readingValue(key, reading[key]);
   return {
     remarks: (reading.remarks ?? []).map((r) => r.trim()).filter(Boolean),
-    found: READING_LABELS.map(([key, label]) => ({ label, value: value(key) })),
+    found: READING_LABELS.map(([key, label]) => {
+      const v = value(key);
+      return v && reading.uncertain?.includes(key) ? { label, value: v, doubt: true } : { label, value: v };
+    }),
   };
 }
 
@@ -101,6 +105,7 @@ export async function demoReading(
     consignee_department: '31',
     goods: '12 pal plaques de plâtre',
     weight_kg: 18450,
+    uncertain: ['weight_kg'],
   };
   const json = JSON.stringify(reading);
   for (let i = 12; i < json.length; i += 12) {

@@ -59,7 +59,10 @@ Puis extrais uniquement ce qui est réellement écrit sur le document :
 - goods : la nature de la marchandise avec la quantité, en une ligne courte (80 caractères maximum). Une seule ligne : recopie-la telle qu'écrite (ex. « 9 pal laine de roche »). Plusieurs lignes : résume avec le total des quantités par unité et la nature générale (ex. « 21 pal + 40 pc plaques de plâtre et rails »).
 - weight_kg : le poids brut TOTAL en kilogrammes. S'il y a une ligne de total, prends-la plutôt que d'additionner. Attention à la virgule décimale française : « 2,628t » → 2628 ; « 12 712 kg » → 12712 ; « 27 168,276 KG » → 27168.276.
 
-Si une information est absente, illisible ou incertaine, mets null : n'invente jamais rien. Si la photo montre d'autres papiers autour de la lettre, ignore-les.`;
+Si une information est absente ou illisible, mets null : n'invente jamais rien. Si tu la lis mais en doutes (caractère hésitant, écriture difficile, chiffre à moitié caché), donne ta meilleure lecture.
+- uncertain : à la fin, la liste des informations que tu as données mais dont tu n'es pas sûr (ex. ["weight_kg", "consignee_name"]), pour que le chauffeur les vérifie. Liste vide si tu es sûr de tout.
+
+Si la photo montre d'autres papiers autour de la lettre, ignore-les.`;
 
 const ODOMETER_SYSTEM = `Tu lis le kilométrage total d'un camion sur une photo : écran du chronotachygraphe (par exemple VDO DTCO, qui affiche à l'arrêt une ligne du type « 123456.7km ») ou compteur du tableau de bord.
 
@@ -82,6 +85,13 @@ const SCHEMA = {
     consignee_department: nullable('string'),
     goods: nullable('string'),
     weight_kg: nullable('number'),
+    uncertain: {
+      type: 'array',
+      items: {
+        type: 'string',
+        enum: ['number', 'shipper_name', 'shipper_city', 'consignee_name', 'consignee_city', 'goods', 'weight_kg'],
+      },
+    },
   },
   required: [
     'remarks',
@@ -94,6 +104,7 @@ const SCHEMA = {
     'consignee_department',
     'goods',
     'weight_kg',
+    'uncertain',
   ],
   additionalProperties: false,
 };
@@ -212,9 +223,7 @@ Deno.serve(async (req) => {
       model: MODELS[mode],
       max_tokens: MAX_TOKENS,
       // Repli en cas de refus : disponible pour le modèle principal seulement (pas pour Haiku).
-      ...(mode === 'handwritten'
-        ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const }
-        : {}),
+      ...(mode === 'handwritten' ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
       output_config: { effort: 'low', format: { type: 'json_schema', schema: odometer ? ODOMETER_SCHEMA : SCHEMA } },
       system: odometer ? ODOMETER_SYSTEM : SYSTEM,
       messages: [

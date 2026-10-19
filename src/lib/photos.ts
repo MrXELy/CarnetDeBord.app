@@ -209,6 +209,8 @@ export interface WaybillReading {
   consignee_department: string | null;
   goods: string | null;
   weight_kg: number | null;
+  /** Informations données mais dont l'IA doute (absentes avec une ancienne version du serveur). */
+  uncertain?: string[];
 }
 
 /**

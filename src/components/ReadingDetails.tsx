@@ -23,10 +23,13 @@ export default function ReadingDetails({ details }: { details: ReadDetails }) {
         <h3>Ce qu’elle a lu</h3>
         {progress.found.length ? (
           <dl>
-            {progress.found.map(({ label, value }) => (
+            {progress.found.map(({ label, value, doubt }) => (
               <div key={label}>
                 <dt>{label}</dt>
-                <dd className={value ? undefined : 'muted'}>{value ?? 'non trouvé'}</dd>
+                <dd className={value ? undefined : 'muted'}>
+                  {value ?? 'non trouvé'}
+                  {doubt && <span className="read-tag read-tag-doubt">pas sûr</span>}
+                </dd>
               </div>
             ))}
           </dl>

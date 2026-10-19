@@ -52,6 +52,22 @@ export function readingSummary(fields: ReadableFields, filled: (keyof ReadableFi
   }`;
 }
 
+/** Informations lues (noms du serveur) qui remplissent chaque champ de la fiche. */
+const READING_KEYS: Record<keyof ReadableFields, string> = {
+  number: 'number',
+  shipper: 'shipper_name',
+  consignee: 'consignee_name',
+  planned_city: 'consignee_city',
+  goods: 'goods',
+  weight_kg: 'weight_kg',
+};
+
+/** Champs de la fiche dont l'IA doute (étiquette « LU » orange) ; aucun avec une ancienne version du serveur. */
+export function uncertainFields(reading: WaybillReading): (keyof ReadableFields)[] {
+  const doubts = reading.uncertain ?? [];
+  return (Object.keys(READING_KEYS) as (keyof ReadableFields)[]).filter((k) => doubts.includes(READING_KEYS[k]));
+}
+
 /**
  * Remplit les champs encore vides avec ce qui a été lu sur la photo : rien de ce que
  * l'utilisateur a saisi n'est écrasé. Pour une relecture, `previous` contient les valeurs

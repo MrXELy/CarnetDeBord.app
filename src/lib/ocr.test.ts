@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyReading, cityLabel, clientName, readingSummary, type ReadableFields } from './ocr';
+import { applyReading, cityLabel, clientName, readingSummary, uncertainFields, type ReadableFields } from './ocr';
 
 const empty: ReadableFields = { number: '', shipper: '', consignee: '', planned_city: '', goods: '', weight_kg: '' };
 
@@ -125,5 +125,18 @@ describe('readingSummary', () => {
 
   it('rien de nouveau', () => {
     expect(readingSummary(full, [])).toBe('Rien de nouveau sur la photo');
+  });
+});
+
+describe('uncertainFields', () => {
+  it('champs de la fiche dont l’IA doute', () => {
+    expect(uncertainFields({ ...reading, uncertain: ['weight_kg', 'consignee_city', 'shipper_city'] })).toEqual([
+      'planned_city',
+      'weight_kg',
+    ]);
+  });
+
+  it('ancienne version du serveur : aucun doute', () => {
+    expect(uncertainFields(reading)).toEqual([]);
   });
 });

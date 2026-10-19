@@ -1,7 +1,7 @@
 import { addDays, addHours, getDay, getISOWeek, parseISO, startOfDay } from 'date-fns';
 import type { TripEvent, Waybill } from '../types';
 import { workDay } from './dates';
-import { isFullTank } from './fuel';
+import { isFullTank, plainCity as plain } from './fuel';
 
 /** Réglages de la feuille de semaine (Options), partagés entre les appareils. */
 export interface SheetSettings {
@@ -96,10 +96,6 @@ export function sheetPlace(e: Pick<TripEvent, 'city' | 'department' | 'country_c
   const suffix = !e.country_code || e.country_code === 'FR' ? e.department : e.country_code;
   return suffix ? `${e.city} ${suffix}` : e.city;
 }
-
-/** Sans accents, majuscules ni tirets, pour comparer des noms de villes. */
-const plain = (s: string) =>
-  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[-'’]/g, ' ').replace(/\s+/g, ' ').trim();
 
 /** Colonne des litres : AS24 et DKV ont la leur, sinon le dépôt de la ville du plein, sinon Divers. */
 export function fuelColumn(e: Pick<TripEvent, 'station' | 'city'>, depots: SheetDepot[]): number {

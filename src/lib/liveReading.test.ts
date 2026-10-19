@@ -60,6 +60,12 @@ describe('finalProgress', () => {
     expect(found).toContainEqual({ label: 'Poids', value: null });
   });
 
+  it('informations dont l’IA doute marquées, sauf si non trouvées', () => {
+    const { found } = finalProgress({ ...reading, uncertain: ['goods', 'weight_kg'] });
+    expect(found).toContainEqual({ label: 'Marchandise', value: reading.goods, doubt: true });
+    expect(found.find((f) => f.label === 'Poids')?.doubt).toBeUndefined();
+  });
+
   it('ancienne version du serveur, sans remarques', () => {
     const { remarks } = finalProgress({ ...reading, remarks: undefined });
     expect(remarks).toEqual([]);
