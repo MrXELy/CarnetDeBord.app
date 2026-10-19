@@ -1454,6 +1454,28 @@ legend { margin-bottom: 6px; }
 .map-route-btn:not(:disabled):hover { background: var(--glass-hover); color: var(--text); }
 
 /* Fenêtre « Choisir l'itinéraire » */
+/* Carte navigable (Leaflet, Plan IGN) */
+.route-map {
+  height: min(58vh, 460px);
+  border-radius: var(--radius);
+  border: 1px solid var(--glass-border);
+  overflow: hidden;
+  background: #1a1f28;
+  z-index: 0; /* les contrôles de Leaflet restent sous les fenêtres ouvertes par-dessus */
+}
+.route-map .leaflet-control-attribution { font-size: 10px; }
+.route-map-hint { margin-top: -6px; text-align: center; }
+.route-map-pin span {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid #0b0d11;
+  font: 700 12px system-ui, sans-serif;
+  color: #0b0d11;
+}
+.route-map-via { border-radius: 50%; background: #fff; border: 3px solid #0b0d11; }
 .route-trip { display: grid; gap: 2px; margin: 0; }
 .route-options { display: grid; gap: 8px; }
 .route-option {

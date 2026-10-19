@@ -2,12 +2,12 @@ import { Check, LoaderCircle, MapPinPlus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { formatPlace } from '../lib/geo';
 import { routeOptions, routeVia, type RouteOption } from '../lib/route';
-import { useSettings } from '../lib/settings';
 import { useSheet } from '../lib/useSheet';
 import { closestRoute, type Stop, type StopSegment } from '../lib/weekStops';
 import type { MapLeg, Place } from '../types';
-import MapSvg, { mapUnit, project, stopPins, viewBox, type MapPin, type Point } from './MapSvg';
+import type { Point } from './MapSvg';
 import PlaceField, { EMPTY_PLACE } from './PlaceField';
+import RouteMap, { type RouteMarker } from './RouteMap';
 
 interface Props {
   segment: StopSegment;
@@ -42,7 +42,6 @@ const sameKm = (a: number, b: number) => Math.abs(a - b) < 0.5;
  * route la plus proche (contournement, voie rapide) ; d'autres villes de passage peuvent s'ajouter, dans l'ordre.
  */
 export default function RouteChoiceSheet({ segment, current, onChoose, onClose }: Props) {
-  const { mapCities, mapDepartments } = useSettings();
   const [options, setOptions] = useState<RouteOption[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [vias, setVias] = useState<Via[]>([]);
@@ -109,22 +108,18 @@ export default function RouteChoiceSheet({ segment, current, onChoose, onClose }
   const selectedIndex = selected ? all.indexOf(selected) : -1;
   const shown = selectedIndex >= 0 ? selectedIndex : currentIndex >= 0 ? currentIndex : Math.max(suggested, 0);
 
-  // Itinéraire choisi dessiné en dernier (par-dessus), les autres en transparence.
-  const order = all.map((_, i) => i).sort((a, b) => Number(a === shown) - Number(b === shown));
+  // Carte : tous les itinéraires de la liste (ou l'enregistré, en attendant), étapes numérotées, villes de passage.
   const lines = all.length
-    ? order.map((i) => ({
-        color: ROUTE_COLORS[i % ROUTE_COLORS.length] + (i === shown ? '' : '66'),
-        coords: all[i].coords,
-      }))
+    ? all.map((o, i) => ({ color: ROUTE_COLORS[i % ROUTE_COLORS.length], coords: o.coords }))
     : [{ color: ROUTE_COLORS[0], coords: current.coords }];
-  const stops = [segment.from, segment.to];
-  const box = viewBox([
-    ...stops.map((s): Point => [s.lat, s.lon]),
-    ...vias.map((v): Point => [v.lat, v.lon]),
-    ...lines.flatMap((l) => l.coords),
-  ]);
-  const viaPins: MapPin[] = vias.map((v) => ({ at: project([v.lat, v.lon]), color: '#e8eaed', approximate: false }));
-  const pins = [...viaPins, ...stopPins(stops, mapUnit(box) * 16, true)];
+  const markers: RouteMarker[] = [
+    ...vias.map((v): RouteMarker => ({ at: [v.lat, v.lon] })),
+    ...[segment.from, segment.to].map((s): RouteMarker => ({
+      at: [s.lat, s.lon],
+      label: String(s.number),
+      color: s.color,
+    })),
+  ];
 
   function pickVia(place: Place) {
     if (place.lat == null || place.lon == null) return setDraft(place); // saisie en cours
@@ -163,17 +158,15 @@ export default function RouteChoiceSheet({ segment, current, onChoose, onClose }
             </span>
           </p>
 
-          <div className="map-frame">
-            <MapSvg
-              box={box}
-              lines={lines}
-              pins={pins}
-              arrows={false}
-              cities={mapCities}
-              departments={mapDepartments}
-              label="Itinéraires proposés pour ce trajet"
-            />
-          </div>
+          <RouteMap
+            lines={lines}
+            selected={all.length ? shown : 0}
+            markers={markers}
+            onSelect={(i) => all[i] && setSelected(all[i])}
+            fitKey={`${all.length}|${viaKey}`}
+            label="Itinéraires proposés pour ce trajet"
+          />
+          <p className="hint route-map-hint">Zoome et déplace la carte ; touche un tracé pour le choisir.</p>
 
           {!options && !failed && (
             <p className="reading">
