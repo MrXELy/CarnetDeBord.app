@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Place, TripEvent } from '../types';
-import { decodePolyline6, routeOptions, routing, simplify } from './route';
+import { decodePolyline6, routeOptions, routeVia, routing, simplify } from './route';
 import { buildStops, closestRoute, dayLegs, distanceKm, stopSegments, stopsHash } from './weekStops';
 
 function ev(id: string, occurred: string, at: [number, number] | null, extra: Partial<TripEvent> = {}): TripEvent {
@@ -236,5 +236,49 @@ describe('routeOptions', () => {
       throw new Error('hors ligne');
     });
     expect(await routeOptions(NARBONNE, CARCASSONNE)).toBeNull();
+  });
+
+  it('fait passer l’itinéraire par une ville : par le centre ou par la grande route', async () => {
+    const asked: string[] = [];
+    vi.stubGlobal('fetch', async (url: string) => {
+      asked.push(decodeURIComponent(url));
+      return {
+        ok: true,
+        json: async () => ({
+          trip: { legs: [{ shape: direct }], summary: { length: 75, time: 4000 } },
+        }),
+      };
+    });
+    const GAILLAC: [number, number] = [43.901, 1.897];
+    expect(await routeVia(NARBONNE, CARCASSONNE, [GAILLAC], 'centre')).toMatchObject({ km: 75, coords: [NARBONNE, CARCASSONNE] });
+    await routeVia(NARBONNE, CARCASSONNE, [GAILLAC], 'road');
+    const [centre, road] = asked.map((a) => JSON.parse(a.slice(a.indexOf('json=') + 5)));
+    expect(centre.locations).toEqual([
+      { lat: 43.184, lon: 3.004 },
+      { lat: 43.901, lon: 1.897, type: 'through' },
+      { lat: 43.213, lon: 2.349 },
+    ]);
+    expect(centre.alternates).toBe(0);
+    expect(road.locations[1]).toEqual({ lat: 43.901, lon: 1.897, type: 'through', search_filter: { min_road_class: 'trunk' } });
+  });
+
+  it('se rabat sur OSRM par le centre seulement', async () => {
+    const asked: string[] = [];
+    vi.stubGlobal('fetch', async (url: string) => {
+      asked.push(url);
+      return url.includes('valhalla')
+        ? { ok: false }
+        : {
+            ok: true,
+            json: async () => ({
+              code: 'Ok',
+              routes: [{ distance: 80000, duration: 4200, geometry: { coordinates: [[3.004, 43.184], [2.349, 43.213]] } }],
+            }),
+          };
+    });
+    const GAILLAC: [number, number] = [43.901, 1.897];
+    expect((await routeVia(NARBONNE, CARCASSONNE, [GAILLAC], 'centre'))?.km).toBe(80);
+    expect(asked.at(-1)).toContain('3.00400,43.18400;1.89700,43.90100;2.34900,43.21300');
+    expect(await routeVia(NARBONNE, CARCASSONNE, [GAILLAC], 'road')).toBeNull();
   });
 });

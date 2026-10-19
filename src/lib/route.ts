@@ -61,15 +61,12 @@ export function decodePolyline6(encoded: string): Point[] {
   return points;
 }
 
-/** Itinéraires Valhalla (profil voiture) : le principal puis jusqu'à 2 autres. */
-async function valhallaOptions(from: Point, to: Point, signal?: AbortSignal): Promise<RouteOption[] | null> {
-  const request = {
-    locations: [from, to].map(([lat, lon]) => ({ lat: +lat.toFixed(5), lon: +lon.toFixed(5) })),
-    costing: 'auto',
-    alternates: 2,
-    units: 'kilometers',
-    directions_type: 'none',
-  };
+/** Point de passage Valhalla (coordonnées arrondies à 1 m). */
+const location = ([lat, lon]: Point) => ({ lat: +lat.toFixed(5), lon: +lon.toFixed(5) });
+
+/** Itinéraires Valhalla (profil voiture) : le principal puis les autres proposés. */
+async function valhallaOptions(locations: object[], alternates: number, signal?: AbortSignal) {
+  const request = { locations, costing: 'auto', alternates, units: 'kilometers', directions_type: 'none' };
   try {
     // Requête GET (paramètre json) : pas de demande préalable du navigateur.
     const res = await politeFetch(VALHALLA, `${VALHALLA}?json=${encodeURIComponent(JSON.stringify(request))}`, signal);
@@ -81,10 +78,11 @@ async function valhallaOptions(from: Point, to: Point, signal?: AbortSignal): Pr
     ];
     const options: RouteOption[] = [];
     for (const trip of trips as { legs?: { shape?: unknown }[]; summary?: { length?: unknown; time?: unknown } }[]) {
-      const shape = trip?.legs?.[0]?.shape;
+      const shapes = trip?.legs?.map((l) => l?.shape) ?? [];
       const km = trip?.summary?.length;
-      if (typeof shape !== 'string' || typeof km !== 'number') continue;
-      const coords = decodePolyline6(shape);
+      if (!shapes.length || shapes.some((sh) => typeof sh !== 'string') || typeof km !== 'number') continue;
+      // Un tracé par étape d'arrêt : mis bout à bout (le point de jonction une seule fois).
+      const coords = (shapes as string[]).flatMap((sh, i) => decodePolyline6(sh).slice(i ? 1 : 0));
       if (coords.length < 2) continue;
       const time = trip.summary?.time;
       options.push({ coords, km, minutes: typeof time === 'number' ? time / 60 : 0 });
@@ -96,9 +94,9 @@ async function valhallaOptions(from: Point, to: Point, signal?: AbortSignal): Pr
   }
 }
 
-/** Itinéraire OSRM (profil voiture), un seul. */
-async function osrmOptions(from: Point, to: Point, signal?: AbortSignal): Promise<RouteOption[] | null> {
-  const path = [from, to].map(([lat, lon]) => `${lon.toFixed(5)},${lat.toFixed(5)}`).join(';');
+/** Itinéraire OSRM (profil voiture) passant par ces points dans l'ordre, un seul. */
+async function osrmOptions(points: Point[], signal?: AbortSignal): Promise<RouteOption[] | null> {
+  const path = points.map(([lat, lon]) => `${lon.toFixed(5)},${lat.toFixed(5)}`).join(';');
   try {
     const res = await politeFetch(OSRM, `${OSRM}/${path}?overview=full&geometries=geojson`, signal);
     if (!res.ok) return null;
@@ -126,7 +124,34 @@ async function osrmOptions(from: Point, to: Point, signal?: AbortSignal): Promis
  * Renvoie null si aucun service ne répond ou ne trouve d'itinéraire.
  */
 export async function routeOptions(from: Point, to: Point, signal?: AbortSignal): Promise<RouteOption[] | null> {
-  return (await valhallaOptions(from, to, signal)) ?? (await osrmOptions(from, to, signal));
+  return (await valhallaOptions([location(from), location(to)], 2, signal)) ?? (await osrmOptions([from, to], signal));
+}
+
+/**
+ * Façon de passer par une ville : par son centre (la rue la plus proche du centre de la commune),
+ * ou par la grande route la plus proche (autoroute, voie rapide, nationale : contournement, rocade).
+ */
+export type ViaMode = 'centre' | 'road';
+
+/**
+ * Itinéraire qui passe par ces villes, dans l'ordre. Par le centre : Valhalla, sinon OSRM.
+ * Par la grande route : Valhalla seulement (OSRM ne sait pas choisir le type de route).
+ */
+export async function routeVia(
+  from: Point,
+  to: Point,
+  vias: Point[],
+  mode: ViaMode,
+  signal?: AbortSignal,
+): Promise<RouteOption | null> {
+  const through = vias.map((v) => ({
+    ...location(v),
+    type: 'through', // passage sans arrêt : pas de demi-tour imposé
+    ...(mode === 'road' && { search_filter: { min_road_class: 'trunk' } }),
+  }));
+  const found = await valhallaOptions([location(from), ...through, location(to)], 0, signal);
+  if (found) return found[0];
+  return mode === 'centre' ? ((await osrmOptions([from, ...vias, to], signal))?.[0] ?? null) : null;
 }
 
 /** Distance d'un point au segment [a, b] (en degrés, suffisant pour simplifier un tracé). */
