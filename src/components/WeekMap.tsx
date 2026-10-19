@@ -1,6 +1,6 @@
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { LoaderCircle, Route, X } from 'lucide-react';
+import { LoaderCircle, Play, Route, X } from 'lucide-react';
 import { Fragment, lazy, Suspense, useMemo, useRef, useState } from 'react';
 import { summarizeDay, summarizeWeek, timeLabel, weekLabel } from '../lib/dates';
 import { formatPlace } from '../lib/geo';
@@ -26,6 +26,7 @@ import { eventTypeInfo, type MapLeg, type Place, type TripEvent } from '../types
 import MapSvg, { ImageButton, MapCredits, mapUnit, renderImage, stopPins, viewBox, type Point } from './MapSvg';
 
 const RouteChoiceSheet = lazy(() => import('./RouteChoiceSheet'));
+const WeekReplay = lazy(() => import('./WeekReplay'));
 
 /** Tronçon qui arrive à un lieu, avec son itinéraire enregistré. */
 interface RouteLeg {
@@ -52,6 +53,7 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   // Tronçon dont on choisit l'itinéraire (clé), dans sa fenêtre.
   const [choosing, setChoosing] = useState<string | null>(null);
+  const [replaying, setReplaying] = useState(false);
 
   const sheet = useSheet(onClose);
 
@@ -217,6 +219,17 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
                     label={`Carte des trajets de la ${weekLabel(start)}`}
                   />
                   <ImageButton onExport={exportImage} disabled={busy || stops.length === 0} />
+                  {/* Semaine rejouée : bouton rond en bas à gauche de la carte. */}
+                  <button
+                    type="button"
+                    className="map-image-btn map-replay-btn"
+                    aria-label="Rejouer la semaine"
+                    title="Rejouer la semaine"
+                    disabled={busy || stops.length < 2}
+                    onClick={() => setReplaying(true)}
+                  >
+                    <Play size={18} />
+                  </button>
                 </div>
 
                 {outdated && (
@@ -312,6 +325,12 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
           </div>
         </div>
       </div>
+
+      {replaying && (
+        <Suspense fallback={null}>
+          <WeekReplay start={start} stops={stops} legs={saved?.legs ?? []} onClose={() => setReplaying(false)} />
+        </Suspense>
+      )}
 
       {saved && chosen && (
         <Suspense fallback={null}>

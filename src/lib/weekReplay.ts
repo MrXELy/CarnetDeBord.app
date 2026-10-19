@@ -41,7 +41,7 @@ type Phase = {
   /** Nombre de lieux atteints pendant ce moment. */
   stopsReached: number;
 } & (
-  | { kind: 'drive'; drive: number }
+  | { kind: 'drive'; drive: number; caption: string }
   | { kind: 'stop'; stop: number; caption: string }
   | { kind: 'rest'; stop: number; caption: string }
 );
@@ -62,7 +62,7 @@ export interface ReplayFrame {
   stopsReached: number;
   /** Position du camion. */
   truck: Point;
-  caption: string | null;
+  caption: string;
 }
 
 /** Poids d'un arrêt et d'un repos dans l'animation (un trajet d'une heure pèse 1). */
@@ -186,6 +186,7 @@ export function buildReplay(stops: Stop[], legs: MapLeg[] = []): Replay {
     push(Math.max(hours(realTo - realFrom), MIN_DRIVE_HOURS), {
       kind: 'drive',
       drive: drives.length - 1,
+      caption: `Vers ${placeOf(segment.to)}`,
       realFrom,
       realTo,
       day: segment.day,
@@ -238,12 +239,13 @@ export function replayFrame(replay: Replay, t: number): ReplayFrame | null {
   }
   return {
     kind: phase.kind,
-    day: phase.day,
+    // Pendant un repos, le jour suit l'horloge (la nuit passe au lendemain).
+    day: phase.kind === 'rest' ? dayKey(clock.toISOString()) : phase.day,
     clock,
     km,
     lines,
     stopsReached: phase.kind === 'drive' && f >= 1 ? phase.stopsReached + 1 : phase.stopsReached,
     truck,
-    caption: phase.kind === 'drive' ? null : phase.caption,
+    caption: phase.caption,
   };
 }

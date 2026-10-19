@@ -1396,6 +1396,22 @@ legend { margin-bottom: 6px; }
 }
 
 .map-image-btn:disabled:not([aria-busy='true']) { opacity: 0.45; }
+.map-replay-btn { right: auto; left: 10px; }
+
+/* Semaine rejouée */
+.replay-canvas {
+  display: block;
+  width: 100%;
+  margin: 0 auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--glass-border);
+  cursor: pointer;
+}
+.replay-canvas.vertical { width: auto; max-width: 100%; height: min(62vh, 720px); }
+.replay-controls { display: flex; align-items: center; gap: 12px; }
+.replay-controls .replay-play { position: static; flex: none; }
+.replay-seek { flex: 1; accent-color: var(--accent); }
+.replay-background { position: absolute; width: 0; height: 0; overflow: hidden; }
 
 .map-generate { width: 100%; }
 .map-route-toggle { justify-self: center; margin-top: -6px; font-size: 0.85rem; }

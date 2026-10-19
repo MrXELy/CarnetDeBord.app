@@ -30,15 +30,15 @@ const week = [
 describe('buildReplay', () => {
   it('suit la semaine dans l’ordre : arrêts, trajets et repos de la nuit', () => {
     const replay = buildReplay(buildStops(week).stops);
-    expect(replay.phases.map((p) => [p.kind, 'caption' in p ? p.caption : null])).toEqual([
+    expect(replay.phases.map((p) => [p.kind, p.caption])).toEqual([
       ['stop', 'Début — Narbonne'],
-      ['drive', null],
+      ['drive', 'Vers Carcassonne'],
       ['stop', 'Chargement — Carcassonne'],
-      ['drive', null],
+      ['drive', 'Vers Toulouse'],
       ['stop', 'Fin — Toulouse'],
       ['rest', 'Repos · 18 h'],
       ['stop', 'Début — Toulouse'],
-      ['drive', null],
+      ['drive', 'Vers Périgueux'],
       ['stop', 'Livraison · Fin — Périgueux'],
     ]);
     // Pas de nom de client dans les textes.
@@ -72,6 +72,12 @@ describe('replayFrame', () => {
     const f = replayFrame(replay, 1)!;
     expect(f).toMatchObject({ kind: 'stop', km: 400, truck: PERIGUEUX, stopsReached: 4 });
     expect(f.lines).toHaveLength(3);
+  });
+
+  it('passe au lendemain pendant le repos de la nuit', () => {
+    const rest = replay.phases[5];
+    expect(replayFrame(replay, (rest.from + 0.1 * (rest.to - rest.from)) / replay.total)!.day).toBe('2026-02-03');
+    expect(replayFrame(replay, (rest.from + 0.9 * (rest.to - rest.from)) / replay.total)!.day).toBe('2026-02-04');
   });
 
   it('fait avancer le camion le long du trajet en cours', () => {

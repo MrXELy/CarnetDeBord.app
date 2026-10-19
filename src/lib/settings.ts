@@ -13,6 +13,9 @@ export interface Settings {
   mapNumbers: boolean;
   /** Carte de la semaine : boutons d'itinéraire entre les lieux de la liste (cachés au départ). */
   mapRouteButtons: boolean;
+  /** Semaine rejouée : format (carré ou vertical) et durée de l'animation en secondes. */
+  replayFormat: 'square' | 'vertical';
+  replayDuration: number;
   /** Cartes de la semaine et du mois : cadrées sur les trajets, ou sur toute la France. */
   mapFrame: 'trips' | 'france';
 }
@@ -25,6 +28,8 @@ const DEFAULTS: Settings = {
   mapDepartments: true,
   mapNumbers: true,
   mapRouteButtons: false,
+  replayFormat: 'vertical',
+  replayDuration: 30,
   mapFrame: 'trips',
 };
 const listeners = new Set<() => void>();
