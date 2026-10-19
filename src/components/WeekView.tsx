@@ -123,8 +123,8 @@ export default function WeekView() {
     }
   }
 
-  // Glisser du doigt sur les jours : vers la droite → semaine précédente, vers la gauche → suivante.
-  const swipe = useSwipe(goWeek);
+  // Glisser du doigt n'importe où sur la page : vers la droite → semaine précédente, vers la gauche → suivante.
+  useSwipe(goWeek, { global: true });
 
   return (
     <div className="app">
@@ -246,7 +246,7 @@ export default function WeekView() {
         </div>
       )}
 
-      <main className={`days slide-${slide}`} key={start.getTime()} {...swipe}>
+      <main className={`days slide-${slide}`} key={start.getTime()}>
         {days.length === 0 ? (
           <div className="empty">
             <p>Aucune étape cette semaine.</p>
