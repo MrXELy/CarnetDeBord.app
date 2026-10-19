@@ -6,7 +6,7 @@ import { demoSnapshot } from '../lib/demoData';
 import { averageRate, formatRate, intervalKm, recentIntervals } from '../lib/fuel';
 import { monthUsage, photoStats } from '../lib/photos';
 import { updateSettings, useSettings } from '../lib/settings';
-import { shareFile } from '../lib/share';
+import { shareDiagnostic, shareFile, shareTest } from '../lib/share';
 import { signOutAndClear, type SignOutStep } from '../lib/signOut';
 import { useEvents, useStore } from '../lib/useEvents';
 import { useSheet } from '../lib/useSheet';
@@ -225,6 +225,13 @@ export default function Settings({ onClose }: { onClose: () => void }) {
           <p className="hint app-version">
             Version {__BUILD_COMMIT__} du {format(parseISO(__BUILD_DATE__), "dd/MM/yyyy 'à' HH:mm")}
             {import.meta.env.DEV && ' · test local'}
+          </p>
+          {/* DIAGNOSTIC TEMPORAIRE du partage de fichiers (appli installée Firefox Android). À retirer. */}
+          <p className="hint app-version">
+            Partage : {shareDiagnostic()}{' '}
+            <button type="button" className="btn-secondary" onClick={() => void shareTest().then((r) => alert(r))}>
+              Tester
+            </button>
           </p>
         </div>
       </div>
