@@ -28,6 +28,7 @@ import EmptySection from './stats/EmptySection';
 import DayDetail from './stats/DayDetail';
 import FuelSection from './stats/FuelSection';
 import WorkSection from './stats/WorkSection';
+import RestSection from './stats/RestSection';
 import PlacesSection from './stats/PlacesSection';
 import Calendar from './stats/Calendar';
 import RecordsSection from './stats/RecordsSection';
@@ -276,6 +277,7 @@ export default function StatsPage({ week, onClose }: Props) {
                 {period.kind !== 'jour' && (
                   <>
                     <WorkSection events={events} range={range} />
+                    <RestSection events={events} range={range} now={now} onPick={(p) => go(p, 'fade')} />
                     <PlacesSection events={events} waybills={waybills} range={range} weightKg={stats.weightKg} />
                     {period.kind === 'mois' && (
                       <Calendar period={period} events={events} now={now} onPick={(p) => go(p, 'fade')} />

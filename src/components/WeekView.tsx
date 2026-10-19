@@ -24,6 +24,7 @@ import { isDayBoundary, waybillStatus, type TripEvent } from '../types';
 import AllowancesSheet from './AllowancesSheet';
 import DaySection from './DaySection';
 import EventForm from './EventForm';
+import HomeNotices from './HomeNotices';
 import type { WaybillFilter } from './WaybillsPage';
 import WeekPicker from './WeekPicker';
 
@@ -44,7 +45,8 @@ export default function WeekView() {
   // Sens de l'animation au changement de semaine : glisse depuis la droite (suivante) ou la gauche (précédente).
   const [slide, setSlide] = useState<'next' | 'prev' | 'fade'>('fade');
   const [editing, setEditing] = useState<Editing>(null);
-  const [showSettings, setShowSettings] = useState(false);
+  // Options ouvertes, éventuellement sur une section (« reminders » : échéances).
+  const [showSettings, setShowSettings] = useState<boolean | string>(false);
   const [showStats, setShowStats] = useState(false);
   const [searching, setSearching] = useState(false);
   const [showAllowances, setShowAllowances] = useState(false);
@@ -246,6 +248,8 @@ export default function WeekView() {
         </div>
       )}
 
+      {isCurrentWeek && <HomeNotices onOpenReminders={() => setShowSettings('reminders')} />}
+
       <main className={`days slide-${slide}`} key={start.getTime()}>
         {days.length === 0 ? (
           <div className="empty">
@@ -294,7 +298,10 @@ export default function WeekView() {
       )}
       {showSettings && (
         <Suspense fallback={null}>
-          <Settings onClose={() => setShowSettings(false)} />
+          <Settings
+            section={typeof showSettings === 'string' ? showSettings : undefined}
+            onClose={() => setShowSettings(false)}
+          />
         </Suspense>
       )}
       {showStats && (

@@ -1,5 +1,6 @@
 import type { TripEvent, Waybill } from '../types';
 import type { AllowanceSettings } from './allowances';
+import type { ReminderSettings } from './reminders';
 import type { SyncState } from './sync';
 import type { SheetSettings } from './weekSheet';
 
@@ -10,7 +11,11 @@ import type { SheetSettings } from './weekSheet';
 export interface DemoData {
   events: TripEvent[];
   waybills?: Waybill[];
-  settings?: { allowances?: AllowanceSettings | null; week_sheet?: SheetSettings | null };
+  settings?: {
+    allowances?: AllowanceSettings | null;
+    week_sheet?: SheetSettings | null;
+    reminders?: ReminderSettings | null;
+  };
 }
 
 export const readDemoData = (data: TripEvent[] | DemoData): DemoData => (Array.isArray(data) ? { events: data } : data);
@@ -19,5 +24,9 @@ export const readDemoData = (data: TripEvent[] | DemoData): DemoData => (Array.i
 export const demoSnapshot = (state: SyncState): DemoData => ({
   events: state.events,
   waybills: state.waybills,
-  settings: { allowances: state.allowanceSettings, week_sheet: state.sheetSettings },
+  settings: {
+    allowances: state.allowanceSettings,
+    week_sheet: state.sheetSettings,
+    reminders: state.reminderSettings,
+  },
 });
