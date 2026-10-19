@@ -1,5 +1,5 @@
 import { parseISO } from 'date-fns';
-import { Camera, Eye, LoaderCircle, Plus, X } from 'lucide-react';
+import { Camera, Eye, LoaderCircle, Pencil, Plus, X } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { toLocalInput } from '../lib/dates';
 import { isDoumenCity, isFullTank } from '../lib/fuel';
@@ -332,6 +332,12 @@ export default function EventForm({ event, onClose }: Props) {
     else setDeliveryEdits(new Map(deliveryEdits).set(w.id, { ...w, deleted_at: new Date().toISOString() }));
   }
 
+  // Bouton d'une LV dans la liste : une LV encore vide s'ouvre en saisie (crayon), une LV remplie en lecture (œil).
+  const openLabel = (w: Waybill) => {
+    const label = isBlankWaybill(w) ? 'Remplir la lettre' : 'Voir la lettre';
+    return { 'aria-label': label, title: label };
+  };
+
   // Pastille de la fiche LV : chargement et livraison, celui de cette fiche pris tel qu'il est saisi.
   function editingContext(): string | undefined {
     if (!editing) return;
@@ -477,11 +483,10 @@ export default function EventForm({ event, onClose }: Props) {
                           <button
                             type="button"
                             className="icon-btn"
-                            aria-label="Voir la lettre"
-                            title="Voir la lettre"
+                            {...openLabel(w)}
                             onClick={() => setEditing({ waybill: w, isNew: false, side: 'load' })}
                           >
-                            <Eye size={16} />
+                            {isBlankWaybill(w) ? <Pencil size={16} /> : <Eye size={16} />}
                           </button>
                         }
                       />
@@ -544,11 +549,10 @@ export default function EventForm({ event, onClose }: Props) {
                           <button
                             type="button"
                             className="icon-btn"
-                            aria-label="Voir la lettre"
-                            title="Voir la lettre"
+                            {...openLabel(w)}
                             onClick={() => setEditing({ waybill: w, isNew: false, side: 'delivery' })}
                           >
-                            <Eye size={16} />
+                            {isBlankWaybill(w) ? <Pencil size={16} /> : <Eye size={16} />}
                           </button>
                         }
                       />
