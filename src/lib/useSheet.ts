@@ -9,8 +9,9 @@ export function shouldDismiss(dy: number, velocity: number, height: number): boo
   return dy > height * 0.25 || (velocity > 0.5 && dy > 30);
 }
 
-// Durée de l'animation de fermeture (ms), et marge si la fin de l'animation n'est jamais signalée.
-const CLOSE_MS = 260;
+// Fermeture au même rythme que l'ouverture (`sheet-up` : 0,38 s, départ rapide puis ralenti), en sens inverse.
+const CLOSE_MS = 380;
+const CLOSE_EASE = 'cubic-bezier(0.2, 0.9, 0.2, 1)';
 
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 // Sur PC, la fenêtre est centrée : elle s'efface au lieu de redescendre.
@@ -47,7 +48,7 @@ export function useSheet(onClose: () => void) {
     // de là où il est : en place, ou là où le doigt l'a lâché.
     sheet.style.animation = 'none';
     void sheet.offsetHeight;
-    sheet.style.transition = `transform ${CLOSE_MS}ms cubic-bezier(0.4, 0, 1, 1), opacity ${CLOSE_MS}ms ease`;
+    sheet.style.transition = `transform ${CLOSE_MS}ms ${CLOSE_EASE}, opacity ${CLOSE_MS}ms ease`;
     if (centered()) {
       sheet.style.transform = 'translateY(16px) scale(0.98)';
       sheet.style.opacity = '0';
