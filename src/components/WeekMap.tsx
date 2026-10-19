@@ -195,17 +195,16 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
                 </p>
               )}
 
-              {(!saved || outdated) && (
-                <button
-                  type="button"
-                  className="btn-primary btn-icon lv-add map-generate"
-                  onClick={generate}
-                  disabled={busy}
-                >
-                  <Route size={18} />
-                  {saved ? 'Régénérer' : 'Générer la carte'}
-                </button>
-              )}
+              {/* Toujours proposé : une carte à jour peut être recalculée (nouvelle méthode d'itinéraires). */}
+              <button
+                type="button"
+                className={`${!saved || outdated ? 'btn-primary' : 'btn-secondary'} btn-icon lv-add map-generate`}
+                onClick={generate}
+                disabled={busy}
+              >
+                <Route size={18} />
+                {saved ? 'Régénérer' : 'Générer la carte'}
+              </button>
 
               <div className="map-legend">
                 {days.map((d) => (
