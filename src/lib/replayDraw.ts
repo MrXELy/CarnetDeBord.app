@@ -1,6 +1,7 @@
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { project, type Box, type Point } from '../components/MapSvg';
+import { CITIES } from '../assets/cities';
+import { DEPARTEMENTS_PATH, FRANCE_PATH, project, type Box, type Point } from '../components/MapSvg';
 import type { Replay, ReplayFrame } from './weekReplay';
 import { dayColor } from './weekStops';
 
@@ -41,16 +42,88 @@ function dayTitle(day: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/** Contours de la France et des départements, préparés une fois (dessin vectoriel : net à tous les zooms). */
+let shapes: { france: Path2D; departments: Path2D } | null = null;
+
+/** Réglages du fond, comme sur la carte de la semaine. */
+export interface ReplayBackground {
+  cities: boolean;
+  departments: boolean;
+}
+
 /**
- * Dessine une image de l'animation : fond (carte sans tracés, déjà dessinée), trajets parcourus, lieux atteints,
- * camion, jour, heure, km et étape en cours. `progress` (0 à 1) remplit la barre du bas.
+ * Fond de carte dessiné à chaque image dans le cadre `box` (vue de la caméra) : France, départements, villes repères
+ * (les plus grandes de loin, d'autres en s'approchant ; pas sur les lieux atteints).
+ */
+function drawBackground(
+  ctx: CanvasRenderingContext2D,
+  box: Box,
+  top: number,
+  width: number,
+  options: ReplayBackground,
+  taken: Point[],
+  toXY: (at: Point) => Point,
+) {
+  shapes ??= { france: new Path2D(FRANCE_PATH), departments: new Path2D(DEPARTEMENTS_PATH) };
+  const scale = width / box.width;
+  ctx.fillStyle = '#0b0d11';
+  ctx.fillRect(0, top, width, box.height * scale);
+  ctx.save();
+  ctx.setTransform(scale, 0, 0, scale, -box.x * scale, top - box.y * scale);
+  ctx.lineJoin = 'round';
+  ctx.fillStyle = '#1a1f28';
+  ctx.fill(shapes.france);
+  if (options.departments) {
+    ctx.strokeStyle = '#2b3240';
+    ctx.lineWidth = 1.6 / scale;
+    ctx.stroke(shapes.departments);
+  }
+  ctx.strokeStyle = '#3f4858';
+  ctx.lineWidth = 2.6 / scale;
+  ctx.stroke(shapes.france);
+  ctx.restore();
+  if (!options.cities) return;
+
+  // Villes repères : les plus grandes toujours, les autres quand on est plus près ; sans chevauchement.
+  const maxRank = box.width < 4 ? 3 : box.width < 7 ? 2 : 1;
+  const blocked: [number, number, number, number][] = taken.map(([x, y]) => [x - 26, y - 22, x + 26, y + 22]);
+  ctx.font = `600 26px ${FONT}`;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  for (const c of [...CITIES].sort((a, b) => a.rank - b.rank)) {
+    if (c.rank > maxRank) continue;
+    const [x, y] = toXY([c.lat, c.lon]);
+    const w = ctx.measureText(c.name).width + 16;
+    const left = x + w > width;
+    const rect: [number, number, number, number] = left
+      ? [x - w, y - 16, x + 6, y + 16]
+      : [x - 6, y - 16, x + w, y + 16];
+    if (rect[0] < 0 || y < top || y > top + box.height * scale) continue;
+    if (blocked.some((b) => rect[0] < b[2] && b[0] < rect[2] && rect[1] < b[3] && b[1] < rect[3])) continue;
+    blocked.push(rect);
+    ctx.fillStyle = '#7c8596';
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = '#1a1f28';
+    ctx.textAlign = left ? 'right' : 'left';
+    ctx.strokeText(c.name, x + (left ? -12 : 12), y);
+    ctx.fillStyle = '#9aa3b2';
+    ctx.fillText(c.name, x + (left ? -12 : 12), y);
+  }
+}
+
+/**
+ * Dessine une image de l'animation dans le cadre `box` (vue de la caméra) : fond de carte, trajets parcourus,
+ * lieux atteints, camion, jour, heure, km et étape en cours. `progress` (0 à 1) remplit la barre du bas.
  */
 export function drawReplayFrame(
   ctx: CanvasRenderingContext2D,
   fmt: ReplayFormat,
   title: string,
   box: Box,
-  background: CanvasImageSource | null,
+  background: ReplayBackground,
   replay: Replay,
   frame: ReplayFrame,
   progress: number,
@@ -71,7 +144,16 @@ export function drawReplayFrame(
   ctx.beginPath();
   ctx.rect(0, top, W, mapHeight);
   ctx.clip();
-  if (background) ctx.drawImage(background, 0, top, W, mapHeight);
+  const reached = replay.stops.slice(0, frame.stopsReached);
+  drawBackground(
+    ctx,
+    box,
+    top,
+    W,
+    background,
+    reached.map((s) => toXY([s.lat, s.lon])),
+    toXY,
+  );
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   for (const line of frame.lines) {
@@ -89,7 +171,7 @@ export function drawReplayFrame(
     }
   }
   ctx.globalAlpha = 1;
-  for (const stop of replay.stops.slice(0, frame.stopsReached)) {
+  for (const stop of reached) {
     const [x, y] = toXY([stop.lat, stop.lon]);
     ctx.fillStyle = stop.color;
     ctx.strokeStyle = '#0b0d11';
@@ -156,15 +238,4 @@ function fitText(ctx: CanvasRenderingContext2D, text: string, max: number): stri
   let s = text;
   while (s.length > 1 && ctx.measureText(`${s}…`).width > max) s = s.slice(0, -1);
   return `${s}…`;
-}
-
-/** Image du fond de carte (dessin SVG sans tracés), à la taille voulue, pour la dessiner à chaque image. */
-export async function svgImage(svg: SVGSVGElement, width: number, height: number): Promise<HTMLImageElement> {
-  const copy = svg.cloneNode(true) as SVGSVGElement;
-  copy.setAttribute('width', String(width)); // sans taille, le dessin serait flou une fois agrandi
-  copy.setAttribute('height', String(height));
-  const img = new Image();
-  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(copy))}`;
-  await img.decode();
-  return img;
 }

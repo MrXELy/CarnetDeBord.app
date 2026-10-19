@@ -1,13 +1,13 @@
 import { Pause, Play, RotateCcw, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { weekLabel } from '../lib/dates';
-import { drawReplayFrame, replayBox, replayLayout, svgImage, type ReplayFormat } from '../lib/replayDraw';
+import { cameraAt, cameraTrack, OUTRO_SECONDS } from '../lib/replayCamera';
+import { drawReplayFrame, replayBox, replayLayout, type ReplayFormat } from '../lib/replayDraw';
 import { updateSettings, useSettings } from '../lib/settings';
 import { useSheet } from '../lib/useSheet';
 import { buildReplay, replayFrame } from '../lib/weekReplay';
 import type { Stop } from '../lib/weekStops';
 import type { MapLeg } from '../types';
-import MapSvg from './MapSvg';
 
 interface Props {
   start: Date;
@@ -25,31 +25,20 @@ export default function WeekReplay({ start, stops, legs, onClose }: Props) {
   const { replayFormat: fmt, replayDuration: duration, mapCities, mapDepartments } = useSettings();
   const sheet = useSheet(onClose);
   const canvas = useRef<HTMLCanvasElement>(null);
-  const backgroundSvg = useRef<SVGSVGElement>(null);
-  const [background, setBackground] = useState<HTMLImageElement | null>(null);
   const [progress, setProgress] = useState(0);
   const [playing, setPlaying] = useState(true);
 
   const replay = useMemo(() => buildReplay(stops, legs, duration), [stops, legs, duration]);
-  const box = useMemo(() => replayBox(replay, fmt), [replay, fmt]);
   const layout = replayLayout(fmt);
+  const camera = useMemo(
+    () => cameraTrack(replay, replayBox(replay, fmt), layout.width / layout.mapHeight),
+    [replay, fmt, layout.width, layout.mapHeight],
+  );
   const title = weekLabel(start);
+  // Durée totale : la semaine, puis le dézoom final et la pause sur la carte complète.
+  const length = replay.total + OUTRO_SECONDS;
 
-  // Fond de carte (France, départements, villes) dessiné une fois par cadre, puis réutilisé à chaque image.
-  useEffect(() => {
-    const svg = backgroundSvg.current;
-    if (!svg) return;
-    let alive = true;
-    setBackground(null);
-    svgImage(svg, layout.width, layout.mapHeight)
-      .then((img) => alive && setBackground(img))
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [box, layout.width, layout.mapHeight, mapCities, mapDepartments]);
-
-  // Lecture : l'avancement suit l'horloge, à la durée choisie ; arrêt à la fin.
+  // Lecture : l'avancement suit l'horloge ; arrêt à la fin.
   useEffect(() => {
     if (!playing) return;
     let raf = 0;
@@ -58,7 +47,7 @@ export default function WeekReplay({ start, stops, legs, onClose }: Props) {
       const dt = (now - last) / 1000;
       last = now;
       setProgress((p) => {
-        const next = Math.min(p + dt / duration, 1);
+        const next = Math.min(p + dt / length, 1);
         if (next >= 1) setPlaying(false);
         return next;
       });
@@ -66,15 +55,31 @@ export default function WeekReplay({ start, stops, legs, onClose }: Props) {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playing, duration]);
+  }, [playing, length]);
 
-  // Image affichée : redessinée à chaque changement d'avancement, de format ou de fond.
+  // Image affichée : redessinée à chaque changement d'avancement, de format ou de réglage du fond.
   useEffect(() => {
     const ctx = canvas.current?.getContext('2d');
-    const frame = replayFrame(replay, progress);
+    const seconds = progress * length;
+    const frame = replayFrame(replay, Math.min(seconds / replay.total, 1));
     if (!ctx || !frame) return;
-    drawReplayFrame(ctx, fmt, title, box, background, replay, frame, progress);
-  }, [replay, progress, fmt, title, box, background]);
+    // Fin : vue d'ensemble, avec le bilan de la semaine.
+    const days = new Set(replay.stops.map((s) => s.day)).size;
+    const shown =
+      seconds > replay.total
+        ? { ...frame, caption: `${days} jour${days > 1 ? 's' : ''} · ${replay.stops.length} lieux` }
+        : frame;
+    drawReplayFrame(
+      ctx,
+      fmt,
+      title,
+      cameraAt(camera, seconds),
+      { cities: mapCities, departments: mapDepartments },
+      replay,
+      shown,
+      progress,
+    );
+  }, [replay, camera, progress, length, fmt, title, mapCities, mapDepartments]);
 
   function toggle() {
     if (progress >= 1) setProgress(0);
@@ -170,26 +175,12 @@ export default function WeekReplay({ start, stops, legs, onClose }: Props) {
                 </p>
               )}
               <p className="hint">
-                Le camion roule toujours à la même vitesse ; arrêts et nuits durent le temps de lire (moins si
-                l’animation est courte). Itinéraires de la carte de la semaine (lignes droites si elle n’est pas
-                générée).
+                La caméra suit le camion, puis recule sur toute la semaine à la fin (4,5 s de plus). Le camion roule
+                toujours à la même vitesse ; arrêts et nuits durent le temps de lire (moins si l’animation est courte).
+                Itinéraires de la carte de la semaine (lignes droites si elle n’est pas générée).
               </p>
             </>
           )}
-
-          {/* Fond de carte, invisible : copié en image pour l'animation. */}
-          <div className="replay-background" aria-hidden>
-            <MapSvg
-              ref={backgroundSvg}
-              box={box}
-              lines={[]}
-              pins={[]}
-              arrows={false}
-              cities={mapCities}
-              departments={mapDepartments}
-              label=""
-            />
-          </div>
         </div>
       </div>
     </div>

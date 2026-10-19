@@ -226,6 +226,16 @@ function partial(drive: Drive, f: number): { coords: Point[]; at: Point } {
   return { coords: [...drive.coords.slice(0, i), at], at };
 }
 
+/** Position du camion à la seconde `seconds` de l'animation (sans le reste de l'image : sert à la caméra). */
+export function truckAt(replay: Replay, seconds: number): Point {
+  const { phases, drives, stops } = replay;
+  const w = Math.min(Math.max(seconds, 0), replay.total);
+  const phase = phases.find((p) => w <= p.to) ?? phases.at(-1)!;
+  if (phase.kind !== 'drive') return [stops[phase.stop].lat, stops[phase.stop].lon];
+  const f = phase.to > phase.from ? Math.min(Math.max((w - phase.from) / (phase.to - phase.from), 0), 1) : 1;
+  return partial(drives[phase.drive], f).at;
+}
+
 /** Image de l'animation à l'instant `t` (de 0 au début à 1 à la fin). */
 export function replayFrame(replay: Replay, t: number): ReplayFrame | null {
   const { phases, drives, stops } = replay;

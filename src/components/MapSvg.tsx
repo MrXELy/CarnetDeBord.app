@@ -21,8 +21,9 @@ const ringsPath = (rings: [number, number][][]) =>
     .map((ring) => 'M' + ring.map(([lon, lat]) => project([lat, lon]).map((v) => v.toFixed(3)).join(' ')).join('L') + 'Z')
     .join('');
 
-const FRANCE_PATH = ringsPath(france.rings as [number, number][][]);
-const DEPARTEMENTS_PATH = ringsPath(departements.rings as [number, number][][]);
+/** Contours de la France et des départements (tracés SVG en coordonnées projetées), aussi dessinés sur canvas. */
+export const FRANCE_PATH = ringsPath(france.rings as [number, number][][]);
+export const DEPARTEMENTS_PATH = ringsPath(departements.rings as [number, number][][]);
 
 type Rect = [number, number, number, number]; // gauche, haut, droite, bas
 const overlaps = (a: Rect, b: Rect) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
