@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Place, TripEvent } from '../types';
-import { decodePolyline6, routeOptions, routeVia, routing, simplify } from './route';
+import { decodePolyline6, orderWaypoints, routeOptions, routeVia, routing, simplify, tapRadius } from './route';
 import { buildStops, closestRoute, dayLegs, distanceKm, stopSegments, stopsHash } from './weekStops';
 
 function ev(id: string, occurred: string, at: [number, number] | null, extra: Partial<TripEvent> = {}): TripEvent {
@@ -250,8 +250,8 @@ describe('routeOptions', () => {
       };
     });
     const GAILLAC: [number, number] = [43.901, 1.897];
-    expect(await routeVia(NARBONNE, CARCASSONNE, [GAILLAC], 'centre')).toMatchObject({ km: 75, coords: [NARBONNE, CARCASSONNE] });
-    await routeVia(NARBONNE, CARCASSONNE, [GAILLAC], 'road');
+    expect(await routeVia(NARBONNE, CARCASSONNE, [{ at: GAILLAC }], 'centre')).toMatchObject({ km: 75, coords: [NARBONNE, CARCASSONNE] });
+    await routeVia(NARBONNE, CARCASSONNE, [{ at: GAILLAC }], 'road');
     const [centre, road] = asked.map((a) => JSON.parse(a.slice(a.indexOf('json=') + 5)));
     expect(centre.locations).toEqual([
       { lat: 43.184, lon: 3.004 },
@@ -277,8 +277,42 @@ describe('routeOptions', () => {
           };
     });
     const GAILLAC: [number, number] = [43.901, 1.897];
-    expect((await routeVia(NARBONNE, CARCASSONNE, [GAILLAC], 'centre'))?.km).toBe(80);
+    expect((await routeVia(NARBONNE, CARCASSONNE, [{ at: GAILLAC }], 'centre'))?.km).toBe(80);
     expect(asked.at(-1)).toContain('3.00400,43.18400;1.89700,43.90100;2.34900,43.21300');
-    expect(await routeVia(NARBONNE, CARCASSONNE, [GAILLAC], 'road')).toBeNull();
+    expect(await routeVia(NARBONNE, CARCASSONNE, [{ at: GAILLAC }], 'road')).toBeNull();
+  });
+
+  it('prend un point placé sur la carte tel quel, avec son rayon de recherche', async () => {
+    const asked: string[] = [];
+    vi.stubGlobal('fetch', async (url: string) => {
+      asked.push(decodeURIComponent(url));
+      return { ok: true, json: async () => ({ trip: { legs: [{ shape: direct }], summary: { length: 70, time: 4000 } } }) };
+    });
+    await routeVia(NARBONNE, CARCASSONNE, [{ at: [43.2, 2.7], radius: 61.4 }, { at: [43.3, 2.5] }], 'road');
+    const request = JSON.parse(asked[0].slice(asked[0].indexOf('json=') + 5));
+    expect(request.locations.slice(1, 3)).toEqual([
+      { lat: 43.2, lon: 2.7, type: 'through', radius: 61 }, // point : pas de filtre « grande route »
+      { lat: 43.3, lon: 2.5, type: 'through', search_filter: { min_road_class: 'trunk' } },
+    ]);
+  });
+});
+
+describe('orderWaypoints', () => {
+  it('range les points de passage du départ vers l’arrivée', () => {
+    const vias = [
+      { name: 'Montauban', at: [44.018, 1.355] as [number, number] },
+      { name: 'Brive', at: [45.159, 1.533] as [number, number] },
+      { name: 'Cahors', at: [44.447, 1.441] as [number, number] },
+    ];
+    expect(orderWaypoints(TOULOUSE, PERIGUEUX, vias).map((v) => v.name)).toEqual(['Montauban', 'Cahors', 'Brive']);
+    expect(orderWaypoints(PERIGUEUX, TOULOUSE, vias).map((v) => v.name)).toEqual(['Brive', 'Cahors', 'Montauban']);
+  });
+});
+
+describe('tapRadius', () => {
+  it('donne la précision du doigt selon le zoom, entre 15 et 300 m', () => {
+    expect(tapRadius(44, 15)).toBe(69); // ≈ 3,4 m par pixel
+    expect(tapRadius(44, 18)).toBe(15);
+    expect(tapRadius(44, 8)).toBe(300);
   });
 });

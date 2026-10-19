@@ -132,28 +132,60 @@ export async function routeOptions(from: Point, to: Point, signal?: AbortSignal)
 /**
  * Façon de passer par une ville : par son centre (la rue la plus proche du centre de la commune),
  * ou par la grande route la plus proche (autoroute, voie rapide, nationale : contournement, rocade).
+ * Sans effet sur un point placé sur la carte, toujours pris tel quel.
  */
 export type ViaMode = 'centre' | 'road';
 
+/** Point de passage : une ville (centre de la commune), ou un point placé à la main sur la carte. */
+export interface Waypoint {
+  at: Point;
+  /**
+   * Point placé à la main : distance (m) dans laquelle chercher la route, selon la précision du doigt au zoom de
+   * la carte. Valhalla prend la meilleure route dans ce rayon (sinon il peut prendre l'autre sens d'une autoroute
+   * et imposer un demi-tour). Absent pour une ville.
+   */
+  radius?: number;
+}
+
 /**
- * Itinéraire qui passe par ces villes, dans l'ordre. Par le centre : Valhalla, sinon OSRM.
+ * Itinéraire qui passe par ces points, dans l'ordre. Par le centre : Valhalla, sinon OSRM.
  * Par la grande route : Valhalla seulement (OSRM ne sait pas choisir le type de route).
  */
 export async function routeVia(
   from: Point,
   to: Point,
-  vias: Point[],
+  vias: Waypoint[],
   mode: ViaMode,
   signal?: AbortSignal,
 ): Promise<RouteOption | null> {
   const through = vias.map((v) => ({
-    ...location(v),
+    ...location(v.at),
     type: 'through', // passage sans arrêt : pas de demi-tour imposé
-    ...(mode === 'road' && { search_filter: { min_road_class: 'trunk' } }),
+    ...(v.radius != null
+      ? { radius: Math.round(v.radius) }
+      : mode === 'road' && { search_filter: { min_road_class: 'trunk' } }),
   }));
   const found = await valhallaOptions([location(from), ...through, location(to)], 0, signal);
   if (found) return found[0];
-  return mode === 'centre' ? ((await osrmOptions([from, ...vias, to], signal))?.[0] ?? null) : null;
+  return mode === 'centre' ? ((await osrmOptions([from, ...vias.map((v) => v.at), to], signal))?.[0] ?? null) : null;
+}
+
+/**
+ * Points de passage rangés du départ vers l'arrivée : selon leur avancée le long de la ligne droite
+ * départ → arrivée (longitudes resserrées selon la latitude, comme sur la carte).
+ */
+export function orderWaypoints<T extends { at: Point }>(from: Point, to: Point, vias: T[]): T[] {
+  const k = Math.cos((((from[0] + to[0]) / 2) * Math.PI) / 180);
+  const [dx, dy] = [to[0] - from[0], (to[1] - from[1]) * k];
+  const len2 = dx * dx + dy * dy || 1;
+  const progress = (p: Point) => ((p[0] - from[0]) * dx + (p[1] - from[1]) * k * dy) / len2;
+  return [...vias].sort((a, b) => progress(a.at) - progress(b.at));
+}
+
+/** Rayon de recherche de la route autour d'un point touché sur la carte : 20 pixels au zoom affiché (15 à 300 m). */
+export function tapRadius(lat: number, zoom: number): number {
+  const metersPerPixel = (40075016.686 * Math.cos((lat * Math.PI) / 180)) / 2 ** (zoom + 8);
+  return Math.min(300, Math.max(15, Math.round(20 * metersPerPixel)));
 }
 
 /** Distance d'un point au segment [a, b] (en degrés, suffisant pour simplifier un tracé). */

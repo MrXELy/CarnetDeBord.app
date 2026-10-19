@@ -62,6 +62,19 @@ async function completeFrench(place: Place, signal?: AbortSignal): Promise<Place
   }
 }
 
+/** Nom de la commune où se trouve un point (France seulement, sinon null) : nomme un point placé sur la carte. */
+export async function communeAt(lat: number, lon: number, signal?: AbortSignal): Promise<string | null> {
+  try {
+    const res = await fetch(`https://geo.api.gouv.fr/communes?lat=${lat.toFixed(5)}&lon=${lon.toFixed(5)}&fields=nom`, {
+      signal,
+    });
+    const [commune]: { nom?: string }[] = res.ok ? await res.json() : [];
+    return commune?.nom ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export interface Commune {
   nom: string;
   codeDepartement: string;
