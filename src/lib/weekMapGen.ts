@@ -71,9 +71,16 @@ export async function generateWeekMap(
   });
 }
 
-/** Tronçon enregistré : tracé simplifié et longueur arrondie à 100 m. */
+/** Tronçon enregistré : tracé simplifié et longueur arrondie à 100 m (et villes de passage, s'il y en a). */
 function routeLegOf(day: string, key: string, option: RouteOption, manual = false): MapLeg {
-  return { day, key, km: Math.round(option.km * 10) / 10, coords: simplify(option.coords), ...(manual && { manual }) };
+  return {
+    day,
+    key,
+    km: Math.round(option.km * 10) / 10,
+    coords: simplify(option.coords),
+    ...(manual && { manual }),
+    ...(manual && option.label && { via: option.label }),
+  };
 }
 
 /** Carte où le tronçon `key` prend l'itinéraire choisi à la main (gardé ensuite à la régénération). */

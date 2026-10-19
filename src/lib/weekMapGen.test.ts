@@ -84,7 +84,11 @@ describe('generateWeekMap', () => {
     const key = store.saved!.legs[0].key!;
     store.saved = withChosenRoute(store.saved!, key, { coords: [NARBONNE, [43.3, 2.7], CARCASSONNE], km: 71.26, minutes: 60 });
     expect(store.saved.legs[0]).toMatchObject({ key, km: 71.3, manual: true, coords: [NARBONNE, [43.3, 2.7], CARCASSONNE] });
+    expect(store.saved.legs[0].via).toBeUndefined();
     expect(store.saved.legs[1].manual).toBeUndefined();
+    // Itinéraire imposé par une ville : la ville est gardée avec le tronçon.
+    const via = withChosenRoute(store.saved, key, { coords: [NARBONNE, CARCASSONNE], km: 80, minutes: 70, label: 'par le centre de Lézignan' });
+    expect(via.legs[0]).toMatchObject({ km: 80, manual: true, via: 'par le centre de Lézignan' });
 
     const before = calls();
     await generateWeekMap(store as unknown as EventStore, start, events, new Map(), () => {});

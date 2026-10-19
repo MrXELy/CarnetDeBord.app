@@ -12,9 +12,11 @@ interface Props {
   value: Place;
   onChange: (place: Place) => void;
   autoLocate?: boolean;
+  /** Bouton « Me localiser » (GPS) : affiché sauf demande contraire. */
+  locate?: boolean;
 }
 
-export default function PlaceField({ value, onChange, autoLocate }: Props) {
+export default function PlaceField({ value, onChange, autoLocate, locate: withLocate = true }: Props) {
   const [query, setQuery] = useState(value.city);
   const [suggestions, setSuggestions] = useState<Place[]>([]);
   const [locating, setLocating] = useState(false);
@@ -98,10 +100,12 @@ export default function PlaceField({ value, onChange, autoLocate }: Props) {
           onChange={(e) => type(e.target.value)}
           onBlur={() => setTimeout(() => setSuggestions([]), 150)}
         />
-        <button type="button" className="btn-secondary" onClick={locate} disabled={locating} title="Me localiser">
-          {locating ? <LoaderCircle size={20} className="spin" /> : <LocateFixed size={20} />}
-          <span className="sr-only">Me localiser</span>
-        </button>
+        {withLocate && (
+          <button type="button" className="btn-secondary" onClick={locate} disabled={locating} title="Me localiser">
+            {locating ? <LoaderCircle size={20} className="spin" /> : <LocateFixed size={20} />}
+            <span className="sr-only">Me localiser</span>
+          </button>
+        )}
       </div>
       {suggestions.length > 0 && (
         <ul className="suggestions">

@@ -336,7 +336,7 @@ function RouteItem({ route, onChoose }: { route: RouteLeg; onChoose?: () => void
         <Route size={14} />
         Itinéraire : {Math.round(route.leg.km).toLocaleString('fr-FR')} km
         {route.segment.odometerKm != null && ` · compteur ${route.segment.odometerKm.toLocaleString('fr-FR')} km`}
-        {route.leg.manual && ' · choisi'}
+        {route.leg.manual && (route.leg.via ? ` · ${route.leg.via}` : ' · choisi')}
       </button>
     </li>
   );

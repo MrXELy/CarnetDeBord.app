@@ -34,6 +34,8 @@ export interface RouteOption {
   /** Longueur de l'itinéraire, en km. */
   km: number;
   minutes: number;
+  /** Villes de passage imposées (« par le centre de Gaillac »). */
+  label?: string;
 }
 
 /** Décode un tracé Valhalla (« polyline » à 6 décimales) en points [latitude, longitude]. */

@@ -119,6 +119,8 @@ export interface MapLeg {
   km?: number;
   /** Itinéraire choisi à la main : gardé tel quel à la régénération. */
   manual?: boolean;
+  /** Villes de passage imposées (« par le centre de Gaillac »), pour un itinéraire choisi à la main. */
+  via?: string;
 }
 
 /** Carte d'une semaine : itinéraires calculés une fois puis enregistrés. */

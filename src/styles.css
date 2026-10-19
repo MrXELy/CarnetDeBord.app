@@ -1472,6 +1472,31 @@ legend { margin-bottom: 6px; }
 .route-option.selected { border-color: var(--accent); background: var(--glass-hover); }
 .route-option > i { flex: none; width: 14px; height: 14px; border-radius: 50%; }
 .route-option-body { flex: 1; display: grid; gap: 1px; font-variant-numeric: tabular-nums; }
+.route-option-via { font-size: 0.82rem; font-weight: 600; color: var(--text); }
+
+/* Villes de passage imposées */
+.route-vias { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.route-via {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: var(--glass);
+  font-size: 0.85rem;
+}
+.route-via button {
+  display: grid;
+  place-items: center;
+  padding: 3px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+}
+.route-via-field { display: grid; gap: 4px; }
+.route-via-field .btn-link { justify-self: center; }
 
 .map-missing { display: grid; gap: 6px; }
 .map-missing-row { display: flex; justify-content: space-between; gap: 8px; font-size: 0.85rem; }
