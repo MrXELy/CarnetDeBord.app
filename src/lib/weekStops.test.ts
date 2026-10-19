@@ -156,7 +156,7 @@ describe('routeOptions', () => {
     expect(decodePolyline6(direct)).toEqual([NARBONNE, CARCASSONNE]);
   });
 
-  it('renvoie l’itinéraire Valhalla (camion) et ses autres propositions', async () => {
+  it('renvoie l’itinéraire Valhalla et ses autres propositions', async () => {
     let asked = '';
     vi.stubGlobal('fetch', async (url: string) => {
       asked = decodeURIComponent(url);
@@ -173,7 +173,7 @@ describe('routeOptions', () => {
     });
     const options = await routeOptions(NARBONNE, CARCASSONNE);
     expect(asked).toContain('valhalla');
-    expect(asked).toContain('"costing":"truck"');
+    expect(asked).toContain('"costing":"auto"');
     expect(options?.map((o) => [o.km, o.minutes, o.coords.length])).toEqual([
       [60.5, 50, 2],
       [72, 60, 3],

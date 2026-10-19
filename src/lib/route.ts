@@ -1,6 +1,6 @@
 /**
  * Services publics de calcul d'itinéraire :
- * - Valhalla (FOSSGIS), profil camion, qui propose d'autres itinéraires ;
+ * - Valhalla (FOSSGIS), profil voiture, qui propose d'autres itinéraires ;
  * - OSRM, profil voiture, en secours : son serveur public ne propose jamais d'autre itinéraire.
  */
 const VALHALLA = 'https://valhalla1.openstreetmap.de/route';
@@ -41,11 +41,11 @@ export function decodePolyline6(encoded: string): Point[] {
   return points;
 }
 
-/** Itinéraires Valhalla (profil camion) : le principal puis jusqu'à 2 autres. */
+/** Itinéraires Valhalla (profil voiture) : le principal puis jusqu'à 2 autres. */
 async function valhallaOptions(from: Point, to: Point, signal?: AbortSignal): Promise<RouteOption[] | null> {
   const request = {
     locations: [from, to].map(([lat, lon]) => ({ lat: +lat.toFixed(5), lon: +lon.toFixed(5) })),
-    costing: 'truck',
+    costing: 'auto',
     alternates: 2,
     units: 'kilometers',
     directions_type: 'none',
