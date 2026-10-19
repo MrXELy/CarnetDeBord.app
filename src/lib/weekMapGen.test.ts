@@ -94,6 +94,14 @@ describe('generateWeekMap', () => {
     await generateWeekMap(store as unknown as EventStore, start, events, new Map(), () => {});
     expect(calls() - before).toBe(1); // seul le second tronçon est recalculé
     expect(store.saved!.legs[0]).toMatchObject({ km: 71.3, manual: true });
+    // Points de passage gardés avec l'itinéraire choisi, et à la régénération.
+    const waypoints = [{ kind: 'point' as const, lat: 43.2, lon: 2.8, name: 'Lézignan', radius: 60 }];
+    store.saved = withChosenRoute(store.saved!, key, { coords: [NARBONNE, CARCASSONNE], km: 81, minutes: 70, waypoints });
+    await generateWeekMap(store as unknown as EventStore, start, events, new Map(), () => {});
+    expect(store.saved!.legs[0]).toMatchObject({ km: 81, manual: true, waypoints });
+    // Itinéraire proposé choisi ensuite : plus de points de passage.
+    store.saved = withChosenRoute(store.saved!, key, { coords: [NARBONNE, CARCASSONNE], km: 60, minutes: 50 });
+    expect(store.saved.legs[0].waypoints).toBeUndefined();
   });
 });
 

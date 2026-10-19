@@ -1,10 +1,10 @@
 import { Check, LoaderCircle, MapPinPlus, Search, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { communeAt, formatPlace } from '../lib/geo';
 import { orderWaypoints, routeOptions, routeVia, type RouteOption, type ViaMode } from '../lib/route';
 import { useSheet } from '../lib/useSheet';
 import { closestRoute, type Stop, type StopSegment } from '../lib/weekStops';
-import type { MapLeg, Place } from '../types';
+import type { MapLeg, MapWaypoint, Place } from '../types';
 import type { Point } from './MapSvg';
 import PlaceField, { EMPTY_PLACE } from './PlaceField';
 import RouteMap, { type RouteMarker } from './RouteMap';
@@ -74,7 +74,19 @@ const sameKm = (a: number, b: number) => Math.abs(a - b) < 0.5;
 export default function RouteChoiceSheet({ segment, current, onChoose, onClose }: Props) {
   const [options, setOptions] = useState<RouteOption[] | null>(null);
   const [failed, setFailed] = useState(false);
-  const [vias, setVias] = useState<Via[]>([]);
+  // Points de passage de l'itinéraire enregistré, retrouvés pour le modifier.
+  const [vias, setVias] = useState<Via[]>(() =>
+    (current.waypoints ?? []).map((w) => ({
+      id: `v${nextViaId++}`,
+      kind: w.kind,
+      at: [w.lat, w.lon],
+      name: w.name,
+      display: w.display,
+      radius: w.radius,
+    })),
+  );
+  // Points retrouvés et pas encore modifiés : l'itinéraire enregistré reste sélectionné après leur calcul.
+  const restored = useRef(vias.length > 0);
   // Ville en cours de saisie (null : pas de champ ouvert).
   const [draft, setDraft] = useState<Place | null>(null);
   // Mode « placer un point » : le prochain toucher sur la carte place un point de passage.
@@ -128,8 +140,9 @@ export default function RouteChoiceSheet({ segment, current, onChoose, onClose }
       }
       setViaOptions(found);
       setViaState(found.length ? 'idle' : 'failed');
-      // Le nouvel itinéraire le plus proche du compteur est sélectionné d'office.
-      if (found.length) {
+      // Le nouvel itinéraire le plus proche du compteur est sélectionné d'office
+      // (sauf pour les points retrouvés à l'ouverture, pas encore modifiés).
+      if (found.length && !restored.current) {
         const best = closestRoute(
           found.map((f) => f.option),
           odometer,
@@ -147,13 +160,25 @@ export default function RouteChoiceSheet({ segment, current, onChoose, onClose }
   const all = useMemo((): Choice[] => {
     if (!options) return [];
     const saved =
-      current.km != null && !options.some((o) => sameKm(o.km, current.km!))
+      current.km != null && ![...options, ...viaOptions.map((v) => v.option)].some((o) => sameKm(o.km, current.km!))
         ? [{ key: 'saved', coords: current.coords, km: current.km, minutes: NaN, label: current.via }]
         : [];
     return [
       ...saved,
       ...options.map((o, i) => ({ ...o, key: `b${i}` })),
-      ...viaOptions.map(({ mode, option }) => ({ ...option, key: mode, label: viaLabel(ordered, mode) })),
+      ...viaOptions.map(({ mode, option }) => ({
+        ...option,
+        key: mode,
+        label: viaLabel(ordered, mode),
+        waypoints: ordered.map((v): MapWaypoint => ({
+          kind: v.kind,
+          lat: v.at[0],
+          lon: v.at[1],
+          name: v.name,
+          ...(v.display && { display: v.display }),
+          ...(v.radius != null && { radius: v.radius }),
+        })),
+      })),
     ];
   }, [options, viaOptions, ordered, current]);
   const savedListed = all[0]?.key === 'saved';
@@ -194,6 +219,7 @@ export default function RouteChoiceSheet({ segment, current, onChoose, onClose }
 
   function pickVia(place: Place) {
     if (place.lat == null || place.lon == null) return setDraft(place); // saisie en cours
+    restored.current = false;
     const at: Point = [place.lat, place.lon];
     setVias((list) => [
       ...list,
@@ -203,6 +229,7 @@ export default function RouteChoiceSheet({ segment, current, onChoose, onClose }
   }
 
   function placePoint(at: Point, radius: number) {
+    restored.current = false;
     const id = `v${nextViaId++}`;
     setVias((list) => [...list, { id, kind: 'point', at, radius, name: null }]);
     setPlacing(false);
@@ -210,11 +237,13 @@ export default function RouteChoiceSheet({ segment, current, onChoose, onClose }
   }
 
   function movePoint(id: string, at: Point, radius: number) {
+    restored.current = false;
     setVias((list) => list.map((v) => (v.id === id ? { ...v, at, radius, name: null } : v)));
     nameLater(id, at);
   }
 
   function removeVia(id: string) {
+    restored.current = false;
     setVias((list) => list.filter((v) => v.id !== id));
   }
 

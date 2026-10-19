@@ -80,6 +80,7 @@ function routeLegOf(day: string, key: string, option: RouteOption, manual = fals
     coords: simplify(option.coords),
     ...(manual && { manual }),
     ...(manual && option.label && { via: option.label }),
+    ...(manual && option.waypoints?.length && { waypoints: option.waypoints }),
   };
 }
 

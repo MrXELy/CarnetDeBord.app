@@ -6,6 +6,8 @@
 const VALHALLA = 'https://valhalla1.openstreetmap.de/route';
 const OSRM = 'https://router.project-osrm.org/route/v1/driving';
 
+import type { MapWaypoint } from '../types';
+
 type Point = [number, number];
 
 /**
@@ -36,6 +38,8 @@ export interface RouteOption {
   minutes: number;
   /** Villes de passage imposées (« par le centre de Gaillac »). */
   label?: string;
+  /** Points de passage imposés, enregistrés avec l'itinéraire choisi. */
+  waypoints?: MapWaypoint[];
 }
 
 /** Décode un tracé Valhalla (« polyline » à 6 décimales) en points [latitude, longitude]. */

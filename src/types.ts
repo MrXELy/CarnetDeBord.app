@@ -121,6 +121,21 @@ export interface MapLeg {
   manual?: boolean;
   /** Villes de passage imposées (« par le centre de Gaillac »), pour un itinéraire choisi à la main. */
   via?: string;
+  /** Points de passage de cet itinéraire, retrouvés à la réouverture de son choix pour le modifier. */
+  waypoints?: MapWaypoint[];
+}
+
+/** Point de passage enregistré avec un tronçon : une ville, ou un point placé sur la carte. */
+export interface MapWaypoint {
+  kind: 'city' | 'point';
+  lat: number;
+  lon: number;
+  /** Ville : son nom ; point : sa commune (null si inconnue, ou hors de France). */
+  name: string | null;
+  /** Ville : nom affiché avec le département (« Cahors (46) »). */
+  display?: string;
+  /** Point : rayon de recherche de la route, en mètres. */
+  radius?: number;
 }
 
 /** Carte d'une semaine : itinéraires calculés une fois puis enregistrés. */
