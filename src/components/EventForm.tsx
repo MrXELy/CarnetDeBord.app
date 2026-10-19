@@ -15,7 +15,7 @@ import {
   type NewLoading,
   type StepChanges,
 } from '../lib/places';
-import { useModal } from '../lib/useModal';
+import { useSheet } from '../lib/useSheet';
 import { useEvents } from '../lib/useEvents';
 import { isBlankWaybill, stepLabel } from '../lib/waybills';
 import {
@@ -81,7 +81,7 @@ export default function EventForm({ event, onClose }: Props) {
   const kmCamera = useRef<HTMLInputElement>(null);
   const [kmReading, setKmReading] = useState<KmReading>(null);
 
-  useModal(onClose);
+  const sheet = useSheet(onClose);
 
   const lastKm = store.lastOdometer(tractor.trim(), new Date(when), event?.id);
   const kmValue = parseNum(km);
@@ -166,7 +166,7 @@ export default function EventForm({ event, onClose }: Props) {
       changes,
     );
     locateLater(store, eventId, place);
-    onClose();
+    sheet.close();
   }
 
   /** Lit le kilométrage sur une photo du chrono ou du compteur, puis remplit le champ (à vérifier). */
@@ -305,7 +305,7 @@ export default function EventForm({ event, onClose }: Props) {
         : 'Supprimer cette étape ?';
     if (confirm(message)) {
       store.remove(event);
-      onClose();
+      sheet.close();
     }
   }
 
@@ -343,10 +343,10 @@ export default function EventForm({ event, onClose }: Props) {
 
   return (
     <>
-      <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-backdrop" ref={sheet.ref} onClick={sheet.close}>
         <form className="modal" onSubmit={submit} onClick={(e) => e.stopPropagation()}>
-          <header className="modal-header">
-            <button type="button" className="icon-btn" onClick={onClose} aria-label="Fermer">
+          <header className="modal-header" {...sheet.handle}>
+            <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
               <X size={22} />
             </button>
             <h2>{isNew ? 'Nouvelle étape' : 'Modifier l’étape'}</h2>

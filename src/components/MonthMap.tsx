@@ -4,19 +4,11 @@ import { monthWeeks, summarizeWeek, timeLabel, weekLabel } from '../lib/dates';
 import { updateSettings, useSettings } from '../lib/settings';
 import { useEvents } from '../lib/useEvents';
 import { shareFile } from '../lib/share';
-import { useModal } from '../lib/useModal';
+import { useSheet } from '../lib/useSheet';
 import { generateWeekMap } from '../lib/weekMapGen';
 import { WEEK_COLORS, buildStops, dayKey, dayLegs, shortDay, stopsHash } from '../lib/weekStops';
 import { eventTypeInfo, type Place, type TripEvent } from '../types';
-import MapSvg, {
-  ImageButton,
-  mapUnit,
-  project,
-  renderImage,
-  viewBox,
-  type MapPin,
-  type Point,
-} from './MapSvg';
+import MapSvg, { ImageButton, mapUnit, project, renderImage, viewBox, type MapPin, type Point } from './MapSvg';
 
 interface Props {
   /** Mois tel qu'affiché dans la liste des semaines : « Janvier 2026 ». */
@@ -50,7 +42,7 @@ export default function MonthMap({ month, onPickWeek, onEdit, onClose }: Props) 
   const [status, setStatus] = useState<Status>({ state: 'idle' });
   const svgRef = useRef<SVGSVGElement>(null);
 
-  useModal(onClose);
+  const sheet = useSheet(onClose);
 
   const base = useMemo(
     () =>
@@ -123,7 +115,9 @@ export default function MonthMap({ month, onPickWeek, onEdit, onClose }: Props) 
         month,
         [
           `${monthKm != null ? `${monthKm.toLocaleString('fr-FR')} km · ` : ''}${weeks.length} semaine${weeks.length > 1 ? 's' : ''}`,
-          ...weeks.map((w) => `Sem. ${weekLabel(w.start).match(/\d+/)?.[0]} : ${w.km?.toLocaleString('fr-FR') ?? '–'} km`),
+          ...weeks.map(
+            (w) => `Sem. ${weekLabel(w.start).match(/\d+/)?.[0]} : ${w.km?.toLocaleString('fr-FR') ?? '–'} km`,
+          ),
         ],
         weeks.map((w) => w.color),
       );
@@ -142,10 +136,10 @@ export default function MonthMap({ month, onPickWeek, onEdit, onClose }: Props) 
   const busy = status.state === 'busy';
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" ref={sheet.ref} onClick={sheet.close}>
       <div className="modal map-modal" onClick={(e) => e.stopPropagation()}>
-        <header className="modal-header">
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Fermer">
+        <header className="modal-header" {...sheet.handle}>
+          <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
             <X size={22} />
           </button>
           <h2>Carte · {month}</h2>
@@ -288,8 +282,8 @@ export default function MonthMap({ month, onPickWeek, onEdit, onClose }: Props) 
               )}
 
               <p className="hint">
-                Itinéraires calculés pour une voiture (OSRM, © OpenStreetMap) : ils peuvent différer de la route prise en
-                poids lourd. Fond de carte : IGN Admin Express.
+                Itinéraires calculés pour une voiture (OSRM, © OpenStreetMap) : ils peuvent différer de la route prise
+                en poids lourd. Fond de carte : IGN Admin Express.
               </p>
             </>
           )}

@@ -7,7 +7,7 @@ import { formatPlace } from '../lib/geo';
 import { updateSettings, useSettings } from '../lib/settings';
 import { useEvents } from '../lib/useEvents';
 import { shareFile } from '../lib/share';
-import { useModal } from '../lib/useModal';
+import { useSheet } from '../lib/useSheet';
 import { generateWeekMap } from '../lib/weekMapGen';
 import { buildStops, dayColor, dayKey, dayLegs, shortDay, stopsHash, type Stop } from '../lib/weekStops';
 import { eventTypeInfo, type Place, type TripEvent } from '../types';
@@ -31,7 +31,7 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
   const [status, setStatus] = useState<Status>({ state: 'idle' });
   const svgRef = useRef<SVGSVGElement>(null);
 
-  useModal(onClose);
+  const sheet = useSheet(onClose);
 
   const { stops, missing } = useMemo(() => buildStops(events, found), [events, found]);
   const straight = useMemo(() => dayLegs(stops), [stops]);
@@ -41,9 +41,10 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
   // Trajets affichés : les routes enregistrées, sinon des lignes droites en attendant.
   // Itinéraires enregistrés, ou lignes droites entre les étapes (au choix, ou tant que la carte n'est pas générée).
   const showRoutes = mapRoutes && !!saved;
-  const legs = showRoutes && saved
-    ? saved.legs.map((l) => ({ day: l.day, color: dayColor(l.day), coords: l.coords }))
-    : straight.map((l) => ({ day: l.day, color: l.color, coords: l.points }));
+  const legs =
+    showRoutes && saved
+      ? saved.legs.map((l) => ({ day: l.day, color: dayColor(l.day), coords: l.coords }))
+      : straight.map((l) => ({ day: l.day, color: l.color, coords: l.points }));
 
   const box = viewBox(
     [...stops.map((s): Point => [s.lat, s.lon]), ...legs.flatMap((l) => l.coords)],
@@ -72,10 +73,15 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
     if (!svg) return;
     setStatus({ state: 'busy', message: 'Création de l’image…' });
     try {
-      const blob = await renderImage(svg, weekLabel(start), [
-        `${weekKm != null ? `${weekKm.toLocaleString('fr-FR')} km · ` : ''}${stops.length} lieux · ${days.length} jours`,
-        ...days.map((d) => `${shortDay(d)} : ${dayKm(d)?.toLocaleString('fr-FR') ?? '–'} km`),
-      ], days.map(dayColor));
+      const blob = await renderImage(
+        svg,
+        weekLabel(start),
+        [
+          `${weekKm != null ? `${weekKm.toLocaleString('fr-FR')} km · ` : ''}${stops.length} lieux · ${days.length} jours`,
+          ...days.map((d) => `${shortDay(d)} : ${dayKm(d)?.toLocaleString('fr-FR') ?? '–'} km`),
+        ],
+        days.map(dayColor),
+      );
       const name = `carte-${format(start, 'yyyy')}-semaine-${weekLabel(start).match(/\d+/)?.[0]}.png`;
       await shareFile(blob, name, weekLabel(start));
       setStatus({ state: 'idle' });
@@ -92,10 +98,10 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
   const busy = status.state === 'busy';
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" ref={sheet.ref} onClick={sheet.close}>
       <div className="modal map-modal" onClick={(e) => e.stopPropagation()}>
-        <header className="modal-header">
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Fermer">
+        <header className="modal-header" {...sheet.handle}>
+          <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
             <X size={22} />
           </button>
           <h2>Carte · {weekLabel(start)}</h2>
@@ -245,8 +251,8 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
               )}
 
               <p className="hint">
-                Itinéraires calculés pour une voiture (OSRM, © OpenStreetMap) : ils peuvent différer de la route prise en
-                poids lourd. Fond de carte : IGN Admin Express.
+                Itinéraires calculés pour une voiture (OSRM, © OpenStreetMap) : ils peuvent différer de la route prise
+                en poids lourd. Fond de carte : IGN Admin Express.
               </p>
             </>
           )}

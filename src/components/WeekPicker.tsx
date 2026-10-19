@@ -3,7 +3,7 @@ import { CalendarDays, CalendarCheck, Map as MapIcon, X } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import { listWeeks, monthLabel, weekLabel, weekStart } from '../lib/dates';
 import { useEvents } from '../lib/useEvents';
-import { useModal } from '../lib/useModal';
+import { useSheet } from '../lib/useSheet';
 
 interface Props {
   /** Semaine affichée actuellement (mise en évidence dans la liste). */
@@ -23,7 +23,7 @@ export default function WeekPicker({ current, onPick, onMonthMap, onWeekMap, onC
   const selected = useRef<HTMLButtonElement>(null);
   const datePicker = useRef<HTMLInputElement>(null);
 
-  useModal(onClose);
+  const sheet = useSheet(onClose);
 
   // La semaine affichée est visible dès l'ouverture, même loin dans la liste.
   useEffect(() => {
@@ -32,7 +32,7 @@ export default function WeekPicker({ current, onPick, onMonthMap, onWeekMap, onC
 
   function pick(start: Date) {
     onPick(start);
-    onClose();
+    sheet.close();
   }
 
   // Regroupe les semaines par mois, dans l'ordre de la liste.
@@ -44,10 +44,10 @@ export default function WeekPicker({ current, onPick, onMonthMap, onWeekMap, onC
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" ref={sheet.ref} onClick={sheet.close}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <header className="modal-header">
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Fermer">
+        <header className="modal-header" {...sheet.handle}>
+          <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
             <X size={22} />
           </button>
           <h2>Choisir une semaine</h2>

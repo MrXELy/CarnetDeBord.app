@@ -4,7 +4,7 @@ import { summarizeAllowances } from '../lib/allowances';
 import { weekLabel } from '../lib/dates';
 import { formatPlace } from '../lib/geo';
 import { useEvents } from '../lib/useEvents';
-import { useModal } from '../lib/useModal';
+import { useSheet } from '../lib/useSheet';
 import AllowanceTable from './AllowanceTable';
 
 interface Props {
@@ -20,13 +20,13 @@ export default function AllowancesSheet({ start, onOpenSettings, onClose }: Prop
   const summary = summarizeAllowances(store.allowances(), { start, end: addDays(start, 7) });
   const { bases } = allowanceSettings;
 
-  useModal(onClose);
+  const sheet = useSheet(onClose);
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" ref={sheet.ref} onClick={sheet.close}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <header className="modal-header">
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Fermer">
+        <header className="modal-header" {...sheet.handle}>
+          <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
             <X size={22} />
           </button>
           <h2>Frais de route</h2>

@@ -18,7 +18,7 @@ import {
 } from '../lib/stats';
 import { useEvents } from '../lib/useEvents';
 import { useSwipe } from '../lib/useSwipe';
-import { useModal } from '../lib/useModal';
+import { useSheet } from '../lib/useSheet';
 import AllowanceTable from './AllowanceTable';
 import { num, percent } from './stats/format';
 import { Evolution, Section } from './stats/shared';
@@ -90,7 +90,7 @@ export default function StatsPage({ week, onClose }: Props) {
     };
   }, [period]);
 
-  useModal(onClose);
+  const sheet = useSheet(onClose);
 
   const range = useMemo(() => periodRange(period), [period]);
   const previous = useMemo(() => previousRange(period, now), [period, now]);
@@ -154,10 +154,10 @@ export default function StatsPage({ week, onClose }: Props) {
   const compared = `par rapport à ${PREVIOUS[period.kind]}${previous.partial ? ' au même moment' : ''}`;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" ref={sheet.ref} onClick={sheet.close}>
       <div className="modal stats" onClick={(e) => e.stopPropagation()}>
-        <header className="modal-header">
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Fermer">
+        <header className="modal-header" {...sheet.handle}>
+          <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
             <X size={22} />
           </button>
           <h2>Statistiques</h2>

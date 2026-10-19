@@ -2,7 +2,7 @@ import { Search, X } from 'lucide-react';
 import { useState } from 'react';
 import { applyStepChanges, placeOf } from '../lib/places';
 import { normalize } from '../lib/search';
-import { useModal } from '../lib/useModal';
+import { useSheet } from '../lib/useSheet';
 import { swipeStep, useSwipe } from '../lib/useSwipe';
 import { useEvents } from '../lib/useEvents';
 import { stepLabel } from '../lib/waybills';
@@ -31,7 +31,7 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<Waybill | null>(null);
 
-  useModal(onClose);
+  const sheet = useSheet(onClose);
 
   const order = FILTERS.map((f) => f.value);
 
@@ -78,10 +78,10 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
 
   return (
     <>
-      <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-backdrop" ref={sheet.ref} onClick={sheet.close}>
         <div className="modal" onClick={(e) => e.stopPropagation()}>
-          <header className="modal-header">
-            <button type="button" className="icon-btn" onClick={onClose} aria-label="Fermer">
+          <header className="modal-header" {...sheet.handle}>
+            <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
               <X size={22} />
             </button>
             <h2>Lettres de voiture</h2>

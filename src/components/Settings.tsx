@@ -8,7 +8,7 @@ import { updateSettings, useSettings } from '../lib/settings';
 import { shareFile } from '../lib/share';
 import { signOutAndClear, type SignOutStep } from '../lib/signOut';
 import { useEvents, useStore } from '../lib/useEvents';
-import { useModal } from '../lib/useModal';
+import { useSheet } from '../lib/useSheet';
 import AllowanceSettingsSection from './AllowanceSettings';
 import WeekSheetSettingsSection from './WeekSheetSettings';
 
@@ -25,7 +25,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
   const recentKm = recent.reduce((sum, i) => sum + intervalKm(i), 0);
   const rejected = intervals.filter((i) => i.problem).length;
 
-  useModal(onClose);
+  const sheet = useSheet(onClose);
 
   // Déconnexion en cours (envoi de ce qui attend, puis fermeture de la session) : bouton occupé, pas de double clic.
   const [signingOut, setSigningOut] = useState<SignOutStep>(null);
@@ -39,10 +39,10 @@ export default function Settings({ onClose }: { onClose: () => void }) {
   }, [demo]);
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" ref={sheet.ref} onClick={sheet.close}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <header className="modal-header">
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Fermer">
+        <header className="modal-header" {...sheet.handle}>
+          <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
             <X size={22} />
           </button>
           <h2>Options</h2>

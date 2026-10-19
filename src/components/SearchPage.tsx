@@ -5,7 +5,7 @@ import { useDeferredValue, useMemo, useState } from 'react';
 import { dayLabel, workDay } from '../lib/dates';
 import { searchEvents, type SearchResult } from '../lib/search';
 import { useEvents } from '../lib/useEvents';
-import { useModal } from '../lib/useModal';
+import { useSheet } from '../lib/useSheet';
 import type { TripEvent } from '../types';
 import EventCard from './EventCard';
 
@@ -29,15 +29,15 @@ export default function SearchPage({ onShowWeek, onClose }: Props) {
   const results = useMemo(() => searchEvents(events, waybills, deferred), [events, waybills, deferred]);
   const days = useMemo(() => groupByDay(results.slice(0, MAX_RESULTS)), [results]);
 
-  useModal(onClose);
+  const sheet = useSheet(onClose);
 
   const last = results[0]?.event.occurred_at;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" ref={sheet.ref} onClick={sheet.close}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <header className="modal-header">
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Fermer">
+        <header className="modal-header" {...sheet.handle}>
+          <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
             <X size={22} />
           </button>
           <h2>Rechercher</h2>

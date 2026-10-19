@@ -15,7 +15,7 @@ import {
   type LetterKind,
 } from '../lib/photos';
 import { placeChanged, type LinkedSteps, type NewLoading, type StepChanges } from '../lib/places';
-import { useModal } from '../lib/useModal';
+import { useSheet } from '../lib/useSheet';
 import { useStore } from '../lib/useEvents';
 import type { Place, Waybill } from '../types';
 import PhotoViewer, { PhotoThumb } from './PhotoViewer';
@@ -118,7 +118,8 @@ export default function WaybillForm(props: Props) {
     onClose();
   }
 
-  useModal(discard);
+  // Croix, fond, retour arrière : fermeture animée sans enregistrer.
+  const sheet = useSheet(discard);
 
   // « Scanner une LV » : la photo arrive avec la fiche (une seule fois, même en développement).
   const started = useRef(false);
@@ -238,7 +239,7 @@ export default function WaybillForm(props: Props) {
         newLoading,
       },
     );
-    onClose();
+    sheet.closeThen(onClose);
   }
 
   /**
@@ -268,7 +269,7 @@ export default function WaybillForm(props: Props) {
   function remove() {
     if (onDelete && confirm('Supprimer cette lettre de voiture ?')) {
       onDelete(waybill);
-      discard();
+      sheet.close();
     }
   }
 
@@ -292,10 +293,10 @@ export default function WaybillForm(props: Props) {
 
   return (
     <>
-      <div className="modal-backdrop stacked" onClick={discard}>
+      <div className="modal-backdrop stacked" ref={sheet.ref} onClick={sheet.close}>
         <form className="modal" onSubmit={submit} onClick={(e) => e.stopPropagation()}>
-          <header className="modal-header">
-            <button type="button" className="icon-btn" onClick={discard} aria-label="Fermer">
+          <header className="modal-header" {...sheet.handle}>
+            <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
               <X size={22} />
             </button>
             <h2>{isNew ? 'Nouvelle lettre de voiture' : 'Lettre de voiture'}</h2>
