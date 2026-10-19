@@ -9,6 +9,12 @@ export function swipeDirection(dx: number, dy: number): -1 | 0 | 1 {
   return 0;
 }
 
+/** Valeur voisine dans une liste d'onglets, dans le sens du glissement ; la même au bout (pas de boucle). */
+export function swipeStep<T>(values: readonly T[], current: T, direction: -1 | 1): T {
+  const index = values.indexOf(current) + direction;
+  return index >= 0 && index < values.length ? values[index] : current;
+}
+
 /** Vrai si le geste part d'un champ ou d'une bande qui défile de côté (photos) : il leur appartient. */
 function ownsHorizontalGesture(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;

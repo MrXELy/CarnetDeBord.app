@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { applyStepChanges, placeOf } from '../lib/places';
 import { normalize } from '../lib/search';
 import { useModal } from '../lib/useModal';
+import { swipeStep, useSwipe } from '../lib/useSwipe';
 import { useEvents } from '../lib/useEvents';
 import { stepLabel } from '../lib/waybills';
 import { isInTruck, waybillStatus, type Waybill } from '../types';
@@ -25,10 +26,23 @@ interface Props {
 export default function WaybillsPage({ initialFilter, onClose }: Props) {
   const { waybills, store } = useEvents();
   const [filter, setFilter] = useState(initialFilter);
+  // Sens de l'animation au changement d'onglet : la liste glisse dans le sens du geste.
+  const [slide, setSlide] = useState<'next' | 'prev' | 'fade'>('fade');
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<Waybill | null>(null);
 
   useModal(onClose);
+
+  const order = FILTERS.map((f) => f.value);
+
+  function showFilter(next: WaybillFilter) {
+    if (next === filter) return;
+    setSlide(order.indexOf(next) > order.indexOf(filter) ? 'next' : 'prev');
+    setFilter(next);
+  }
+
+  // Glisser vers la gauche → onglet suivant, vers la droite → précédent (rien au bout).
+  const swipe = useSwipe((direction) => showFilter(swipeStep(order, filter, direction)));
 
   // Date de référence d'une LV : son chargement, sinon sa livraison.
   const dateOf = (w: Waybill) =>
@@ -73,14 +87,14 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
             <h2>Lettres de voiture</h2>
           </header>
 
-          <div className="modal-body">
+          <div className="modal-body" {...swipe}>
             <div className="segmented stacked">
               {FILTERS.map((f) => (
                 <button
                   type="button"
                   key={f.value}
                   className={filter === f.value ? 'selected' : ''}
-                  onClick={() => setFilter(f.value)}
+                  onClick={() => showFilter(f.value)}
                 >
                   <span className="segmented-count">{count(f.value)}</span>
                   <span className="segmented-label">{f.label}</span>
@@ -100,13 +114,13 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
             </label>
 
             {list.length === 0 ? (
-              <p className="empty muted">
+              <p className={`empty muted slide-${slide}`} key={filter}>
                 {filter === 'a_completer' && !q
                   ? 'Toutes les lettres de voiture sont complètes.'
                   : 'Aucune lettre de voiture.'}
               </p>
             ) : (
-              <div className="lv-list">
+              <div className={`lv-list slide-${slide}`} key={filter}>
                 {list.map((w) => (
                   <WaybillLine key={w.id} waybill={w} onClick={() => setEditing(w)} showStatus />
                 ))}
