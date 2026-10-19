@@ -17,7 +17,7 @@ import {
 } from '../lib/places';
 import { useSheet } from '../lib/useSheet';
 import { useEvents } from '../lib/useEvents';
-import { isBlankWaybill, stepLabel } from '../lib/waybills';
+import { isBlankWaybill, stopOf, waybillContext } from '../lib/waybills';
 import {
   EVENT_TYPES,
   STATIONS,
@@ -332,13 +332,22 @@ export default function EventForm({ event, onClose }: Props) {
     else setDeliveryEdits(new Map(deliveryEdits).set(w.id, { ...w, deleted_at: new Date().toISOString() }));
   }
 
+  // Pastille de la fiche LV : chargement et livraison, celui de cette fiche pris tel qu'il est saisi.
   function editingContext(): string | undefined {
     if (!editing) return;
-    if (editing.side === 'load') return place.city ? `Chargée à ${place.city}` : undefined;
-    const loading = store.event(editing.waybill.loading_event_id);
-    const pending = newLoadings.get(editing.waybill.id);
-    if (pending) return `Chargée à ${pending.place.city}`;
-    return loading ? `Chargée : ${stepLabel(loading)}` : 'Chargement non renseigné';
+    const w = editing.waybill;
+    const here = { place, at: whenIso };
+    if (editing.side === 'load') return waybillContext(here, stopOf(store.event(w.delivery_event_id)));
+    const pending = newLoadings.get(w.id);
+    const loading = pending ? { place: pending.place, at: pending.at } : stopOf(store.event(w.loading_event_id));
+    // Cochée (ou saisie ici) : livrée à cette étape ; décochée : pas livrée ici, peut-être ailleurs.
+    const delivery =
+      checked.has(w.id) || editing.isNew
+        ? here
+        : w.delivery_event_id !== event?.id
+          ? stopOf(store.event(w.delivery_event_id))
+          : null;
+    return waybillContext(loading, delivery);
   }
 
   return (

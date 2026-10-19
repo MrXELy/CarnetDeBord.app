@@ -5,7 +5,7 @@ import { normalize } from '../lib/search';
 import { useSheet } from '../lib/useSheet';
 import { swipeStep, useSwipe } from '../lib/useSwipe';
 import { useEvents } from '../lib/useEvents';
-import { stepLabel } from '../lib/waybills';
+import { stopOf, waybillContext } from '../lib/waybills';
 import { isInTruck, waybillStatus, type Waybill } from '../types';
 import WaybillForm from './WaybillForm';
 import WaybillLine from './WaybillLine';
@@ -65,13 +65,8 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
         ? waybills.filter(isInTruck).length
         : waybills.length;
 
-  function context(w: Waybill): string {
-    const loading = store.event(w.loading_event_id);
-    const delivery = store.event(w.delivery_event_id);
-    return [`Chargée : ${stepLabel(loading)}`, delivery ? `Livrée : ${stepLabel(delivery)}` : null]
-      .filter(Boolean)
-      .join(' — ');
-  }
+  const context = (w: Waybill) =>
+    waybillContext(stopOf(store.event(w.loading_event_id)), stopOf(store.event(w.delivery_event_id)));
 
   const editingLoading = editing ? store.event(editing.loading_event_id) : null;
   const editingDelivery = editing ? store.event(editing.delivery_event_id) : null;

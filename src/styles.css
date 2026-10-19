@@ -695,6 +695,8 @@ legend { margin-bottom: 6px; }
   color: #93c5fd;
   font-size: 0.78rem;
   font-weight: 700;
+  /* Chargement sur la première ligne, livraison sur la deuxième. */
+  white-space: pre-line;
 }
 
 .plate { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
