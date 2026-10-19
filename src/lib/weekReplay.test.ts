@@ -45,6 +45,25 @@ describe('buildReplay', () => {
     expect(JSON.stringify(replay.phases)).not.toContain('Client');
   });
 
+  it('fait rouler le camion à vitesse constante, arrêts et repos à durée fixe', () => {
+    const replay = buildReplay(buildStops(week).stops, [], 30);
+    expect(replay.total).toBeCloseTo(30);
+    const drives = replay.phases.filter((p) => p.kind === 'drive');
+    // Secondes par km de tracé : les mêmes pour chaque trajet.
+    const speeds = drives.map((p) => (p.to - p.from) / replay.drives[(p as { drive: number }).drive].cum.at(-1)!);
+    for (const v of speeds) expect(v).toBeCloseTo(speeds[0]);
+    const pauses = replay.phases.filter((p) => p.kind !== 'drive').map((p) => +(p.to - p.from).toFixed(2));
+    expect(pauses).toEqual([1.6, 1.6, 1.6, 2.6, 1.6, 1.6]);
+    expect(replay.readableDuration).toBe(18); // 10,6 s d'arrêts ÷ 60 %
+  });
+
+  it('raccourcit arrêts et repos si l’animation est trop courte', () => {
+    const replay = buildReplay(buildStops(week).stops, [], 10);
+    const pauses = replay.phases.filter((p) => p.kind !== 'drive').reduce((sum, p) => sum + p.to - p.from, 0);
+    expect(pauses).toBeCloseTo(6); // 60 % des 10 s
+    expect(replay.total).toBeCloseTo(10);
+  });
+
   it('met un repos avant un trajet qui part après une fin de journée', () => {
     // Fin de journée à Carcassonne, reprise le lendemain à Toulouse (repos ailleurs, non noté).
     const events = [

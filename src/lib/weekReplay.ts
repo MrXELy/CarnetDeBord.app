@@ -7,13 +7,16 @@ type Point = [number, number];
 
 /**
  * Semaine rejouée : une suite de moments (trajets, arrêts, repos) dans l'ordre chronologique.
- * Le temps de l'animation n'est pas le temps réel : chaque moment a un poids (trajets selon leur durée,
- * arrêts et repos courts), ramené ensuite à la durée choisie pour l'animation.
+ * Le temps de l'animation n'est pas le temps réel : le camion roule **toujours à la même vitesse à l'écran**
+ * (durée d'un trajet selon la longueur de son tracé) ; arrêts et repos ont une durée fixe, le temps de lire,
+ * réduite seulement si l'animation est trop courte pour tout montrer.
  */
 export interface Replay {
   phases: Phase[];
-  /** Somme des poids : l'animation va de 0 à `total`. */
+  /** Durée de l'animation, en secondes : elle va de 0 à `total`. */
   total: number;
+  /** Durée minimale (s) pour que les arrêts et repos gardent leur durée de lecture. */
+  readableDuration: number;
   /** Tracés des trajets, dans l'ordre, avec leurs longueurs cumulées. */
   drives: Drive[];
   stops: Stop[];
@@ -29,7 +32,7 @@ interface Drive {
 }
 
 type Phase = {
-  /** Début et fin dans le temps de l'animation (poids cumulés). */
+  /** Début et fin dans le temps de l'animation (secondes). */
   from: number;
   to: number;
   /** Heures réelles de début et de fin (ms). */
@@ -65,11 +68,11 @@ export interface ReplayFrame {
   caption: string;
 }
 
-/** Poids d'un arrêt et d'un repos dans l'animation (un trajet d'une heure pèse 1). */
-const STOP_WEIGHT = 0.45;
-const REST_WEIGHT = 1.1;
-/** Trajet compté au moins 20 minutes : un trajet très court reste visible. */
-const MIN_DRIVE_HOURS = 1 / 3;
+/** Durée d'un arrêt et d'un repos à l'écran (secondes), le temps de lire l'étape. */
+const STOP_SECONDS = 1.6;
+const REST_SECONDS = 2.6;
+/** Part de l'animation que les arrêts et repos peuvent prendre au plus (le reste pour rouler). */
+const MAX_PAUSE_SHARE = 0.6;
 /** Vitesse supposée quand l'heure réelle du trajet n'est pas fiable (repos compris dedans). */
 const ASSUMED_KMH = 70;
 
@@ -102,7 +105,7 @@ function cumulative(coords: Point[]): number[] {
  * Prépare l'animation d'une semaine : lieux (`buildStops`) et itinéraires enregistrés (un par tronçon ;
  * à défaut, ligne droite). Les nuits (fin de journée puis début de journée) deviennent un court « repos ».
  */
-export function buildReplay(stops: Stop[], legs: MapLeg[] = []): Replay {
+export function buildReplay(stops: Stop[], legs: MapLeg[] = [], duration = 30): Replay {
   const byKey = new Map(legs.filter((l) => l.key).map((l) => [l.key!, l]));
   const phases: Phase[] = [];
   const drives: Drive[] = [];
@@ -119,7 +122,7 @@ export function buildReplay(stops: Stop[], legs: MapLeg[] = []): Replay {
     let group: TripEvent[] = [];
     const flush = () => {
       if (!group.length) return;
-      push(STOP_WEIGHT, {
+      push(STOP_SECONDS, {
         kind: 'stop',
         stop: index,
         caption: stopCaption(group, placeOf(stop)),
@@ -133,7 +136,7 @@ export function buildReplay(stops: Stop[], legs: MapLeg[] = []): Replay {
       const last = group.at(-1);
       if (last?.type === 'fin_journee' && e.type === 'debut_journee') {
         flush();
-        push(REST_WEIGHT, {
+        push(REST_SECONDS, {
           kind: 'rest',
           stop: index,
           caption: restLabel(time(e) - time(last)),
@@ -170,7 +173,7 @@ export function buildReplay(stops: Stop[], legs: MapLeg[] = []): Replay {
     if (departure.type === 'fin_journee' || hours(realTo - realFrom) > 12) {
       const restEnd = Math.max(realFrom, realTo - estimated);
       if (restEnd > realFrom) {
-        push(REST_WEIGHT, {
+        push(REST_SECONDS, {
           kind: 'rest',
           stop: stops.indexOf(segment.from),
           caption: restLabel(restEnd - realFrom),
@@ -183,7 +186,8 @@ export function buildReplay(stops: Stop[], legs: MapLeg[] = []): Replay {
       }
     }
     drives.push({ color: dayColor(segment.day), coords, cum, km: driveKm });
-    push(Math.max(hours(realTo - realFrom), MIN_DRIVE_HOURS), {
+    // Poids d'un trajet : longueur du tracé à l'écran (vitesse constante), convertie en secondes plus bas.
+    push(cum.at(-1)!, {
       kind: 'drive',
       drive: drives.length - 1,
       caption: `Vers ${placeOf(segment.to)}`,
@@ -195,7 +199,19 @@ export function buildReplay(stops: Stop[], legs: MapLeg[] = []): Replay {
     km += driveKm;
     addStop(stops.indexOf(segment.to));
   }
-  return { phases, total, drives, stops };
+  // Mise en secondes : arrêts et repos à leur durée (réduite si elle dépasse leur part), trajets dans le reste,
+  // au prorata de leur longueur.
+  const pauses = phases.filter((p) => p.kind !== 'drive').reduce((sum, p) => sum + p.to - p.from, 0);
+  const driving = phases.filter((p) => p.kind === 'drive').reduce((sum, p) => sum + p.to - p.from, 0);
+  const pauseScale = Math.min(1, (duration * (driving ? MAX_PAUSE_SHARE : 1)) / (pauses || 1));
+  const driveScale = driving ? (duration - pauses * pauseScale) / driving : 0;
+  let at = 0;
+  for (const p of phases) {
+    const length = (p.to - p.from) * (p.kind === 'drive' ? driveScale : pauseScale);
+    p.from = at;
+    p.to = at += length;
+  }
+  return { phases, total: at, drives, stops, readableDuration: Math.ceil(pauses / MAX_PAUSE_SHARE) };
 }
 
 /** Partie d'un tracé parcourue à la fraction `f` de sa longueur, et la position atteinte. */

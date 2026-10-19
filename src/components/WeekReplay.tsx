@@ -18,7 +18,7 @@ interface Props {
 }
 
 /** Durées proposées pour l'animation, en secondes. */
-const DURATIONS = [15, 30, 45, 60, 90];
+const DURATIONS = [15, 30, 45, 60, 90, 120];
 
 /** La semaine rejouée : animation des trajets dans l'ordre chronologique, au format et à la durée choisis. */
 export default function WeekReplay({ start, stops, legs, onClose }: Props) {
@@ -30,7 +30,7 @@ export default function WeekReplay({ start, stops, legs, onClose }: Props) {
   const [progress, setProgress] = useState(0);
   const [playing, setPlaying] = useState(true);
 
-  const replay = useMemo(() => buildReplay(stops, legs), [stops, legs]);
+  const replay = useMemo(() => buildReplay(stops, legs, duration), [stops, legs, duration]);
   const box = useMemo(() => replayBox(replay, fmt), [replay, fmt]);
   const layout = replayLayout(fmt);
   const title = weekLabel(start);
@@ -163,9 +163,16 @@ export default function WeekReplay({ start, stops, legs, onClose }: Props) {
                   </button>
                 ))}
               </div>
+              {duration < replay.readableDuration && (
+                <p className="hint">
+                  Arrêts et nuits raccourcis à cette durée : pour les lire tranquillement, choisis au moins{' '}
+                  {replay.readableDuration} s.
+                </p>
+              )}
               <p className="hint">
-                Les nuits sont raccourcies ; les trajets durent selon leur temps réel. Itinéraires de la carte de la
-                semaine (lignes droites si elle n’est pas générée).
+                Le camion roule toujours à la même vitesse ; arrêts et nuits durent le temps de lire (moins si
+                l’animation est courte). Itinéraires de la carte de la semaine (lignes droites si elle n’est pas
+                générée).
               </p>
             </>
           )}
