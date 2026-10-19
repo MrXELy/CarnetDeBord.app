@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Place, TripEvent } from '../types';
-import { routeLeg, simplify } from './route';
+import { routeLeg, routeOptions, simplify } from './route';
 import { buildStops, dayLegs, distanceKm, stopsHash } from './weekStops';
 
 function ev(id: string, occurred: string, at: [number, number] | null, extra: Partial<TripEvent> = {}): TripEvent {
@@ -114,5 +114,40 @@ describe('routeLeg', () => {
       throw new Error('hors ligne');
     });
     expect(await routeLeg([NARBONNE, CARCASSONNE])).toBeNull();
+  });
+});
+
+describe('routeOptions', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('renvoie chaque itinéraire proposé avec sa longueur en km', async () => {
+    let asked = '';
+    vi.stubGlobal('fetch', async (url: string) => {
+      asked = url;
+      return {
+        ok: true,
+        json: async () => ({
+          code: 'Ok',
+          routes: [
+            { distance: 60500, duration: 3000, geometry: { coordinates: [[3.004, 43.184], [2.349, 43.213]] } },
+            { distance: 72000, duration: 3600, geometry: { coordinates: [[3.004, 43.184], [2.8, 43.1], [2.349, 43.213]] } },
+            { distance: 80000, geometry: { coordinates: [] } }, // tracé vide : ignoré
+          ],
+        }),
+      };
+    });
+    const options = await routeOptions(NARBONNE, CARCASSONNE);
+    expect(asked).toContain('alternatives=3');
+    expect(options).toEqual([
+      { coords: [[43.184, 3.004], [43.213, 2.349]], km: 60.5, minutes: 50 },
+      { coords: [[43.184, 3.004], [43.1, 2.8], [43.213, 2.349]], km: 72, minutes: 60 },
+    ]);
+  });
+
+  it('renvoie null si le service échoue ou ne trouve rien', async () => {
+    vi.stubGlobal('fetch', async () => ({ ok: true, json: async () => ({ code: 'NoRoute', routes: [] }) }));
+    expect(await routeOptions(NARBONNE, CARCASSONNE)).toBeNull();
+    vi.stubGlobal('fetch', async () => ({ ok: false }));
+    expect(await routeOptions(NARBONNE, CARCASSONNE)).toBeNull();
   });
 });

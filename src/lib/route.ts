@@ -22,6 +22,42 @@ export async function routeLeg(points: Point[], signal?: AbortSignal): Promise<P
   }
 }
 
+/** Un itinéraire possible entre deux étapes. */
+export interface RouteOption {
+  coords: Point[];
+  /** Longueur de l'itinéraire, en km. */
+  km: number;
+  minutes: number;
+}
+
+/**
+ * Jusqu'à 3 itinéraires entre deux points (le premier est le plus rapide selon OSRM).
+ * OSRM ne propose d'autres itinéraires qu'entre deux points, d'où un appel par tronçon.
+ * Renvoie null si le service ne répond pas ou ne trouve pas d'itinéraire.
+ */
+export async function routeOptions(from: Point, to: Point, signal?: AbortSignal): Promise<RouteOption[] | null> {
+  const path = [from, to].map(([lat, lon]) => `${lon.toFixed(5)},${lat.toFixed(5)}`).join(';');
+  try {
+    const res = await fetch(`${OSRM}/${path}?overview=full&geometries=geojson&alternatives=3`, { signal });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data?.code !== 'Ok' || !Array.isArray(data.routes)) return null;
+    const options: RouteOption[] = [];
+    for (const route of data.routes) {
+      const coords: unknown = route?.geometry?.coordinates;
+      if (!Array.isArray(coords) || coords.length < 2 || typeof route.distance !== 'number') continue;
+      options.push({
+        coords: (coords as [number, number][]).map(([lon, lat]) => [lat, lon]),
+        km: route.distance / 1000,
+        minutes: (route.duration ?? 0) / 60,
+      });
+    }
+    return options.length ? options : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Distance d'un point au segment [a, b] (en degrés, suffisant pour simplifier un tracé). */
 function segmentDistance(p: Point, a: Point, b: Point): number {
   const dx = b[0] - a[0];
