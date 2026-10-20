@@ -94,6 +94,28 @@ export function buildStops(
   return { stops, missing };
 }
 
+/**
+ * Lieux d'une journée, pris parmi ceux de la semaine et renumérotés : le lieu de départ (dernier lieu de la veille,
+ * s'il n'a pas d'étape du jour) puis ceux du jour. Chaque lieu ne garde que les étapes du jour (la fin de journée
+ * de la veille et le début du lendemain au même endroit sont retirés) ; le lieu de départ, à défaut, sa dernière étape.
+ */
+export function dayStops(stops: Stop[], day: string): Stop[] {
+  const ofDay = (s: Stop) => s.events.filter((e) => dayKey(e.occurred_at) === day);
+  const result: Stop[] = [];
+  stops.forEach((s, i) => {
+    let events = ofDay(s);
+    if (!events.length) {
+      // Départ : le lieu juste avant le premier lieu du jour, si celui-ci n'a pas déjà une étape de la veille.
+      const next = stops[i + 1];
+      if (result.length || !next || dayKey(next.events[0].occurred_at) !== day) return;
+      events = [s.events.at(-1)!];
+    }
+    const first = dayKey(events[0].occurred_at);
+    result.push({ ...s, number: result.length + 1, day: first, color: dayColor(first), events });
+  });
+  return result;
+}
+
 /** Tronçons par jour : chaque jour part du dernier lieu de la veille. */
 export function dayLegs(stops: Stop[]): MapLegPoints[] {
   const legs: MapLegPoints[] = [];

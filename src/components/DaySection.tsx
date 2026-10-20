@@ -1,3 +1,4 @@
+import { Map as MapIcon } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { dayLabel, durationLabel, summarizeDay, type Day } from '../lib/dates';
 import type { TripEvent } from '../types';
@@ -11,9 +12,11 @@ interface Props {
   /** Étape trouvée par la recherche, mise en évidence. */
   found?: string | null;
   onOpen: (e: TripEvent) => void;
+  /** Ouvre la carte de la journée. */
+  onMap: () => void;
 }
 
-export default function DaySection({ day, index, found, onOpen }: Props) {
+export default function DaySection({ day, index, found, onOpen, onMap }: Props) {
   const { km, amplitude } = summarizeDay(day.events);
   // Débuts de journée de moins de 24 h : la journée est peut-être en cours (heure limite de fin dessous).
   const recentStarts = day.events
@@ -22,7 +25,12 @@ export default function DaySection({ day, index, found, onOpen }: Props) {
   return (
     <section className="day">
       <h2 className="day-header">
-        <span>{dayLabel(day.date)}</span>
+        <span className="day-title">
+          {dayLabel(day.date)}
+          <button type="button" className="pill day-map" onClick={onMap} aria-label="Carte de la journée">
+            <MapIcon size={13} aria-hidden />
+          </button>
+        </span>
         <span className="day-summary">
           {km != null && <span>{km.toLocaleString('fr-FR')} km</span>}
           {amplitude != null && <span>{durationLabel(amplitude)}</span>}

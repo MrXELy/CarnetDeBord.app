@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Place, TripEvent } from '../types';
 import { decodePolyline6, orderWaypoints, routeOptions, routeVia, routing, simplify, tapRadius } from './route';
-import { buildStops, closestRoute, dayLegs, distanceKm, stopSegments, stopsHash } from './weekStops';
+import { buildStops, closestRoute, dayLegs, dayStops, distanceKm, stopSegments, stopsHash } from './weekStops';
 
 function ev(id: string, occurred: string, at: [number, number] | null, extra: Partial<TripEvent> = {}): TripEvent {
   return {
@@ -67,6 +67,44 @@ describe('dayLegs', () => {
     expect(legs).toHaveLength(1); // jeudi : un seul lieu, pas de trajet
     expect(legs[0].day).toBe('2026-01-30');
     expect(legs[0].points).toEqual([NARBONNE, CARCASSONNE, TOULOUSE, PERIGUEUX]);
+  });
+});
+
+describe('dayStops', () => {
+  const twoDays = [
+    ...week,
+    ev('deb31', '2026-01-31T06:00', PERIGUEUX, { type: 'debut_journee' }),
+    ev('liv31', '2026-01-31T09:00', TOULOUSE, { type: 'livraison' }),
+  ];
+  const { stops } = buildStops(twoDays);
+
+  it('garde les lieux du jour, renumérotés, avec seulement leurs étapes du jour', () => {
+    const day = dayStops(stops, '2026-01-30');
+    expect(day.map((s) => [s.number, s.events.map((e) => e.id)])).toEqual([
+      [1, ['deb30']],
+      [2, ['liv30']],
+      [3, ['cha30']],
+      [4, ['fin30']],
+    ]);
+    expect(day[0].day).toBe('2026-01-30');
+    expect(dayStops(stops, '2026-01-31').map((s) => s.events.map((e) => e.id))).toEqual([['deb31'], ['liv31']]);
+  });
+
+  it('part du dernier lieu de la veille quand la journée commence ailleurs', () => {
+    const { stops: apart } = buildStops([
+      ev('fin29', '2026-01-29T17:15', NARBONNE, { type: 'fin_journee' }),
+      ev('liv30', '2026-01-30T08:00', CARCASSONNE, { type: 'livraison' }),
+    ]);
+    const day = dayStops(apart, '2026-01-30');
+    expect(day.map((s) => [s.number, s.events.map((e) => e.id), s.day])).toEqual([
+      [1, ['fin29'], '2026-01-29'],
+      [2, ['liv30'], '2026-01-30'],
+    ]);
+    expect(stopSegments(day)).toHaveLength(1);
+  });
+
+  it('ne garde rien un jour sans étape', () => {
+    expect(dayStops(stops, '2026-02-02')).toEqual([]);
   });
 });
 

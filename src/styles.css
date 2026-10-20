@@ -373,6 +373,10 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
   -webkit-backdrop-filter: blur(12px);
 }
 
+.day-title { display: inline-flex; align-items: center; gap: 8px; }
+/* Pastille de la carte du jour : petite, à côté du nom du jour. */
+.day-map { padding: 3px 8px; color: var(--muted); }
+
 .day-summary {
   display: flex;
   gap: 12px;
@@ -1436,7 +1440,18 @@ legend { margin-bottom: 6px; }
   color: var(--muted);
 }
 
-.map-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.map-legend button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.map-legend button:active { opacity: 0.7; }
 .map-legend i { width: 12px; height: 12px; border-radius: 50%; }
 .map-legend b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 
@@ -1664,7 +1679,9 @@ legend { margin-bottom: 6px; }
 }
 .st-title:active { background: var(--glass); }
 .st-title-chevron { flex: none; color: var(--muted); }
-.st-today { justify-self: center; display: inline-flex; align-items: center; gap: 6px; }
+.st-pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.st-pills:empty { display: none; }
+.st-today { display: inline-flex; align-items: center; gap: 6px; }
 .st-when span { font-size: 0.78rem; color: var(--muted); }
 
 .st-content { display: grid; gap: 14px; }

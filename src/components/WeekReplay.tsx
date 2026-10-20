@@ -1,8 +1,6 @@
-import { format } from 'date-fns';
 import { Clapperboard, LoaderCircle, Pause, Play, RotateCcw, Share2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { shareFile } from '../lib/share';
-import { weekLabel } from '../lib/dates';
 import { cameraAt, cameraTrack, OUTRO_SECONDS } from '../lib/replayCamera';
 import { drawReplayFrame, replayBox, replayLayout, type ReplayFormat } from '../lib/replayDraw';
 import { updateSettings, useSettings } from '../lib/settings';
@@ -13,9 +11,16 @@ import type { Stop } from '../lib/weekStops';
 import type { MapLeg } from '../types';
 
 interface Props {
-  start: Date;
+  /** Titre de la fenêtre : « Semaine rejouée », « Journée rejouée », « Mois rejoué ». */
+  heading: string;
+  /** Petit titre en haut de l'image : « Semaine 43 · 19 – 25 oct. », « Octobre 2026 ». */
+  title: string;
+  /** Début du nom du fichier vidéo : « semaine-2026-43 ». */
+  fileName: string;
+  /** « cette semaine », « ce jour-là », « ce mois-ci » (message sans trajet). */
+  when: string;
   stops: Stop[];
-  /** Itinéraires enregistrés de la semaine (un par tronçon ; sinon lignes droites). */
+  /** Itinéraires enregistrés (un par tronçon ; sinon lignes droites). */
   legs: MapLeg[];
   onClose: () => void;
 }
@@ -29,8 +34,14 @@ type VideoState =
 /** Durées proposées pour l'animation, en secondes. */
 const DURATIONS = [15, 30, 45, 60, 90, 120];
 
-/** La semaine rejouée : animation des trajets dans l'ordre chronologique, au format et à la durée choisis. */
-export default function WeekReplay({ start, stops, legs, onClose }: Props) {
+/** Noms des villes atteintes effacés pendant le début du dézoom final (secondes). */
+const LABEL_FADE_SECONDS = 1.5;
+
+/**
+ * Semaine (ou journée, ou mois) rejouée : animation des trajets dans l'ordre chronologique,
+ * au format et à la durée choisis.
+ */
+export default function WeekReplay({ heading, title, fileName, when, stops, legs, onClose }: Props) {
   const {
     replayFormat: fmt,
     replayDuration: duration,
@@ -51,8 +62,7 @@ export default function WeekReplay({ start, stops, legs, onClose }: Props) {
     () => cameraTrack(replay, replayBox(replay, fmt), layout.width / layout.mapHeight, viewKm),
     [replay, fmt, layout.width, layout.mapHeight, viewKm],
   );
-  const title = weekLabel(start);
-  // Durée totale : la semaine, puis le dézoom final et la pause sur la carte complète.
+  // Durée totale : les trajets, puis le dézoom final et la pause sur la carte complète.
   const length = replay.total + OUTRO_SECONDS;
 
   // Lecture : l'avancement suit l'horloge ; arrêt à la fin.
@@ -78,7 +88,7 @@ export default function WeekReplay({ start, stops, legs, onClose }: Props) {
   function drawAt(ctx: CanvasRenderingContext2D, seconds: number) {
     const frame = replayFrame(replay, Math.min(seconds / replay.total, 1));
     if (!frame) return;
-    // Fin : vue d'ensemble, avec le bilan de la semaine.
+    // Fin : vue d'ensemble, avec le bilan.
     const days = new Set(replay.stops.map((s) => s.day)).size;
     const shown =
       seconds > replay.total
@@ -93,6 +103,7 @@ export default function WeekReplay({ start, stops, legs, onClose }: Props) {
       replay,
       shown,
       Math.min(seconds / length, 1),
+      1 - Math.min(Math.max((seconds - replay.total) / LABEL_FADE_SECONDS, 0), 1),
     );
   }
 
@@ -149,8 +160,7 @@ export default function WeekReplay({ start, stops, legs, onClose }: Props) {
 
   /** Partage sur téléphone, téléchargement sur PC (geste séparé : la création prend trop longtemps pour partager). */
   async function shareVideo(made: ReplayVideo) {
-    const week = title.match(/\d+/)?.[0] ?? '';
-    const name = `semaine-${format(start, 'yyyy')}-${week}-${fmt === 'vertical' ? 'verticale' : 'carree'}${made.extension}`;
+    const name = `${fileName}-${fmt === 'vertical' ? 'verticale' : 'carree'}${made.extension}`;
     try {
       await shareFile(made.blob, name, title);
     } catch (err) {
@@ -174,12 +184,12 @@ export default function WeekReplay({ start, stops, legs, onClose }: Props) {
           <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
             <X size={22} />
           </button>
-          <h2>Semaine rejouée</h2>
+          <h2>{heading}</h2>
         </header>
 
         <div className="modal-body">
           {empty ? (
-            <p className="empty muted">Pas encore de trajet à rejouer cette semaine.</p>
+            <p className="empty muted">Pas encore de trajet à rejouer {when}.</p>
           ) : (
             <>
               <canvas
@@ -188,7 +198,7 @@ export default function WeekReplay({ start, stops, legs, onClose }: Props) {
                 width={layout.width}
                 height={layout.height}
                 onClick={toggle}
-                aria-label={`Animation des trajets de la ${title}`}
+                aria-label={`Animation des trajets : ${title}`}
               />
 
               <div className="replay-controls">
@@ -280,7 +290,7 @@ export default function WeekReplay({ start, stops, legs, onClose }: Props) {
                     </button>
                   ))}
                 </div>
-                {/* Largeur de la vue pendant la semaine (la caméra recule quand même sur les longs trajets). */}
+                {/* Largeur de la vue pendant l'animation (la caméra recule quand même sur les longs trajets). */}
                 <label className="replay-view">
                   <span>
                     Largeur de la vue : <strong>{viewKm} km</strong>
@@ -302,9 +312,10 @@ export default function WeekReplay({ start, stops, legs, onClose }: Props) {
                 </p>
               )}
               <p className="hint">
-                La caméra suit le camion, puis recule sur toute la semaine à la fin (4,5 s de plus). Le camion roule
+                La caméra suit le camion, puis recule sur tous les trajets à la fin (4,5 s de plus). Le camion roule
                 toujours à la même vitesse ; arrêts et nuits durent le temps de lire (moins si l’animation est courte).
-                Itinéraires de la carte de la semaine (lignes droites si elle n’est pas générée).
+                Chaque lieu atteint garde le nom de sa ville. Itinéraires des cartes des semaines (lignes droites si
+                elles ne sont pas générées).
               </p>
             </>
           )}

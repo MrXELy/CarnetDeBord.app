@@ -42,6 +42,66 @@ function dayTitle(day: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/** Rectangle à l'écran : gauche, haut, droite, bas (pixels). */
+export type Rect = [number, number, number, number];
+
+const overlaps = (a: Rect, b: Rect) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+
+/** Nom comparé sans accents ni majuscules : « Béziers » et « BEZIERS » sont la même ville. */
+const nameKey = (name: string) =>
+  name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+/** Nom d'une ville atteinte, posé à côté de son point. */
+export interface StopLabel {
+  name: string;
+  /** Point du lieu, à l'écran. */
+  at: Point;
+  /** Texte à droite du point, ou à gauche (bord de l'image, ou place prise). */
+  left: boolean;
+  rect: Rect;
+}
+
+/**
+ * Noms des villes atteintes : chaque ville une seule fois (au passage le plus récent), sans chevauchement,
+ * les plus récentes d'abord (le lieu où vient d'arriver le camion a toujours son nom, s'il tient dans l'image).
+ * `stops` dans l'ordre où ils sont atteints ; `measure` donne la largeur d'un texte en pixels.
+ */
+export function placeLabels(
+  stops: { name: string; at: Point }[],
+  measure: (text: string) => number,
+  area: { width: number; top: number; bottom: number },
+  height = 32,
+): StopLabel[] {
+  const dots: Rect[] = stops.map(({ at: [x, y] }) => [x - 12, y - 12, x + 12, y + 12]);
+  const placed: StopLabel[] = [];
+  const seen = new Set<string>();
+  for (let i = stops.length - 1; i >= 0; i--) {
+    const { name, at } = stops[i];
+    const key = nameKey(name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const [x, y] = at;
+    if (y < area.top || y > area.bottom) continue;
+    const w = measure(name);
+    const gap = 18;
+    const others = dots.filter((_, j) => j !== i);
+    const fits = (rect: Rect) =>
+      rect[0] >= 0 &&
+      rect[2] <= area.width &&
+      !placed.some((p) => overlaps(rect, p.rect)) &&
+      !others.some((d) => overlaps(rect, d));
+    const right: Rect = [x + gap - 4, y - height / 2, x + gap + w + 4, y + height / 2];
+    const left: Rect = [x - gap - w - 4, y - height / 2, x - gap + 4, y + height / 2];
+    if (fits(right)) placed.push({ name, at, left: false, rect: right });
+    else if (fits(left)) placed.push({ name, at, left: true, rect: left });
+  }
+  return placed;
+}
+
 /** Contours de la France et des départements, préparés une fois (dessin vectoriel : net à tous les zooms). */
 let shapes: { france: Path2D; departments: Path2D } | null = null;
 
@@ -61,7 +121,8 @@ function drawBackground(
   top: number,
   width: number,
   options: ReplayBackground,
-  taken: Point[],
+  taken: Rect[],
+  named: Set<string>,
   toXY: (at: Point) => Point,
 ) {
   shapes ??= { france: new Path2D(FRANCE_PATH), departments: new Path2D(DEPARTEMENTS_PATH) };
@@ -86,20 +147,19 @@ function drawBackground(
 
   // Villes repères : les plus grandes toujours, les autres quand on est plus près ; sans chevauchement.
   const maxRank = box.width < 4 ? 3 : box.width < 7 ? 2 : 1;
-  const blocked: [number, number, number, number][] = taken.map(([x, y]) => [x - 26, y - 22, x + 26, y + 22]);
+  const blocked = [...taken];
   ctx.font = `600 26px ${FONT}`;
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
   for (const c of [...CITIES].sort((a, b) => a.rank - b.rank)) {
-    if (c.rank > maxRank) continue;
+    // Ville déjà écrite à côté d'un lieu atteint : pas deux fois.
+    if (c.rank > maxRank || named.has(nameKey(c.name))) continue;
     const [x, y] = toXY([c.lat, c.lon]);
     const w = ctx.measureText(c.name).width + 16;
     const left = x + w > width;
-    const rect: [number, number, number, number] = left
-      ? [x - w, y - 16, x + 6, y + 16]
-      : [x - 6, y - 16, x + w, y + 16];
+    const rect: Rect = left ? [x - w, y - 16, x + 6, y + 16] : [x - 6, y - 16, x + w, y + 16];
     if (rect[0] < 0 || y < top || y > top + box.height * scale) continue;
-    if (blocked.some((b) => rect[0] < b[2] && b[0] < rect[2] && rect[1] < b[3] && b[1] < rect[3])) continue;
+    if (blocked.some((b) => overlaps(rect, b))) continue;
     blocked.push(rect);
     ctx.fillStyle = '#7c8596';
     ctx.beginPath();
@@ -127,6 +187,8 @@ export function drawReplayFrame(
   replay: Replay,
   frame: ReplayFrame,
   progress: number,
+  /** Opacité des noms des villes atteintes (ils s'effacent pendant le dézoom final). */
+  labelAlpha = 1,
 ) {
   const { width: W, height: H, top, mapHeight } = replayLayout(fmt);
   const vertical = fmt === 'vertical';
@@ -145,13 +207,31 @@ export function drawReplayFrame(
   ctx.rect(0, top, W, mapHeight);
   ctx.clip();
   const reached = replay.stops.slice(0, frame.stopsReached);
+  const labelFont = `700 ${vertical ? 32 : 28}px ${FONT}`;
+  ctx.font = labelFont;
+  const labels =
+    labelAlpha > 0
+      ? placeLabels(
+          reached.map((s) => ({ name: s.events[0].city.trim(), at: toXY([s.lat, s.lon]) })),
+          (text) => ctx.measureText(text).width,
+          { width: W, top, bottom: top + mapHeight },
+        )
+      : [];
+  // Villes repères : à l'écart des lieux atteints et de leurs noms.
   drawBackground(
     ctx,
     box,
     top,
     W,
     background,
-    reached.map((s) => toXY([s.lat, s.lon])),
+    [
+      ...reached.map((s): Rect => {
+        const [x, y] = toXY([s.lat, s.lon]);
+        return [x - 26, y - 22, x + 26, y + 22];
+      }),
+      ...labels.map((l) => l.rect),
+    ],
+    new Set(labels.map((l) => nameKey(l.name))),
     toXY,
   );
   ctx.lineJoin = 'round';
@@ -180,6 +260,24 @@ export function drawReplayFrame(
     ctx.arc(x, y, 11, 0, 2 * Math.PI);
     ctx.fill();
     ctx.stroke();
+  }
+  // Noms des villes atteintes, à côté de leur point.
+  if (labels.length) {
+    ctx.globalAlpha = labelAlpha;
+    ctx.font = labelFont;
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = '#0b0d11';
+    ctx.fillStyle = '#e8eaed';
+    for (const l of labels) {
+      const [x, y] = l.at;
+      ctx.textAlign = l.left ? 'right' : 'left';
+      const tx = x + (l.left ? -18 : 18);
+      ctx.strokeText(l.name, tx, y);
+      ctx.fillText(l.name, tx, y);
+    }
+    ctx.globalAlpha = 1;
   }
   const [tx, ty] = toXY(frame.truck);
   ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';

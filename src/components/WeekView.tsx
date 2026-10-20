@@ -1,4 +1,4 @@
-import { addDays, addWeeks, isSameDay, parseISO } from 'date-fns';
+import { addDays, addWeeks, format, isSameDay, parseISO } from 'date-fns';
 import {
   ChartColumn,
   ChevronDown,
@@ -54,7 +54,8 @@ export default function WeekView() {
   const [found, setFound] = useState<string | null>(null);
   const [waybillFilter, setWaybillFilter] = useState<WaybillFilter | null>(null);
   const [pickingWeek, setPickingWeek] = useState(false);
-  const [showMap, setShowMap] = useState(false);
+  // Carte de la semaine (true) ou d'une de ses journées (« 2026-10-20 »).
+  const [showMap, setShowMap] = useState<boolean | string>(false);
   const [monthMap, setMonthMap] = useState<string | null>(null);
   // Feuille de semaine en cours de fabrication : bouton occupé, pas de double fabrication.
   const [makingSheet, setMakingSheet] = useState(false);
@@ -264,6 +265,7 @@ export default function WeekView() {
               index={i}
               found={found}
               onOpen={(event) => setEditing({ event })}
+              onMap={() => setShowMap(format(day.date, 'yyyy-MM-dd'))}
             />
           ))
         )}
@@ -306,7 +308,14 @@ export default function WeekView() {
       )}
       {showStats && (
         <Suspense fallback={null}>
-          <StatsPage week={start} onClose={() => setShowStats(false)} />
+          <StatsPage
+            week={start}
+            onEdit={(event) => {
+              setShowStats(false);
+              setEditing({ event });
+            }}
+            onClose={() => setShowStats(false)}
+          />
         </Suspense>
       )}
       {waybillFilter && (
@@ -351,6 +360,7 @@ export default function WeekView() {
           <WeekMap
             start={start}
             events={days.flatMap((d) => d.events)}
+            day={typeof showMap === 'string' ? showMap : undefined}
             onEdit={(event) => {
               setShowMap(false);
               setEditing({ event });

@@ -1,5 +1,5 @@
-import { LoaderCircle, Route, X } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { LoaderCircle, Play, Route, X } from 'lucide-react';
+import { lazy, Suspense, useMemo, useRef, useState } from 'react';
 import { monthWeeks, summarizeWeek, timeLabel, weekLabel } from '../lib/dates';
 import { updateSettings, useSettings } from '../lib/settings';
 import { useEvents } from '../lib/useEvents';
@@ -8,7 +8,18 @@ import { useSheet } from '../lib/useSheet';
 import { generateWeekMap } from '../lib/weekMapGen';
 import { WEEK_COLORS, buildStops, dayKey, dayLegs, shortDay, stopsHash } from '../lib/weekStops';
 import { eventTypeInfo, type Place, type TripEvent } from '../types';
-import MapSvg, { ImageButton, MapCredits, mapUnit, project, renderImage, viewBox, type MapPin, type Point } from './MapSvg';
+import MapSvg, {
+  ImageButton,
+  MapCredits,
+  mapUnit,
+  project,
+  renderImage,
+  viewBox,
+  type MapPin,
+  type Point,
+} from './MapSvg';
+
+const WeekReplay = lazy(() => import('./WeekReplay'));
 
 interface Props {
   /** Mois tel qu'affiché dans la liste des semaines : « Janvier 2026 ». */
@@ -41,6 +52,7 @@ export default function MonthMap({ month, onPickWeek, onEdit, onClose }: Props) 
   const [found, setFound] = useState<Map<string, Place>>(() => new Map());
   const [status, setStatus] = useState<Status>({ state: 'idle' });
   const svgRef = useRef<SVGSVGElement>(null);
+  const [replaying, setReplaying] = useState(false);
 
   const sheet = useSheet(onClose);
 
@@ -84,6 +96,17 @@ export default function MonthMap({ month, onPickWeek, onEdit, onClose }: Props) 
     allStops.map((s) => ({ at: project([s.lat, s.lon]), color: s.color, approximate: s.approximate })),
     mapUnit(box) * 6,
   );
+
+  // Mois rejoué : tous les lieux du mois à la suite, avec les itinéraires des semaines à jour.
+  const replayStops = useMemo(
+    () =>
+      buildStops(
+        base.flatMap((w) => w.events),
+        found,
+      ).stops,
+    [base, found],
+  );
+  const replayLegs = weeks.flatMap((w) => w.saved?.legs ?? []);
 
   const kms = weeks.map((w) => w.km).filter((km): km is number => km != null);
   const monthKm = kms.length ? kms.reduce((a, b) => a + b, 0) : null;
@@ -136,156 +159,183 @@ export default function MonthMap({ month, onPickWeek, onEdit, onClose }: Props) 
   const busy = status.state === 'busy';
 
   return (
-    <div className="modal-backdrop" ref={sheet.ref} onClick={sheet.close}>
-      <div className="modal map-modal" onClick={(e) => e.stopPropagation()}>
-        <header className="modal-header" {...sheet.handle}>
-          <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
-            <X size={22} />
-          </button>
-          <h2>Carte · {month}</h2>
-        </header>
+    <>
+      <div className="modal-backdrop" ref={sheet.ref} onClick={sheet.close}>
+        <div className="modal map-modal" onClick={(e) => e.stopPropagation()}>
+          <header className="modal-header" {...sheet.handle}>
+            <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
+              <X size={22} />
+            </button>
+            <h2>Carte · {month}</h2>
+          </header>
 
-        <div className="modal-body">
-          {weeks.length === 0 ? (
-            <p className="empty muted">Aucune étape ce mois-ci.</p>
-          ) : (
-            <>
-              <div className="map-controls">
-                <div className="map-mode" role="radiogroup" aria-label="Tracé des trajets">
+          <div className="modal-body">
+            {weeks.length === 0 ? (
+              <p className="empty muted">Aucune étape ce mois-ci.</p>
+            ) : (
+              <>
+                <div className="map-controls">
+                  <div className="map-mode" role="radiogroup" aria-label="Tracé des trajets">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={showRoutes}
+                      className={showRoutes ? 'selected' : ''}
+                      disabled={!anySaved}
+                      title={anySaved ? undefined : 'Génère d’abord la carte'}
+                      onClick={() => updateSettings({ mapRoutes: true })}
+                    >
+                      Itinéraires
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={!showRoutes}
+                      className={!showRoutes ? 'selected' : ''}
+                      onClick={() => updateSettings({ mapRoutes: false })}
+                    >
+                      Lignes droites
+                    </button>
+                  </div>
+                  <div className="map-toggles">
+                    <label className="map-toggle">
+                      <input
+                        type="checkbox"
+                        checked={mapFrame === 'france'}
+                        onChange={(e) => updateSettings({ mapFrame: e.target.checked ? 'france' : 'trips' })}
+                      />
+                      France entière
+                    </label>
+                    <label className="map-toggle">
+                      <input
+                        type="checkbox"
+                        checked={mapCities}
+                        onChange={(e) => updateSettings({ mapCities: e.target.checked })}
+                      />
+                      Villes
+                    </label>
+                    <label className="map-toggle">
+                      <input
+                        type="checkbox"
+                        checked={mapDepartments}
+                        onChange={(e) => updateSettings({ mapDepartments: e.target.checked })}
+                      />
+                      Départements
+                    </label>
+                  </div>
+                </div>
+
+                <div className="map-frame">
+                  <MapSvg
+                    ref={svgRef}
+                    box={box}
+                    lines={lines}
+                    pins={pins}
+                    arrows={false}
+                    cities={mapCities}
+                    departments={mapDepartments}
+                    label={`Carte des trajets de ${month.toLowerCase()}`}
+                  />
+                  <ImageButton onExport={exportImage} disabled={busy || allStops.length === 0} />
+                  {/* Mois rejoué : bouton rond en bas à gauche de la carte. */}
                   <button
                     type="button"
-                    role="radio"
-                    aria-checked={showRoutes}
-                    className={showRoutes ? 'selected' : ''}
-                    disabled={!anySaved}
-                    title={anySaved ? undefined : 'Génère d’abord la carte'}
-                    onClick={() => updateSettings({ mapRoutes: true })}
+                    className="map-image-btn map-replay-btn"
+                    aria-label="Rejouer le mois"
+                    title="Rejouer le mois"
+                    disabled={busy || replayStops.length < 2}
+                    onClick={() => setReplaying(true)}
                   >
-                    Itinéraires
-                  </button>
-                  <button
-                    type="button"
-                    role="radio"
-                    aria-checked={!showRoutes}
-                    className={!showRoutes ? 'selected' : ''}
-                    onClick={() => updateSettings({ mapRoutes: false })}
-                  >
-                    Lignes droites
+                    <Play size={18} />
                   </button>
                 </div>
-                <div className="map-toggles">
-                  <label className="map-toggle">
-                    <input
-                      type="checkbox"
-                      checked={mapFrame === 'france'}
-                      onChange={(e) => updateSettings({ mapFrame: e.target.checked ? 'france' : 'trips' })}
-                    />
-                    France entière
-                  </label>
-                  <label className="map-toggle">
-                    <input
-                      type="checkbox"
-                      checked={mapCities}
-                      onChange={(e) => updateSettings({ mapCities: e.target.checked })}
-                    />
-                    Villes
-                  </label>
-                  <label className="map-toggle">
-                    <input
-                      type="checkbox"
-                      checked={mapDepartments}
-                      onChange={(e) => updateSettings({ mapDepartments: e.target.checked })}
-                    />
-                    Départements
-                  </label>
-                </div>
-              </div>
 
-              <div className="map-frame">
-                <MapSvg
-                  ref={svgRef}
-                  box={box}
-                  lines={lines}
-                  pins={pins}
-                  arrows={false}
-                  cities={mapCities}
-                  departments={mapDepartments}
-                  label={`Carte des trajets de ${month.toLowerCase()}`}
-                />
-                <ImageButton onExport={exportImage} disabled={busy || allStops.length === 0} />
-              </div>
-
-              {status.state !== 'idle' && (
-                <p className={`reading ${status.state === 'error' ? 'reading-error' : ''}`}>
-                  {busy && <LoaderCircle size={16} className="spin" />}
-                  {status.message}
-                </p>
-              )}
-
-              {toGenerate.length > 0 && (
-                <button
-                  type="button"
-                  className="btn-primary btn-icon lv-add map-generate"
-                  onClick={generate}
-                  disabled={busy}
-                >
-                  <Route size={18} />
-                  {toGenerate.length === weeks.length
-                    ? 'Générer la carte'
-                    : `Générer ${toGenerate.length} semaine${toGenerate.length > 1 ? 's' : ''}`}
-                </button>
-              )}
-
-              <div className="month-weeks">
-                {weeks.map((w) => (
-                  <button
-                    type="button"
-                    key={w.start.getTime()}
-                    className="week-row"
-                    onClick={() => onPickWeek(w.start)}
-                  >
-                    <span className="month-week-title">
-                      <i style={{ background: w.color }} />
-                      {shortWeek(w.start)}
-                    </span>
-                    <span className="week-row-meta">
-                      {w.km != null ? `${w.km.toLocaleString('fr-FR')} km` : '– km'}
-                      {!w.saved && ' · lignes droites'}
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <p className="hint">
-                {monthKm != null && `${monthKm.toLocaleString('fr-FR')} km · `}
-                {allStops.length} lieu{allStops.length > 1 ? 'x' : ''} · {weeks.length} semaine
-                {weeks.length > 1 ? 's' : ''} · touche une semaine pour l’ouvrir
-              </p>
-
-              {missing.length > 0 && (
-                <div className="map-missing">
-                  <p className="hint hint-err">
-                    {missing.length} étape{missing.length > 1 ? 's' : ''} sans position, absente
-                    {missing.length > 1 ? 's' : ''} de la carte :
+                {status.state !== 'idle' && (
+                  <p className={`reading ${status.state === 'error' ? 'reading-error' : ''}`}>
+                    {busy && <LoaderCircle size={16} className="spin" />}
+                    {status.message}
                   </p>
-                  {missing.map((e) => (
-                    <div key={e.id} className="map-missing-row">
-                      <span>
-                        {shortDay(dayKey(e.occurred_at))} {timeLabel(e.occurred_at)} · {eventTypeInfo(e.type).short} ·{' '}
-                        {e.city ? `« ${e.city} »` : 'lieu non renseigné'}
+                )}
+
+                {toGenerate.length > 0 && (
+                  <button
+                    type="button"
+                    className="btn-primary btn-icon lv-add map-generate"
+                    onClick={generate}
+                    disabled={busy}
+                  >
+                    <Route size={18} />
+                    {toGenerate.length === weeks.length
+                      ? 'Générer la carte'
+                      : `Générer ${toGenerate.length} semaine${toGenerate.length > 1 ? 's' : ''}`}
+                  </button>
+                )}
+
+                <div className="month-weeks">
+                  {weeks.map((w) => (
+                    <button
+                      type="button"
+                      key={w.start.getTime()}
+                      className="week-row"
+                      onClick={() => onPickWeek(w.start)}
+                    >
+                      <span className="month-week-title">
+                        <i style={{ background: w.color }} />
+                        {shortWeek(w.start)}
                       </span>
-                      <button type="button" className="btn-link" onClick={() => onEdit(e)}>
-                        Corriger
-                      </button>
-                    </div>
+                      <span className="week-row-meta">
+                        {w.km != null ? `${w.km.toLocaleString('fr-FR')} km` : '– km'}
+                        {!w.saved && ' · lignes droites'}
+                      </span>
+                    </button>
                   ))}
                 </div>
-              )}
+                <p className="hint">
+                  {monthKm != null && `${monthKm.toLocaleString('fr-FR')} km · `}
+                  {allStops.length} lieu{allStops.length > 1 ? 'x' : ''} · {weeks.length} semaine
+                  {weeks.length > 1 ? 's' : ''} · touche une semaine pour l’ouvrir
+                </p>
 
-              <MapCredits />
-            </>
-          )}
+                {missing.length > 0 && (
+                  <div className="map-missing">
+                    <p className="hint hint-err">
+                      {missing.length} étape{missing.length > 1 ? 's' : ''} sans position, absente
+                      {missing.length > 1 ? 's' : ''} de la carte :
+                    </p>
+                    {missing.map((e) => (
+                      <div key={e.id} className="map-missing-row">
+                        <span>
+                          {shortDay(dayKey(e.occurred_at))} {timeLabel(e.occurred_at)} · {eventTypeInfo(e.type).short} ·{' '}
+                          {e.city ? `« ${e.city} »` : 'lieu non renseigné'}
+                        </span>
+                        <button type="button" className="btn-link" onClick={() => onEdit(e)}>
+                          Corriger
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <MapCredits />
+              </>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+
+      {replaying && (
+        <Suspense fallback={null}>
+          <WeekReplay
+            heading="Mois rejoué"
+            title={month}
+            fileName={`mois-${month.toLowerCase().replace(' ', '-')}`}
+            when="ce mois-ci"
+            stops={replayStops}
+            legs={replayLegs}
+            onClose={() => setReplaying(false)}
+          />
+        </Suspense>
+      )}
+    </>
   );
 }

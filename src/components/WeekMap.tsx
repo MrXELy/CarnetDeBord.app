@@ -2,7 +2,7 @@ import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { LoaderCircle, Play, Route, X } from 'lucide-react';
 import { Fragment, lazy, Suspense, useMemo, useRef, useState } from 'react';
-import { summarizeDay, summarizeWeek, timeLabel, weekLabel } from '../lib/dates';
+import { dayLabel, summarizeDay, summarizeWeek, timeLabel, weekLabel } from '../lib/dates';
 import { formatPlace } from '../lib/geo';
 import { updateSettings, useSettings } from '../lib/settings';
 import { useEvents } from '../lib/useEvents';
@@ -14,6 +14,7 @@ import {
   dayColor,
   dayKey,
   dayLegs,
+  dayStops,
   joinDayLegs,
   segmentKey,
   shortDay,
@@ -36,14 +37,17 @@ interface RouteLeg {
 
 interface Props {
   start: Date;
+  /** Étapes de la semaine (même pour la carte d'une journée : ses itinéraires sont ceux de la semaine). */
   events: TripEvent[];
+  /** Carte d'une seule journée (« 2026-10-20 ») : ses lieux, avec le départ du dernier lieu de la veille. */
+  day?: string;
   onEdit: (event: TripEvent) => void;
   onClose: () => void;
 }
 
 type Status = { state: 'idle' } | { state: 'busy'; message: string } | { state: 'error'; message: string };
 
-export default function WeekMap({ start, events, onEdit, onClose }: Props) {
+export default function WeekMap({ start, events, day, onEdit, onClose }: Props) {
   const { store } = useEvents();
   // Réglages de la carte, mémorisés sur cet appareil.
   const { mapRoutes, mapCities, mapDepartments, mapNumbers, mapFrame, mapRouteButtons } = useSettings();
@@ -54,12 +58,17 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
   // Tronçon dont on choisit l'itinéraire (clé), dans sa fenêtre.
   const [choosing, setChoosing] = useState<string | null>(null);
   const [replaying, setReplaying] = useState(false);
+  // Journée ouverte depuis la légende de la carte de la semaine.
+  const [openDay, setOpenDay] = useState<string | null>(null);
 
   const sheet = useSheet(onClose);
 
-  const { stops, missing } = useMemo(() => buildStops(events, found), [events, found]);
+  const week = useMemo(() => buildStops(events, found), [events, found]);
+  const stops = useMemo(() => (day ? dayStops(week.stops, day) : week.stops), [week, day]);
+  const missing = day ? week.missing.filter((e) => dayKey(e.occurred_at) === day) : week.missing;
   const straight = useMemo(() => dayLegs(stops), [stops]);
-  const hash = stopsHash(stops);
+  // Empreinte de toute la semaine : la carte enregistrée est celle de la semaine.
+  const hash = stopsHash(week.stops);
   // Itinéraire enregistré de chaque tronçon, rangé par lieu d'arrivée (anciennes cartes par jour : aucun).
   const routeLegs = useMemo(() => {
     const byKey = new Map(saved?.legs.filter((l) => l.key).map((l) => [l.key!, l]));
@@ -76,9 +85,12 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
   // Trajets affichés : les routes enregistrées, sinon des lignes droites en attendant.
   // Itinéraires enregistrés, ou lignes droites entre les étapes (au choix, ou tant que la carte n'est pas générée).
   const showRoutes = mapRoutes && !!saved;
+  // Journée : seulement ses tronçons (anciennes cartes, sans clé : le tracé de son jour).
+  const dayKeys = new Set([...routeLegs.values()].map((r) => r.leg.key));
+  const savedLegs = saved?.legs.filter((l) => !day || (l.key ? dayKeys.has(l.key) : l.day === day)) ?? [];
   const legs =
     showRoutes && saved
-      ? joinDayLegs(saved.legs).map((l) => ({ day: l.day, color: dayColor(l.day), coords: l.coords }))
+      ? joinDayLegs(savedLegs).map((l) => ({ day: l.day, color: dayColor(l.day), coords: l.coords }))
       : straight.map((l) => ({ day: l.day, color: l.color, coords: l.points }));
 
   const box = viewBox(
@@ -87,9 +99,11 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
   );
   const pinList = stopPins(stops, mapUnit(box) * 16, mapNumbers);
 
-  const days = [...new Set(stops.map((s) => s.day))].sort();
-  const dayKm = (day: string) => summarizeDay(events.filter((e) => !e.deleted_at && dayKey(e.occurred_at) === day)).km;
-  const weekKm = summarizeWeek(events).km;
+  const days = day ? [day] : [...new Set(stops.map((s) => s.day))].sort();
+  const dayKm = (d: string) => summarizeDay(events.filter((e) => !e.deleted_at && dayKey(e.occurred_at) === d)).km;
+  const totalKm = day ? dayKm(day) : summarizeWeek(events).km;
+  const title = day ? dayLabel(parseISO(day)) : weekLabel(start);
+  const weekNumber = weekLabel(start).match(/\d+/)?.[0];
 
   async function generate() {
     if (!navigator.onLine) return setStatus({ state: 'error', message: 'Pas de réseau : réessaie plus tard.' });
@@ -108,17 +122,20 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
     if (!svg) return;
     setStatus({ state: 'busy', message: 'Création de l’image…' });
     try {
+      const summary = `${totalKm != null ? `${totalKm.toLocaleString('fr-FR')} km · ` : ''}${stops.length} lieux`;
       const blob = await renderImage(
         svg,
-        weekLabel(start),
-        [
-          `${weekKm != null ? `${weekKm.toLocaleString('fr-FR')} km · ` : ''}${stops.length} lieux · ${days.length} jours`,
-          ...days.map((d) => `${shortDay(d)} : ${dayKm(d)?.toLocaleString('fr-FR') ?? '–'} km`),
-        ],
-        days.map(dayColor),
+        title,
+        day
+          ? [summary]
+          : [
+              `${summary} · ${days.length} jours`,
+              ...days.map((d) => `${shortDay(d)} : ${dayKm(d)?.toLocaleString('fr-FR') ?? '–'} km`),
+            ],
+        day ? [dayColor(day)] : days.map(dayColor),
       );
-      const name = `carte-${format(start, 'yyyy')}-semaine-${weekLabel(start).match(/\d+/)?.[0]}.png`;
-      await shareFile(blob, name, weekLabel(start));
+      const name = day ? `carte-${day}.png` : `carte-${format(start, 'yyyy')}-semaine-${weekNumber}.png`;
+      await shareFile(blob, name, title);
       setStatus({ state: 'idle' });
     } catch (err) {
       // Partage annulé par l'utilisateur : rien à signaler.
@@ -140,12 +157,12 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
             <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
               <X size={22} />
             </button>
-            <h2>Carte · {weekLabel(start)}</h2>
+            <h2>Carte · {title}</h2>
           </header>
 
           <div className="modal-body">
             {stops.length === 0 && missing.length === 0 ? (
-              <p className="empty muted">Aucune étape cette semaine.</p>
+              <p className="empty muted">Aucune étape {day ? 'ce jour-là' : 'cette semaine'}.</p>
             ) : (
               <>
                 <div className="map-controls">
@@ -216,15 +233,15 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
                     arrows
                     cities={mapCities}
                     departments={mapDepartments}
-                    label={`Carte des trajets de la ${weekLabel(start)}`}
+                    label={`Carte des trajets : ${title}`}
                   />
                   <ImageButton onExport={exportImage} disabled={busy || stops.length === 0} />
-                  {/* Semaine rejouée : bouton rond en bas à gauche de la carte. */}
+                  {/* Semaine (ou journée) rejouée : bouton rond en bas à gauche de la carte. */}
                   <button
                     type="button"
                     className="map-image-btn map-replay-btn"
-                    aria-label="Rejouer la semaine"
-                    title="Rejouer la semaine"
+                    aria-label={day ? 'Rejouer la journée' : 'Rejouer la semaine'}
+                    title={day ? 'Rejouer la journée' : 'Rejouer la semaine'}
                     disabled={busy || stops.length < 2}
                     onClick={() => setReplaying(true)}
                   >
@@ -250,7 +267,14 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
                   disabled={busy}
                 >
                   <Route size={18} />
-                  {saved ? 'Régénérer' : 'Générer la carte'}
+                  {/* Journée : les itinéraires sont calculés pour toute sa semaine. */}
+                  {saved
+                    ? day
+                      ? 'Régénérer la semaine'
+                      : 'Régénérer'
+                    : day
+                      ? 'Générer la semaine'
+                      : 'Générer la carte'}
                 </button>
                 {/* Boutons d'itinéraire entre les lieux de la liste : cachés tant qu'on ne les demande pas. */}
                 {routeLegs.size > 0 && (
@@ -264,21 +288,31 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
                   </button>
                 )}
 
-                <div className="map-legend">
-                  {days.map((d) => (
-                    <span key={d}>
-                      <i style={{ background: dayColor(d) }} />
-                      {shortDay(d)}
-                      {dayKm(d) != null && <b> {dayKm(d)!.toLocaleString('fr-FR')} km</b>}
-                    </span>
-                  ))}
-                </div>
+                {/* Semaine : toucher un jour ouvre sa carte. */}
+                {!day && (
+                  <div className="map-legend">
+                    {days.map((d) => (
+                      <button
+                        type="button"
+                        key={d}
+                        onClick={() => setOpenDay(d)}
+                        aria-label={`Carte du ${shortDay(d)}`}
+                      >
+                        <i style={{ background: dayColor(d) }} />
+                        {shortDay(d)}
+                        {dayKm(d) != null && <b> {dayKm(d)!.toLocaleString('fr-FR')} km</b>}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <p className="hint">
-                  {weekKm != null && `${weekKm.toLocaleString('fr-FR')} km · `}
-                  {stops.length} lieu{stops.length > 1 ? 'x' : ''} · {days.length} jour{days.length > 1 ? 's' : ''}
+                  {totalKm != null && `${totalKm.toLocaleString('fr-FR')} km · `}
+                  {stops.length} lieu{stops.length > 1 ? 'x' : ''}
+                  {!day && ` · ${days.length} jour${days.length > 1 ? 's' : ''}`}
                   {saved
-                    ? ` · carte créée le ${format(parseISO(saved.generated_at), 'd MMM à HH:mm', { locale: fr })}`
+                    ? ` · carte ${day ? 'de la semaine ' : ''}créée le ${format(parseISO(saved.generated_at), 'd MMM à HH:mm', { locale: fr })}`
                     : ' · itinéraires pas encore générés'}
+                  {!day && days.length > 1 && ' · touche un jour pour sa carte'}
                 </p>
 
                 <ol className="map-stops">
@@ -328,8 +362,20 @@ export default function WeekMap({ start, events, onEdit, onClose }: Props) {
 
       {replaying && (
         <Suspense fallback={null}>
-          <WeekReplay start={start} stops={stops} legs={saved?.legs ?? []} onClose={() => setReplaying(false)} />
+          <WeekReplay
+            heading={day ? 'Journée rejouée' : 'Semaine rejouée'}
+            title={weekLabel(start)}
+            fileName={day ? `journee-${day}` : `semaine-${format(start, 'yyyy')}-${weekNumber}`}
+            when={day ? 'ce jour-là' : 'cette semaine'}
+            stops={stops}
+            legs={saved?.legs ?? []}
+            onClose={() => setReplaying(false)}
+          />
         </Suspense>
+      )}
+
+      {openDay && (
+        <WeekMap start={start} events={events} day={openDay} onEdit={onEdit} onClose={() => setOpenDay(null)} />
       )}
 
       {saved && chosen && (
