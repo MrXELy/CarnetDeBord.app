@@ -49,10 +49,6 @@ export default function EventCard({ event: e, onOpen }: { event: TripEvent; onOp
     // Chargement : le client chargeur ; livraison : le client destinataire.
     const names = namesOf(waybills, e.type === 'chargement' ? 'shipper' : 'consignee');
     if (names) details.push(names);
-  } else {
-    // Anciennes étapes, saisies avant les lettres de voiture.
-    if (e.client) details.push(e.client);
-    if (e.cmr_number) details.push(`LV ${e.cmr_number}`);
   }
   if (e.station) details.push(e.station);
   if (e.type === 'carburant') details.push(isFullTank(e) ? 'Plein' : 'Complément');

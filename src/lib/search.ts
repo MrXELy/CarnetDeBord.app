@@ -31,8 +31,6 @@ function eventText(e: TripEvent): string {
       formatPlace(e),
       e.postcode,
       e.notes,
-      e.client,
-      e.cmr_number && `lv ${e.cmr_number}`,
       e.station,
       e.tractor_plate,
       compact(e.tractor_plate),

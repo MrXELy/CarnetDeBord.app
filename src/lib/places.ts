@@ -62,8 +62,6 @@ export function addLoadingStep(store: EventStore, step: NewLoading, plates: { tr
     trailer_plate: plates.trailer,
     odometer_km: null,
     notes: null,
-    client: null,
-    cmr_number: null,
     station: null,
     diesel_l: null,
     adblue_l: null,

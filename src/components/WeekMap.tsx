@@ -420,7 +420,6 @@ function StopItem({ stop: s }: { stop: Stop }) {
         {s.events.map((e) => (
           <span key={e.id} className="map-stop-event">
             {shortDay(dayKey(e.occurred_at))} {timeLabel(e.occurred_at)} · {eventTypeInfo(e.type).short}
-            {e.client && ` — ${e.client}`}
           </span>
         ))}
       </span>

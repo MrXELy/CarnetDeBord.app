@@ -4,7 +4,14 @@ import { newWaybill, type TripEvent } from '../types';
 // Faux Supabase : compte les envois, peut être mis en pause (synchro longue), refuser des lignes,
 // et rejoue les pages de lecture comme PostgREST (tri par date puis id, filtre du curseur).
 type Row = Record<string, unknown> & { id: string; updated_at: string };
-const calls = { upserts: 0, rowUpserts: 0, uploads: 0, pulls: [] as string[], upsertTables: [] as string[] };
+const calls = {
+  upserts: 0,
+  rowUpserts: 0,
+  uploads: 0,
+  pulls: [] as string[],
+  upsertTables: [] as string[],
+  purges: [] as string[],
+};
 let gate: Promise<void> | null = null;
 /** Lignes présentes sur le « serveur », par table. */
 let server: Record<string, Row[]> = {};
@@ -59,6 +66,14 @@ vi.mock('./supabase', () => ({
   supabase: {
     from: (table: string) => ({
       ...fakeQuery(table),
+      // Effacement des lignes supprimées avant une date (« purge »).
+      delete: () => ({
+        lt: async (column: string, before: string) => {
+          calls.purges.push(table);
+          server[table] = (server[table] ?? []).filter((r) => !(r[column] && String(r[column]) < before));
+          return { error: null };
+        },
+      }),
       upsert: async (rows: Row[]) => {
         calls.upserts++;
         calls.upsertTables.push(table);
@@ -102,8 +117,6 @@ function ev(id: string, occurred: string): TripEvent {
     trailer_plate: '',
     odometer_km: null,
     notes: null,
-    client: null,
-    cmr_number: null,
     station: null,
     diesel_l: null,
     adblue_l: null,
@@ -134,6 +147,7 @@ beforeEach(() => {
   calls.uploads = 0;
   calls.pulls = [];
   calls.upsertTables = [];
+  calls.purges = [];
   gate = null;
 });
 
@@ -305,6 +319,7 @@ describe('lecture : curseur (date, id)', () => {
   it('un ancien curseur (date seule) reprend à cette date sans rien perdre', async () => {
     server.events = make(1500);
     storage.set('cdb.pull2.data', JSON.stringify({ events: [], outbox: [], cursor: stamp }));
+    storage.set('cdb.pull2.full_synced', JSON.stringify(new Date().toISOString()));
     const store = new EventStore('pull2');
     await flush();
     await store.sync();
@@ -322,6 +337,81 @@ describe('lecture : curseur (date, id)', () => {
     server.events = [];
     await store.sync();
     expect(store.getState().events).toHaveLength(3);
+  });
+});
+
+describe('lignes supprimées : effacées du serveur après 30 jours', () => {
+  const row = (id: string, deletedAt: string | null, updatedAt: string): Row =>
+    ({
+      ...ev(id, '2026-10-01T08:00'),
+      deleted_at: deletedAt,
+      user_id: 'x',
+      created_at: '',
+      updated_at: updatedAt,
+    }) as Row;
+  const old = new Date(Date.now() - 40 * 24 * 3600 * 1000).toISOString();
+  const recent = new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString();
+
+  it('efface du serveur celles supprimées depuis plus de 30 jours, les LV avant les étapes, une fois par jour', async () => {
+    server.events = [row('vieille', old, old), row('recente', recent, recent), row('vivante', null, recent)];
+    const store = new EventStore('purge1');
+    await flush();
+    expect(calls.purges).toEqual(['waybills', 'week_maps', 'events']);
+    expect(server.events.map((r) => r.id)).toEqual(['recente', 'vivante']);
+    await store.sync();
+    expect(calls.purges).toHaveLength(3);
+  });
+
+  it('relecture complète : oublie ce que le serveur n’a plus, garde ce qui attend d’être envoyé', async () => {
+    server.events = [row('a', null, recent), row('b', null, recent)];
+    const store = new EventStore('full1');
+    await flush();
+    expect(
+      store
+        .getState()
+        .events.map((e) => e.id)
+        .sort(),
+    ).toEqual(['a', 'b']);
+    // « b » effacé du serveur par un autre appareil ; une étape ajoutée ici attend l'envoi (refusée pour l'instant).
+    server.events = [row('a', null, recent)];
+    refusedIds = { locale: 'refusée' };
+    store.save(ev('locale', '2026-10-13T08:00'));
+    await flush();
+    // Relecture simple : rien n'est oublié.
+    expect(
+      store
+        .getState()
+        .events.map((e) => e.id)
+        .sort(),
+    ).toEqual(['a', 'b', 'locale']);
+    // Une semaine plus tard : relecture complète.
+    storage.set('cdb.full1.full_synced', JSON.stringify(new Date(Date.now() - 8 * 24 * 3600 * 1000).toISOString()));
+    await store.sync();
+    expect(
+      store
+        .getState()
+        .events.map((e) => e.id)
+        .sort(),
+    ).toEqual(['a', 'locale']);
+    expect(
+      JSON.parse(storage.get('cdb.full1.data')!)
+        .events.map((e: TripEvent) => e.id)
+        .sort(),
+    ).toEqual(['a', 'locale']);
+  });
+
+  it('les anciennes colonnes client et cmr_number ne sont plus gardées', async () => {
+    storage.set(
+      'cdb.cols1.data',
+      JSON.stringify({
+        events: [{ ...ev('x', '2026-10-13T08:00'), client: null, cmr_number: null }],
+        outbox: [],
+        cursor: null,
+      }),
+    );
+    const store = new EventStore('cols1');
+    expect(store.getState().events[0]).not.toHaveProperty('client');
+    expect(store.getState().events[0]).not.toHaveProperty('cmr_number');
   });
 });
 

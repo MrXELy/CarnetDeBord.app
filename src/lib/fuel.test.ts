@@ -20,8 +20,6 @@ function ev(occurred: string, extra: Partial<TripEvent> = {}): TripEvent {
     trailer_plate: '',
     odometer_km: null,
     notes: null,
-    client: null,
-    cmr_number: null,
     station: null,
     diesel_l: null,
     adblue_l: null,

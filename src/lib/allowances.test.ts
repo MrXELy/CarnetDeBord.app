@@ -20,8 +20,6 @@ function ev(type: TripEvent['type'], local: string, city: string, extra: Partial
     trailer_plate: '',
     odometer_km: null,
     notes: null,
-    client: null,
-    cmr_number: null,
     station: null,
     diesel_l: null,
     adblue_l: null,

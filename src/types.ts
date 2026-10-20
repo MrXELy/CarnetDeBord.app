@@ -28,10 +28,6 @@ export interface TripEvent extends Place {
   trailer_plate: string;
   odometer_km: number | null;
   notes: string | null;
-  /** Ancien champ, remplacé par les lettres de voiture (conservé pour les anciennes données). */
-  client: string | null;
-  /** Ancien champ, remplacé par les lettres de voiture (conservé pour les anciennes données). */
-  cmr_number: string | null;
   station: Station | null;
   diesel_l: number | null;
   adblue_l: number | null;

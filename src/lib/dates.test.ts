@@ -15,7 +15,7 @@ import {
 function ev(id: string, occurred: string, extra: Partial<TripEvent> = {}): TripEvent {
   return {
     id, type: 'chargement', occurred_at: new Date(occurred).toISOString(),
-    tractor_plate: '', trailer_plate: '', odometer_km: null, notes: null, client: null, cmr_number: null,
+    tractor_plate: '', trailer_plate: '', odometer_km: null, notes: null,
     station: null, diesel_l: null, adblue_l: null, city: '', postcode: null, department: null,
     country_code: null, lat: null, lon: null, updated_at: '', deleted_at: null, ...extra,
   };

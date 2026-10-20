@@ -13,8 +13,6 @@ function ev(type: TripEvent['type'], occurred: string, km: number | null, extra:
     trailer_plate: '',
     odometer_km: km,
     notes: null,
-    client: null,
-    cmr_number: null,
     station: null,
     diesel_l: null,
     adblue_l: null,

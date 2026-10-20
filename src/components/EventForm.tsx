@@ -151,7 +151,6 @@ export default function EventForm({ event, onClose }: Props) {
         addLoadingStep(store, step, { tractor: tractor.trim(), trailer: trailer.trim() });
       }
     }
-    const hasWaybills = (type === 'chargement' && loads.length > 0) || (type === 'livraison' && checked.size > 0);
 
     store.save(
       {
@@ -164,9 +163,6 @@ export default function EventForm({ event, onClose }: Props) {
         odometer_km: kmValue,
         city: place.city.trim(),
         notes: notes.trim() || null,
-        // Anciens champs : remplacés par les LV dès qu'il y en a.
-        client: hasWaybills ? null : (event?.client ?? null),
-        cmr_number: hasWaybills ? null : (event?.cmr_number ?? null),
         station: isFuel ? station : null,
         diesel_l: isFuel ? parseNum(diesel) : null,
         adblue_l: isFuel ? parseNum(adblue) : null,

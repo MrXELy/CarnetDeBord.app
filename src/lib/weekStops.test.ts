@@ -6,7 +6,7 @@ import { buildStops, closestRoute, dayLegs, dayStops, distanceKm, stopSegments, 
 function ev(id: string, occurred: string, at: [number, number] | null, extra: Partial<TripEvent> = {}): TripEvent {
   return {
     id, type: 'chargement', occurred_at: new Date(occurred).toISOString(), tractor_plate: '', trailer_plate: '',
-    odometer_km: null, notes: null, client: null, cmr_number: null, station: null, diesel_l: null, adblue_l: null,
+    odometer_km: null, notes: null, station: null, diesel_l: null, adblue_l: null,
     city: 'Ville', postcode: null, department: null, country_code: 'FR', lat: at?.[0] ?? null, lon: at?.[1] ?? null,
     updated_at: '', deleted_at: null, ...extra,
   };

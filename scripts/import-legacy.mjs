@@ -55,7 +55,8 @@ const events = legacy.flatMap((e) => {
       lat: loc.lat ?? null,
       lon: loc.lng ?? null,
       notes: text(e.notes),
-      // Pas de lettre de voiture dans l'ancien projet : le client s'affiche sur l'étape.
+      // Pas de lettre de voiture dans l'ancien projet : client noté sur l'étape, changé en LV au chargement
+      // de la démo (`legacyWaybills` dans src/lib/demoData.ts).
       client: isStop ? text(e.clientName) : null,
       cmr_number: null,
       station: isFuel && STATIONS.includes(e.station) ? e.station : null,

@@ -15,8 +15,6 @@ create table if not exists public.events (
   lat           double precision,
   lon           double precision,
   notes         text,
-  client        text,
-  cmr_number    text,
   station       text check (station in ('Doumen', 'AS24', 'DKV')),
   diesel_l      numeric(7, 2),
   adblue_l      numeric(7, 2),

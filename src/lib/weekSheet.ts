@@ -114,12 +114,12 @@ export function fuelColumn(e: Pick<TripEvent, 'station' | 'city'>, depots: Sheet
 const names = (list: Waybill[], side: 'shipper' | 'consignee' | 'goods' | 'number') =>
   [...new Set(list.map((w) => w[side]?.trim()).filter(Boolean))].join(', ');
 
-/** Nature, poids et n° d'une LV (ou, sans LV, l'ancien n° noté sur l'étape). */
-function lvInfo(w: Waybill | undefined, e: TripEvent): Pick<OpRow, 'goods' | 'weightKg' | 'number'> {
+/** Nature, poids et n° d'une LV. */
+function lvInfo(w: Waybill | undefined): Pick<OpRow, 'goods' | 'weightKg' | 'number'> {
   return {
     goods: w?.goods?.trim() ?? '',
     weightKg: w?.weight_kg ?? null,
-    number: w?.number?.trim() || e.cmr_number?.trim() || '',
+    number: w?.number?.trim() ?? '',
   };
 }
 
@@ -178,15 +178,15 @@ function dayRows(events: TripEvent[], loaded: Map<string, Waybill[]>, delivered:
       const lvs = byNumber(loaded.get(e.id) ?? []);
       const head: OpRow = {
         ...emptyRow(),
-        ...lvInfo(lvs[0], e),
+        ...lvInfo(lvs[0]),
         trailer: sheetPlate(e.trailer_plate),
-        shipper: names(loaded.get(e.id) ?? [], 'shipper') || e.client?.trim() || '',
+        shipper: names(loaded.get(e.id) ?? [], 'shipper'),
         shipperPlace: sheetPlace(e),
         shipperKm: e.odometer_km,
       };
       open(head);
       lvs.forEach((w, i) => {
-        const row = i === 0 ? head : { ...emptyRow(), ...lvInfo(w, e) };
+        const row = i === 0 ? head : { ...emptyRow(), ...lvInfo(w) };
         if (i > 0) addUnder(head, row);
         if (w) lvRow.set(w.id, row);
       });
@@ -195,7 +195,7 @@ function dayRows(events: TripEvent[], loaded: Map<string, Waybill[]>, delivered:
     } else if (e.type === 'livraison') {
       const list = delivered.get(e.id) ?? [];
       const delivery = {
-        consignee: names(list, 'consignee') || e.client?.trim() || '',
+        consignee: names(list, 'consignee'),
         consigneePlace: sheetPlace(e),
         consigneeKm: e.odometer_km,
       };
@@ -207,14 +207,14 @@ function dayRows(events: TripEvent[], loaded: Map<string, Waybill[]>, delivered:
           : [[undefined, lastLoading!] as const];
         for (const [w, row] of targets) {
           if (!hasDelivery(row)) Object.assign(row, delivery);
-          else addUnder(headOf.get(row)!, { ...emptyRow(), ...lvInfo(w, e), ...delivery });
+          else addUnder(headOf.get(row)!, { ...emptyRow(), ...lvInfo(w), ...delivery });
         }
         const head = headOf.get(targets[0][1])!;
-        for (const w of list.filter((w) => !lvRow.has(w.id))) addUnder(head, { ...emptyRow(), ...lvInfo(w, e) });
+        for (const w of list.filter((w) => !lvRow.has(w.id))) addUnder(head, { ...emptyRow(), ...lvInfo(w) });
         ownGroup = null;
       } else {
         byNumber(list).forEach((w, i) => {
-          const row = { ...emptyRow(), ...lvInfo(w, e), ...(i === 0 ? delivery : {}) };
+          const row = { ...emptyRow(), ...lvInfo(w), ...(i === 0 ? delivery : {}) };
           if (ownGroup) addUnder(ownGroup, row);
           else open((ownGroup = { ...row, trailer: sheetPlate(e.trailer_plate) }));
         });

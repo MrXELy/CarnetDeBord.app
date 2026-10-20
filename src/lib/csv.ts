@@ -47,14 +47,8 @@ export function eventsToCsv(events: TripEvent[], waybills: Waybill[] = []): stri
     ['Code postal', (e) => e.postcode],
     ['Département', (e) => e.department],
     ['Pays', (e) => e.country_code],
-    ['Client', (e) => {
-      const list = waybillsOf(e, waybills);
-      return list.length ? joined(list.map((w) => w.consignee)) : e.client;
-    }],
-    ['N° lettre de voiture', (e) => {
-      const list = waybillsOf(e, waybills);
-      return list.length ? joined(list.map((w) => w.number)) : e.cmr_number;
-    }],
+    ['Client', (e) => joined(waybillsOf(e, waybills).map((w) => w.consignee))],
+    ['N° lettre de voiture', (e) => joined(waybillsOf(e, waybills).map((w) => w.number))],
     ['Station', (e) => e.station],
     ['Gasoil (L)', (e) => e.diesel_l],
     ['Plein complet', (e) => (e.type === 'carburant' ? (isFullTank(e) ? 'Oui' : 'Non') : null)],

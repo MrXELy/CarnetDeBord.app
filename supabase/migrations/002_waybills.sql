@@ -34,18 +34,5 @@ create trigger waybills_touch_updated_at
   before insert or update on public.waybills
   for each row execute function public.events_touch_updated_at();
 
--- Reprise de l'existant : chaque étape avec un client ou un numéro de LV devient une fiche LV.
--- (L'identifiant de la fiche reprend celui de l'étape, ce qui évite les doublons si on relance.)
-insert into public.waybills (id, user_id, loading_event_id, delivery_event_id, number, consignee)
-select
-  e.id,
-  e.user_id,
-  case when e.type = 'chargement' then e.id end,
-  case when e.type = 'livraison' then e.id end,
-  nullif(trim(e.cmr_number), ''),
-  nullif(trim(e.client), '')
-from public.events e
-where e.type in ('chargement', 'livraison')
-  and e.deleted_at is null
-  and (nullif(trim(e.client), '') is not null or nullif(trim(e.cmr_number), '') is not null)
-on conflict (id) do nothing;
+-- Reprise de l'existant (client et n° de LV notés sur les anciennes étapes) : faite par la migration 011,
+-- qui retire ensuite ces deux colonnes.

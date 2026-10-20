@@ -5,8 +5,8 @@ import { eventsToCsv, waybillsToCsv } from './csv';
 function ev(id: string, occurred: string, extra: Partial<TripEvent> = {}): TripEvent {
   return {
     id, type: 'carburant', occurred_at: new Date(occurred).toISOString(),
-    tractor_plate: 'GH-512-KL', trailer_plate: 'RT-998-AZ', odometer_km: 241290, notes: null, client: null,
-    cmr_number: null, station: 'AS24', diesel_l: 412.5, adblue_l: 35, city: 'Mâcon', postcode: '71000',
+    tractor_plate: 'GH-512-KL', trailer_plate: 'RT-998-AZ', odometer_km: 241290, notes: null,
+    station: 'AS24', diesel_l: 412.5, adblue_l: 35, city: 'Mâcon', postcode: '71000',
     department: '71', country_code: 'FR', lat: null, lon: null, updated_at: '', deleted_at: null, ...extra,
   };
 }

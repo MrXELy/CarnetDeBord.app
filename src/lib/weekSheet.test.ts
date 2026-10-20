@@ -20,8 +20,6 @@ function ev(
     trailer_plate: 'BB-222-BB',
     odometer_km: km,
     notes: null,
-    client: null,
-    cmr_number: null,
     station: null,
     diesel_l: null,
     adblue_l: null,
@@ -152,7 +150,7 @@ describe('buildWeekSheet', () => {
   });
 
   it('fait une ligne par LV, au chargement comme à la livraison', () => {
-    const load = ev('chargement', '2026-03-02T08:00', 'Toulouse', '31', 100_050, { client: 'Usine A' });
+    const load = ev('chargement', '2026-03-02T08:00', 'Toulouse', '31', 100_050);
     const first = ev('livraison', '2026-03-03T08:00', 'Narbonne', '11', 100_300);
     const second = ev('livraison', '2026-03-03T10:00', 'Narbonne', '11', 100_310);
     const waybills = [
@@ -162,6 +160,7 @@ describe('buildWeekSheet', () => {
         number: '2',
         goods: 'placo',
         weight_kg: 12_000,
+        shipper: 'Usine A',
         consignee: 'Client D',
       }),
       newWaybill({
@@ -218,20 +217,20 @@ describe('buildWeekSheet', () => {
 
   it('range les livraisons qui se suivent sous une seule ligne (anciennes étapes sans LV)', () => {
     const events = [
-      ev('livraison', '2026-03-02T08:00', 'Narbonne', '11', 100_100, { client: 'Client A' }),
-      ev('livraison', '2026-03-02T09:00', 'Narbonne', '11', 100_110, { client: 'Client B' }),
-      ev('chargement', '2026-03-02T10:00', 'Toulouse', '31', 100_200, { client: 'Usine C' }),
-      ev('chargement', '2026-03-02T11:00', 'Toulouse', '31', 100_210, { client: 'Usine D' }),
-      ev('livraison', '2026-03-02T14:00', 'Périgueux', '24', 100_500, { client: 'Client E' }),
-      ev('livraison', '2026-03-02T15:00', 'Périgueux', '24', 100_510, { client: 'Client F' }),
+      ev('livraison', '2026-03-02T08:00', 'Narbonne', '11', 100_100),
+      ev('livraison', '2026-03-02T09:00', 'Narbonne', '11', 100_110),
+      ev('chargement', '2026-03-02T10:00', 'Toulouse', '31', 100_200),
+      ev('chargement', '2026-03-02T11:00', 'Toulouse', '31', 100_210),
+      ev('livraison', '2026-03-02T14:00', 'Périgueux', '24', 100_500),
+      ev('livraison', '2026-03-02T15:00', 'Périgueux', '24', 100_510),
     ];
     const rows = buildWeekSheet(events, [], start, settings).operations[0];
-    expect(rows.map((r) => [r.trailer, r.shipper, r.consignee])).toEqual([
-      ['BB 222 BB', '', 'Client A'],
-      ['', '', 'Client B'],
-      ['BB 222 BB', 'Usine C', ''],
-      ['BB 222 BB', 'Usine D', 'Client E'],
-      ['', '', 'Client F'],
+    expect(rows.map((r) => [r.trailer, r.shipperKm, r.consigneeKm])).toEqual([
+      ['BB 222 BB', null, 100_100],
+      ['', null, 100_110],
+      ['BB 222 BB', 100_200, null],
+      ['BB 222 BB', 100_210, 100_500],
+      ['', null, 100_510],
     ]);
   });
 });

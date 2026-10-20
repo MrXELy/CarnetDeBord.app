@@ -30,8 +30,6 @@ function ev(type: TripEvent['type'], occurred: string, extra: Partial<TripEvent>
     trailer_plate: '',
     odometer_km: null,
     notes: null,
-    client: null,
-    cmr_number: null,
     station: null,
     diesel_l: null,
     adblue_l: null,
@@ -156,13 +154,15 @@ describe('periodStats', () => {
     expect(
       topPlaces([ev('livraison', '2026-10-14T10:00', { country_code: 'ES', city: 'Barcelone' })], [], week).departments,
     ).toEqual([{ name: 'ES', detail: 'Espagne', count: 1 }]);
-    // Anciennes étapes sans LV : le client saisi sur l'étape ; un même client dans deux villes compte ensemble.
-    const old = [
-      ev('chargement', '2026-10-14T08:00', { client: 'Client C', city: 'Albi' }),
-      ev('chargement', '2026-10-15T08:00', { client: 'client C', city: 'Rodez' }),
-      ev('livraison', '2026-10-14T15:00', { client: 'Client D', city: 'Rodez' }),
+    // Un même client dans deux villes compte ensemble.
+    const albi = ev('chargement', '2026-10-14T08:00', { city: 'Albi' });
+    const rodez = ev('chargement', '2026-10-15T08:00', { city: 'Rodez' });
+    const drop = ev('livraison', '2026-10-14T15:00', { city: 'Rodez' });
+    const lvs = [
+      newWaybill({ loading_event_id: albi.id, delivery_event_id: drop.id, shipper: 'Client C', consignee: 'Client D' }),
+      newWaybill({ loading_event_id: rodez.id, shipper: 'client C' }),
     ];
-    expect(topPlaces(old, [], week)).toMatchObject({
+    expect(topPlaces([albi, rodez, drop], lvs, week)).toMatchObject({
       shippers: [{ name: 'Client C', count: 2 }],
       consignees: [{ name: 'Client D', count: 1 }],
     });
@@ -185,11 +185,13 @@ describe('periodStats', () => {
     expect(group('Client AB')).toBe('Client AB'); // « Client A » au début d'un mot plus long : pas concerné
     expect(group('Client B')).toBe('Client B');
     const loads = [
-      ev('chargement', '2026-10-14T08:00', { client: 'Client A' }),
-      ev('chargement', '2026-10-14T10:00', { client: 'Usine (Client A)' }),
-      ev('chargement', '2026-10-15T08:00', { client: 'Dépôt Nord (Groupe Client A)' }),
+      ev('chargement', '2026-10-14T08:00'),
+      ev('chargement', '2026-10-14T10:00'),
+      ev('chargement', '2026-10-15T08:00'),
     ];
-    expect(topPlaces(loads, [], week).shippers).toEqual([{ name: 'Client A', count: 3 }]);
+    const shippers = ['Client A', 'Usine (Client A)', 'Dépôt Nord (Groupe Client A)'];
+    const lvs = loads.map((e, i) => newWaybill({ loading_event_id: e.id, shipper: shippers[i] }));
+    expect(topPlaces(loads, lvs, week).shippers).toEqual([{ name: 'Client A', count: 3 }]);
   });
 
   it('trouve les records et les km de chaque jour', () => {

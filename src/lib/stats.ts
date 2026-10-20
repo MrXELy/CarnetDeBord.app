@@ -400,16 +400,13 @@ export function clientGrouper(
 /**
  * Chargeurs et destinataires (un client compte une fois par LV, quelle que soit la ville),
  * et départements des chargements et livraisons de la plage.
- * Les noms viennent des LV ; pour les anciennes étapes saisies sans LV, du champ « client » de l'étape.
+ * Les noms viennent des LV.
  */
 export function topPlaces(all: TripEvent[], waybills: Waybill[], range: Range): Places {
   const events = inRange(all, range);
   const alive = waybills.filter((w) => !w.deleted_at);
   // Regroupement calculé sur tous les noms connus, pas seulement ceux de la période.
-  const group = clientGrouper([
-    ...alive.flatMap((w) => [w.shipper, w.consignee]),
-    ...all.filter((e) => !e.deleted_at).map((e) => e.client),
-  ]);
+  const group = clientGrouper(alive.flatMap((w) => [w.shipper, w.consignee]));
   const clients = (type: 'chargement' | 'livraison'): Entry[] =>
     events
       .filter((e) => e.type === type)
@@ -418,7 +415,7 @@ export function topPlaces(all: TripEvent[], waybills: Waybill[], range: Range): 
           .filter((w) => (type === 'chargement' ? w.loading_event_id : w.delivery_event_id) === e.id)
           .map((w) => (type === 'chargement' ? w.shipper : w.consignee)?.trim())
           .filter(Boolean);
-        return (names.length ? names : [e.client]).map((name) => ({ name: group(name) }));
+        return names.map((name) => ({ name: group(name) }));
       });
   return {
     shippers: topNames(clients('chargement')),

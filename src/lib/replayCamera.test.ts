@@ -14,7 +14,7 @@ const PERIGUEUX: [number, number] = [45.185, 0.721];
 function ev(id: string, occurred: string, at: [number, number], km: number, type: TripEvent['type']): TripEvent {
   return {
     id, type, occurred_at: new Date(occurred).toISOString(), tractor_plate: 'AB-123-CD', trailer_plate: '',
-    odometer_km: km, notes: null, client: null, cmr_number: null, station: null, diesel_l: null, adblue_l: null,
+    odometer_km: km, notes: null, station: null, diesel_l: null, adblue_l: null,
     city: 'Ville', postcode: null, department: null, country_code: 'FR', lat: at[0], lon: at[1], updated_at: '', deleted_at: null,
   };
 }

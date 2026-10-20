@@ -12,8 +12,6 @@ function ev(type: TripEvent['type'], occurred: string, extra: Partial<TripEvent>
     trailer_plate: '',
     odometer_km: null,
     notes: null,
-    client: null,
-    cmr_number: null,
     station: null,
     diesel_l: null,
     adblue_l: null,
@@ -32,7 +30,7 @@ function ev(type: TripEvent['type'], occurred: string, extra: Partial<TripEvent>
 const loading = ev('chargement', '2026-10-12T08:00', { city: 'Périgueux', department: '24' });
 const delivery = ev('livraison', '2026-10-13T10:00', { city: 'Toulouse', department: '31' });
 const fuel = ev('carburant', '2026-10-13T15:00', { city: 'Toulouse', department: '31', station: 'AS24' });
-const old = ev('livraison', '2026-01-05T09:00', { city: 'Narbonne', client: 'Client Ancien', cmr_number: '77' });
+const old = ev('livraison', '2026-01-05T09:00', { city: 'Narbonne' });
 const lv = newWaybill({
   loading_event_id: loading.id,
   delivery_event_id: delivery.id,
@@ -78,11 +76,6 @@ describe('searchEvents', () => {
     const [result] = searchEvents(events, waybills, 'autre client');
     expect(result.event.id).toBe(loading.id);
     expect(result.waybills.map((w) => w.id)).toEqual([other.id]);
-  });
-
-  it('anciennes étapes : client et numéro de LV de l’étape', () => {
-    expect(ids('client ancien')).toEqual([old.id]);
-    expect(ids('lv 77')).toEqual([old.id]);
   });
 
   it('plaque avec ou sans tirets, département', () => {

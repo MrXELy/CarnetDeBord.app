@@ -35,6 +35,15 @@ interface UserSettingsRow extends Row {
 }
 
 const PAGE = 1000;
+const DAY_MS = 24 * 3600 * 1000;
+/**
+ * Lignes supprimées : gardées sur le serveur avec leur date de suppression (`deleted_at`) le temps que les autres
+ * appareils l'apprennent, puis vraiment effacées au bout de 30 jours (`purge`). Chaque appareil relit tout
+ * une fois par semaine (`pull(true)`) et oublie ce que le serveur n'a plus : bien avant les 30 jours,
+ * donc aucune suppression n'est manquée, même avec une horloge un peu fausse.
+ */
+const PURGE_AFTER_MS = 30 * DAY_MS;
+const FULL_SYNC_MS = 7 * DAY_MS;
 
 interface Row {
   id: string;
@@ -158,8 +167,12 @@ export class Collection<T extends Row> {
    * des lignes qui ont exactement la même date (un même envoi groupé) ne sont jamais sautées à la frontière d'une page.
    * Format enregistré : « date|id ». Un ancien curseur (la date seule) reprend à cette date, lignes comprises :
    * celles déjà connues sont simplement réécrites.
+   * `full` : relit tout depuis le début, puis oublie les lignes que le serveur n'a plus (effacées par `purge`),
+   * sauf celles qui attendent d'être envoyées.
    */
-  async pull() {
+  async pull(full = false) {
+    if (full) this.cursor = null;
+    const seen = new Set<string>();
     for (;;) {
       let query = supabase.from(this.table).select('*').order('updated_at').order('id').limit(PAGE);
       if (this.cursor) {
@@ -172,14 +185,25 @@ export class Collection<T extends Row> {
       if (error) throw new Error(error.message);
       for (const row of data as (T & { user_id: string; created_at: string })[]) {
         const { user_id: _u, created_at: _c, ...item } = row;
+        seen.add(item.id);
         if (!this.outbox.has(item.id)) {
           this.items.set(item.id, this.normalize(item as unknown as T));
           this.version++;
         }
         this.cursor = `${row.updated_at}|${row.id}`;
       }
-      if (data.length < PAGE) return;
+      if (data.length < PAGE) break;
     }
+    if (!full) return;
+    const gone = [...this.items.keys()].filter((id) => !seen.has(id) && !this.outbox.has(id));
+    gone.forEach((id) => this.items.delete(id));
+    if (gone.length) this.version++;
+  }
+
+  /** Efface vraiment du serveur les lignes supprimées avant cette date (ISO). */
+  async purge(before: string) {
+    const { error } = await supabase.from(this.table).delete().lt('deleted_at', before);
+    if (error) throw new Error(error.message);
   }
 }
 
@@ -518,13 +542,15 @@ export class EventStore {
         refusals.push(err);
       }
     };
+    // Relecture complète une fois par semaine : oublie les lignes effacées du serveur.
+    const full = this.isDue('full_synced', FULL_SYNC_MS);
     try {
       // Les étapes d'abord : une LV fait référence à ses étapes de chargement et de livraison.
       await tolerant(() => this.events.push());
-      await this.events.pull();
+      await this.events.pull(full);
       try {
         await tolerant(() => this.waybills.push());
-        await this.waybills.pull();
+        await this.waybills.pull(full);
       } catch (err) {
         throw new Error(
           /waybills/.test(String(err)) ? 'Table des lettres de voiture absente dans Supabase' : String(err),
@@ -536,8 +562,7 @@ export class EventStore {
       // Photos à effacer, puis ménage une fois par jour : un échec est simplement retenté plus tard.
       try {
         await flushTrash(this.userId);
-        const last = this.read<string>('photos_cleaned');
-        if (!last || Date.now() - new Date(last).getTime() > 24 * 3600 * 1000) {
+        if (this.isDue('photos_cleaned', DAY_MS)) {
           this.write('photos_cleaned', new Date().toISOString()); // une tentative par jour, même en cas d'échec
           await this.cleanPhotos();
         }
@@ -547,7 +572,8 @@ export class EventStore {
       // Cartes des semaines : un échec ne bloque pas le reste.
       try {
         await tolerant(() => this.weekMaps.push());
-        await this.weekMaps.pull();
+        await this.weekMaps.pull(full);
+        if (full) this.write('full_synced', new Date().toISOString());
       } catch (err) {
         this.error = /week_maps/.test(String(err)) ? 'Table des cartes absente dans Supabase' : String(err);
       }
@@ -563,6 +589,19 @@ export class EventStore {
             : /user_settings/.test(String(err))
               ? 'Table des réglages absente dans Supabase'
               : String(err);
+      }
+      // Lignes supprimées depuis plus de 30 jours : effacées du serveur, une fois par jour.
+      // Les LV d'abord : elles font référence aux étapes.
+      if (this.isDue('purged', DAY_MS)) {
+        this.write('purged', new Date().toISOString()); // une tentative par jour, même en cas d'échec
+        try {
+          const before = new Date(Date.now() - PURGE_AFTER_MS).toISOString();
+          await this.waybills.purge(before);
+          await this.weekMaps.purge(before);
+          await this.events.purge(before);
+        } catch {
+          // Réseau coupé : retenté le lendemain, rien de bloquant.
+        }
       }
       // Une ligne refusée reste signalée (pastille rouge) même si tout le reste a réussi.
       if (refusals.length && !this.error) {
@@ -663,6 +702,12 @@ export class EventStore {
     this.emit();
   }
 
+  /** Vrai si l'action notée sous ce nom (date ISO) n'a jamais eu lieu ou date de plus de `ms`. */
+  private isDue(name: string, ms: number) {
+    const last = this.read<string>(name);
+    return !last || Date.now() - new Date(last).getTime() > ms;
+  }
+
   private key(name: string) {
     return `cdb.${this.userId}.${name}`;
   }
@@ -689,7 +734,12 @@ export class EventStore {
 /** Supabase renvoie les colonnes « numeric » sous forme de texte. */
 const num = (v: unknown) => (v == null ? null : Number(v));
 
-function normalizeEvent(e: TripEvent): TripEvent {
+/** Étape lue du cache ou du serveur, sans les anciennes colonnes `client` et `cmr_number` (remplacées par les LV). */
+function normalizeEvent({
+  client: _client,
+  cmr_number: _cmr,
+  ...e
+}: TripEvent & { client?: unknown; cmr_number?: unknown }): TripEvent {
   return { ...e, diesel_l: num(e.diesel_l), adblue_l: num(e.adblue_l), full_tank: e.full_tank ?? null };
 }
 
