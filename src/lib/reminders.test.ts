@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_REMINDER_SETTINGS, dueReminders, setEntry, snooze, type ReminderSettings } from './reminders';
+import {
+  DEFAULT_REMINDER_SETTINGS,
+  REMINDER_TYPES,
+  dueReminders,
+  reminderLevel,
+  setEntry,
+  snooze,
+  type ReminderSettings,
+} from './reminders';
 
 const now = new Date('2026-10-19T10:00');
 const settings = (items: ReminderSettings['items'], plates = { tractor: '', trailer: '' }): ReminderSettings => ({
@@ -47,5 +55,13 @@ describe('échéances', () => {
     expect(dueReminders(s, now)).toEqual([]);
     expect(dueReminders(s, new Date('2026-10-26T08:00'))).toHaveLength(1);
     expect(setEntry(s, 'ct_tracteur', { last: '2025-11-02' }).items.ct_tracteur!.snoozedUntil).toBeNull();
+  });
+
+  it('couleur dans les Options, même repoussé', () => {
+    const ct = REMINDER_TYPES.find((t) => t.kind === 'ct_tracteur')!;
+    expect(reminderLevel(ct, { last: '2025-12-01' }, now)).toBeNull();
+    expect(reminderLevel(ct, { last: '2025-11-01', snoozedUntil: '2026-10-26' }, now)).toBe('warn');
+    expect(reminderLevel(ct, { last: '2025-10-01' }, now)).toBe('error');
+    expect(reminderLevel(ct, undefined, now)).toBeNull();
   });
 });

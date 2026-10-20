@@ -1902,6 +1902,10 @@ button.st-kv-item:active { transform: scale(0.97); }
 /* Options : échéances */
 .reminder-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
 .reminder-hint { margin: 0 4px; }
+.setting-row.reminder-warn { background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.45); }
+.setting-row.reminder-error { background: rgba(248, 113, 113, 0.12); border-color: rgba(248, 113, 113, 0.5); }
+.setting-row.reminder-warn .setting-title { color: #fde68a; }
+.setting-row.reminder-error .setting-title { color: #fecaca; }
 
 /* Statistiques : alertes de repos, toucher ouvre le jour */
 .st-rest-alerts { display: grid; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; }

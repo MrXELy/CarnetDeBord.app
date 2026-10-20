@@ -1,7 +1,7 @@
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useState } from 'react';
-import { daysLeft, nextDue, REMINDER_TYPES, setEntry, type ReminderType } from '../lib/reminders';
+import { daysLeft, nextDue, REMINDER_TYPES, reminderLevel, setEntry, type ReminderType } from '../lib/reminders';
 import { useEvents } from '../lib/useEvents';
 
 /** Échéances : date du dernier passage de chaque document ou contrôle, et ensemble routier principal. */
@@ -53,11 +53,13 @@ function ReminderRow({ type, today }: { type: ReminderType; today: Date }) {
   const { reminderSettings: settings, store } = useEvents();
   const entry = settings.items[type.kind];
   const due = nextDue(type, entry);
+  // Même couleur que le rappel de l'accueil : orange si l'échéance approche, rouge si elle est dépassée.
+  const level = reminderLevel(type, entry, today);
   const save = (patch: Parameters<typeof setEntry>[2]) =>
     store.saveReminderSettings(setEntry(settings, type.kind, patch));
 
   return (
-    <div className="setting-row usage">
+    <div className={`setting-row usage${level ? ` reminder-${level}` : ''}`}>
       <span className="setting-title">{type.label}</span>
       <div className="reminder-fields">
         <label className="ws-field">

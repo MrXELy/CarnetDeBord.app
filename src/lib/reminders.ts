@@ -99,6 +99,18 @@ export function daysLeft(due: Date, now: Date): string {
 
 const dateText = (date: Date) => format(date, 'd MMM yyyy', { locale: fr });
 
+/** Échéance proche (orange) ou dépassée (rouge), même repoussée ; null si encore loin ou sans date. */
+export function reminderLevel(
+  type: ReminderType,
+  entry: ReminderEntry | undefined,
+  now: Date,
+): DueReminder['level'] | null {
+  const due = nextDue(type, entry);
+  const today = startOfDay(now);
+  if (!due || differenceInCalendarDays(due, today) > type.leadDays) return null;
+  return due <= today ? 'error' : 'warn';
+}
+
 /** Échéances à rappeler aujourd'hui (proches ou dépassées, pas repoussées), la plus urgente d'abord. */
 export function dueReminders(settings: ReminderSettings, now: Date): DueReminder[] {
   const today = startOfDay(now);
@@ -106,15 +118,16 @@ export function dueReminders(settings: ReminderSettings, now: Date): DueReminder
   for (const type of REMINDER_TYPES) {
     const entry = settings.items[type.kind];
     const due = nextDue(type, entry);
-    if (!due || differenceInCalendarDays(due, today) > type.leadDays) continue;
+    const level = reminderLevel(type, entry, now);
+    if (!due || !level) continue;
     if (entry?.snoozedUntil && parseISO(entry.snoozedUntil) > today) continue;
     const label = reminderLabel(type, settings);
-    const past = due <= today;
+    const past = level === 'error';
     list.push({
       due,
       reminder: {
         kind: type.kind,
-        level: past ? 'error' : 'warn',
+        level,
         text: past
           ? `${label} : échéance dépassée (${dateText(due)}, ${daysLeft(due, today)})`
           : `${label} avant le ${dateText(due)} · ${daysLeft(due, today)}`,
