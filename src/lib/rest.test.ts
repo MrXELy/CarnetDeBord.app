@@ -252,6 +252,7 @@ describe('heure limite de la journée en cours', () => {
 
   it('11 h ou repos réduit', () => {
     expect(dayLimit(events, new Date('2026-10-14T10:00'))).toEqual({
+      startId: events[2].id,
       level: 'ok',
       lines: [
         {

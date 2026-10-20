@@ -1853,7 +1853,7 @@ button.st-kv-item:active { transform: scale(0.97); }
 .rest-notice.rest-error .rest-line-error { font-weight: 600; }
 .rest-notice:not(.rest-ok) .rest-line-ok { opacity: 0.8; }
 
-/* Haut de l'accueil : heure limite de fin de journée et échéances proches */
+/* Haut de l'accueil : échéances proches */
 .home-notices { position: relative; z-index: 1; display: grid; gap: 8px; padding: 12px 12px 0; }
 .rest-notice.reminder { align-items: center; padding: 4px 4px 4px 12px; }
 .reminder-text {
@@ -1904,3 +1904,6 @@ button.st-kv-item:active { transform: scale(0.97); }
 .st-rest-alert.rest-error { border-color: rgba(248, 113, 113, 0.3); background: rgba(248, 113, 113, 0.1); color: #fecaca; }
 .st-rest-alert b { font-size: 0.75rem; text-transform: capitalize; }
 .st-rest-alert:active { transform: scale(0.98); }
+
+/* Heure limite de fin de la journée en cours, sous son jour */
+.day-limit { margin: 4px 0 8px; }

@@ -298,6 +298,9 @@ function walk(events: readonly RestEvent[]) {
 
 export type RestAdvice = Pick<RestCheck, 'level' | 'lines'>;
 
+/** Heure limite de la journée en cours, avec son début de journée (pour l'afficher sous son jour). */
+export type DayLimit = RestAdvice & { startId: string };
+
 const worst = (lines: RestLine[]): RestLevel =>
   lines.reduce<RestLevel>((w, l) => (RANK[l.level] > RANK[w] ? l.level : w), 'ok');
 
@@ -396,7 +399,7 @@ export function restartAdvice(events: readonly RestEvent[], end: RestEvent): Res
 }
 
 /** Journée en cours (début noté, pas encore de fin) : heure limite de fin pour garder le repos dans les 24 h. */
-export function dayLimit(events: readonly RestEvent[], now: Date): RestAdvice | null {
+export function dayLimit(events: readonly RestEvent[], now: Date): DayLimit | null {
   const state = walk(before(events, now));
   if (state.lastBoundary?.type !== 'debut_journee' || !state.dayStart) return null;
   const start = new Date(state.dayStart.occurred_at);
@@ -424,7 +427,7 @@ export function dayLimit(events: readonly RestEvent[], now: Date): RestAdvice | 
     }
     lines.push({ level, text });
   }
-  return { level: worst(lines), lines };
+  return { level: worst(lines), lines, startId: state.dayStart.id };
 }
 
 export interface RestDebt {

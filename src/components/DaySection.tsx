@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { dayLabel, durationLabel, summarizeDay, type Day } from '../lib/dates';
 import type { TripEvent } from '../types';
+import DayLimitNotice from './DayLimitNotice';
 import EventCard from './EventCard';
 
 interface Props {
@@ -14,6 +15,10 @@ interface Props {
 
 export default function DaySection({ day, index, found, onOpen }: Props) {
   const { km, amplitude } = summarizeDay(day.events);
+  // Débuts de journée de moins de 24 h : la journée est peut-être en cours (heure limite de fin dessous).
+  const recentStarts = day.events
+    .filter((e) => e.type === 'debut_journee' && Date.now() - Date.parse(e.occurred_at) < 24 * 3600_000)
+    .map((e) => e.id);
   return (
     <section className="day">
       <h2 className="day-header">
@@ -23,6 +28,7 @@ export default function DaySection({ day, index, found, onOpen }: Props) {
           {amplitude != null && <span>{durationLabel(amplitude)}</span>}
         </span>
       </h2>
+      {recentStarts.length > 0 && <DayLimitNotice startIds={recentStarts} />}
       <ol className="timeline">
         {day.events.map((e, i) => (
           <li
