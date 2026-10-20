@@ -13,6 +13,7 @@ import {
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import type { TripEvent } from '../types';
+import { kmSegments } from './emptyKm';
 
 /** La semaine de travail commence le dimanche à 22h, soit 2 heures avant le lundi. */
 const WEEK_LEAD_HOURS = 2;
@@ -80,12 +81,21 @@ export interface DaySummary {
   amplitude: number | null;
 }
 
+/**
+ * Km de ces étapes, calculés comme dans les Statistiques : somme des tronçons entre deux relevés qui se suivent
+ * avec le même tracteur (sans le repos, un changement de tracteur sans relevé ni les relevés incohérents).
+ * Null s'il n'y a aucun tronçon.
+ */
+export function periodKm(events: TripEvent[]): number | null {
+  const segments = kmSegments(events);
+  return segments.length ? segments.reduce((sum, s) => sum + s.km, 0) : null;
+}
+
 export function summarizeDay(events: TripEvent[]): DaySummary {
-  const kms = events.map((e) => e.odometer_km).filter((k): k is number => k != null);
   const start = events.find((e) => e.type === 'debut_journee');
   const end = events.find((e) => e.type === 'fin_journee');
   return {
-    km: kms.length >= 2 ? Math.max(...kms) - Math.min(...kms) : null,
+    km: periodKm(events),
     amplitude: start && end ? differenceInMinutes(parseISO(end.occurred_at), parseISO(start.occurred_at)) : null,
   };
 }
@@ -96,18 +106,13 @@ export interface WeekSummary {
   inProgress: boolean;
 }
 
-/**
- * Km de la semaine : du premier « début de journée » à la dernière « fin de journée ».
- * Si des étapes ont suivi cette fin (ou s'il n'y en a pas), on compte jusqu'au dernier relevé.
- */
+/** Km de la semaine (voir periodKm), et si elle est en cours : dernier relevé autre qu'une fin de journée. */
 export function summarizeWeek(events: TripEvent[]): WeekSummary {
   const withKm = events
-    .filter((e) => e.odometer_km != null)
+    .filter((e) => e.odometer_km != null && !e.deleted_at)
     .sort((a, b) => a.occurred_at.localeCompare(b.occurred_at));
-  const first = withKm.find((e) => e.type === 'debut_journee');
-  if (!first) return { km: null, inProgress: false };
   const last = withKm[withKm.length - 1];
-  return { km: last.odometer_km! - first.odometer_km!, inProgress: last.type !== 'fin_journee' };
+  return { km: periodKm(events), inProgress: !!last && last.type !== 'fin_journee' };
 }
 
 export interface WeekEntry {

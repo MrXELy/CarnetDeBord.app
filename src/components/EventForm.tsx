@@ -85,14 +85,15 @@ export default function EventForm({ event, onClose }: Props) {
 
   const sheet = useSheet(onClose);
 
-  const lastKm = store.lastOdometer(tractor.trim(), new Date(when), event?.id);
+  // Date vide ou incomplète (champ effacé) : null, pour ne pas planter les calculs qui suivent.
+  const at = new Date(when);
+  const whenIso = Number.isNaN(at.getTime()) ? null : at.toISOString();
+  const lastKm = whenIso ? store.lastOdometer(tractor.trim(), at, event?.id) : null;
   const kmValue = parseNum(km);
   const isFuel = type === 'carburant';
 
   // LV livrables ici : celles du camion à cette heure, celles déjà livrées ici, et celles créées ici.
   const pool = new Map<string, Waybill>();
-  const at = new Date(when);
-  const whenIso = Number.isNaN(at.getTime()) ? null : at.toISOString();
   for (const w of [...store.inTruck(Number.isNaN(at.getTime()) ? new Date() : at), ...originalDelivered]) {
     pool.set(w.id, w);
   }
@@ -139,6 +140,7 @@ export default function EventForm({ event, onClose }: Props) {
   function submit(e: FormEvent) {
     e.preventDefault();
     if (!type) return setError('Choisis le type d’opération.');
+    if (!whenIso) return setError('Indique la date et l’heure.');
     if (kmValue == null) return setError('Indique le kilométrage.');
     if (!place.city.trim()) return setError('Indique le lieu.');
     if (isFuel && !station) return setError('Choisis la station.');
@@ -157,7 +159,7 @@ export default function EventForm({ event, onClose }: Props) {
         ...place,
         id: eventId,
         type,
-        occurred_at: new Date(when).toISOString(),
+        occurred_at: whenIso,
         tractor_plate: tractor.trim(),
         trailer_plate: trailer.trim(),
         odometer_km: kmValue,
@@ -218,7 +220,7 @@ export default function EventForm({ event, onClose }: Props) {
     setType(value);
     if (isNew && value === 'chargement' && loads.length === 0) setLoads([newWaybill()]);
     if (!isNew || value !== 'debut_journee') return;
-    const end = store.lastDayEnd(new Date(when));
+    const end = whenIso ? store.lastDayEnd(at) : null;
     if (!end) return;
     setTractor(end.tractor_plate);
     setTrailer(end.trailer_plate);

@@ -91,8 +91,29 @@ describe('summarizeWeek', () => {
     ).toEqual({ km: 900, inProgress: true });
   });
 
-  it('ne donne rien sans début de journée', () => {
+  it('ne donne rien avec un seul relevé', () => {
     expect(summarizeWeek([ev('c', '2026-10-13T10:00', { odometer_km: 100900 })]).km).toBeNull();
+  });
+
+  it('ne soustrait pas les compteurs de deux tracteurs', () => {
+    expect(
+      summarizeWeek([
+        ev('f2', '2026-10-14T17:00', { type: 'fin_journee', odometer_km: 250400, tractor_plate: 'BB-222-BB' }),
+        ev('d2', '2026-10-14T05:00', { type: 'debut_journee', odometer_km: 250000, tractor_plate: 'BB-222-BB' }),
+        ev('f1', '2026-10-13T17:00', { type: 'fin_journee', odometer_km: 431300, tractor_plate: 'AA-111-AA' }),
+        ev('d1', '2026-10-13T05:00', { type: 'debut_journee', odometer_km: 431000, tractor_plate: 'AA111AA' }),
+      ]).km,
+    ).toBe(700);
+  });
+
+  it('écarte un relevé incohérent', () => {
+    expect(
+      summarizeWeek([
+        ev('f', '2026-10-13T17:00', { type: 'fin_journee', odometer_km: 100500 }),
+        ev('c', '2026-10-13T10:00', { odometer_km: 1000200 }),
+        ev('d', '2026-10-13T05:00', { type: 'debut_journee', odometer_km: 100000 }),
+      ]).km,
+    ).toBeNull();
   });
 });
 
@@ -105,6 +126,16 @@ describe('summarizeDay', () => {
     ]);
     expect(s).toEqual({ km: 450, amplitude: 675 });
     expect(durationLabel(675)).toBe('11h15');
+  });
+
+  it('compte chaque tracteur à part en cas de changement dans la journée', () => {
+    const s = summarizeDay([
+      ev('f', '2026-10-13T17:30', { type: 'fin_journee', odometer_km: 250300, tractor_plate: 'BB-222-BB' }),
+      ev('c', '2026-10-13T11:00', { odometer_km: 250000, tractor_plate: 'BB-222-BB' }),
+      ev('l', '2026-10-13T10:00', { type: 'livraison', odometer_km: 431200, tractor_plate: 'AA-111-AA' }),
+      ev('d', '2026-10-13T06:15', { type: 'debut_journee', odometer_km: 431000, tractor_plate: 'AA-111-AA' }),
+    ]);
+    expect(s.km).toBe(500);
   });
 });
 
