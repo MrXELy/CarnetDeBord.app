@@ -3,7 +3,7 @@ import { fr } from 'date-fns/locale';
 import { CITIES } from '../assets/cities';
 import { DEPARTEMENTS_PATH, FRANCE_PATH, project, type Box, type Point } from '../components/MapSvg';
 import type { Replay, ReplayFrame } from './weekReplay';
-import { dayColor } from './weekStops';
+import { dayColor, dayKey } from './weekStops';
 
 /** Format de l'animation (et de la vidéo) : carré, ou vertical pour le plein écran du téléphone. */
 export type ReplayFormat = 'square' | 'vertical';
@@ -68,7 +68,8 @@ export interface StopLabel {
 /**
  * Noms des villes atteintes : chaque ville une seule fois (au passage le plus récent), sans chevauchement,
  * les plus récentes d'abord (le lieu où vient d'arriver le camion a toujours son nom, s'il tient dans l'image).
- * `stops` dans l'ordre où ils sont atteints ; `measure` donne la largeur d'un texte en pixels.
+ * `stops` dans l'ordre où ils sont atteints (nom vide : pas de nom, mais son point reste à éviter) ;
+ * `measure` donne la largeur d'un texte en pixels.
  */
 export function placeLabels(
   stops: { name: string; at: Point }[],
@@ -212,7 +213,11 @@ export function drawReplayFrame(
   const labels =
     labelAlpha > 0
       ? placeLabels(
-          reached.map((s) => ({ name: s.events[0].city.trim(), at: toXY([s.lat, s.lon]) })),
+          // Seulement les lieux du jour affiché : au jour suivant, les noms des jours d'avant s'effacent.
+          reached.map((s) => ({
+            name: s.events.some((e) => dayKey(e.occurred_at) === frame.day) ? s.events[0].city.trim() : '',
+            at: toXY([s.lat, s.lon]),
+          })),
           (text) => ctx.measureText(text).width,
           { width: W, top, bottom: top + mapHeight },
         )

@@ -52,6 +52,18 @@ describe('placeLabels', () => {
     expect(labels.map((l) => l.name)).toEqual(['Colomiers']);
   });
 
+  it('évite quand même le point d’un lieu sans nom', () => {
+    const labels = placeLabels(
+      [
+        { name: '', at: [340, 500] },
+        { name: 'Toulouse', at: [300, 500] },
+      ],
+      measure,
+      area,
+    );
+    expect(labels.map((l) => [l.name, l.left])).toEqual([['Toulouse', true]]);
+  });
+
   it('ignore les lieux hors de la carte et les lieux sans nom', () => {
     const labels = placeLabels(
       [
