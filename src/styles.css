@@ -568,6 +568,22 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
   pointer-events: none;
 }
 
+/*
+ * Sur téléphone, le panneau couvre presque tout l'écran : pas de flou derrière, seulement le fond assombri.
+ * Ce flou plein écran, recalculé à chaque image et empilé d'une fenêtre à l'autre, saturait Chrome Android
+ * (zones de la carte non dessinées, bouton qui clignote).
+ */
+@media (max-width: 639.98px) {
+  .modal-backdrop,
+  .modal-backdrop.closing {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* Halos immobiles tant qu'une fenêtre est ouverte : ils sont cachés, et l'écran n'a plus à être recalculé. */
+body:has(.modal-backdrop) .halos i { animation-play-state: paused; }
+
 /* Sur téléphone : panneau en verre qui monte du bas, coins arrondis en haut. */
 .modal {
   --sheet: rgba(16, 18, 25, 0.94);
@@ -1418,7 +1434,7 @@ legend { margin-bottom: 6px; }
 }
 .replay-canvas.vertical { width: auto; max-width: 100%; height: min(62vh, 720px); }
 .replay-controls { display: flex; align-items: center; gap: 12px; }
-.replay-controls .replay-play { position: static; flex: none; }
+.replay-controls .replay-play { position: static; flex: none; backdrop-filter: none; } /* pas sur la carte : flou inutile */
 .replay-seek { flex: 1; accent-color: var(--accent); }
 .replay-view { display: grid; gap: 4px; font-size: 0.9rem; color: var(--muted); }
 .replay-view strong { color: var(--text); }

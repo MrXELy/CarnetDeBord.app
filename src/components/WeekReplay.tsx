@@ -36,6 +36,8 @@ const DURATIONS = [15, 30, 45, 60, 90, 120];
 
 /** Noms des villes atteintes effacés pendant le début du dézoom final (secondes). */
 const LABEL_FADE_SECONDS = 1.5;
+/** Écart minimal entre deux images de l'aperçu : 30 images/s, avec une marge pour les écrans à 60 Hz un peu irréguliers. */
+const PREVIEW_FRAME_MS = 1000 / 30 - 4;
 
 /**
  * Semaine (ou journée, ou mois) rejouée : animation des trajets dans l'ordre chronologique,
@@ -65,12 +67,15 @@ export default function WeekReplay({ heading, title, fileName, when, stops, legs
   // Durée totale : les trajets, puis le dézoom final et la pause sur la carte complète.
   const length = replay.total + OUTRO_SECONDS;
 
-  // Lecture : l'avancement suit l'horloge ; arrêt à la fin.
+  // Lecture : l'avancement suit l'horloge ; arrêt à la fin. 30 images par seconde comme la vidéo, pas 60 ou 120 :
+  // redessiner l'image de 1080 px à chaque rafraîchissement de l'écran saturait les téléphones.
   useEffect(() => {
     if (!playing) return;
     let raf = 0;
     let last = performance.now();
     const tick = (now: number) => {
+      raf = requestAnimationFrame(tick);
+      if (now - last < PREVIEW_FRAME_MS) return;
       const dt = (now - last) / 1000;
       last = now;
       setProgress((p) => {
@@ -78,7 +83,6 @@ export default function WeekReplay({ heading, title, fileName, when, stops, legs
         if (next >= 1) setPlaying(false);
         return next;
       });
-      raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
