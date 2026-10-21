@@ -1,4 +1,6 @@
+import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearCache, readCache } from './localCache';
 import { newWaybill, type TripEvent } from '../types';
 
 // Faux Supabase : compte les envois, peut être mis en pause (synchro longue), refuser des lignes,
@@ -98,7 +100,7 @@ vi.mock('./photos', () => ({
   },
 }));
 
-const { EventStore } = await import('./sync');
+const { EventStore, loadStoreCache } = await import('./sync');
 
 const storage = new Map<string, string>();
 vi.stubGlobal('window', { addEventListener() {}, removeEventListener() {} });
@@ -106,6 +108,7 @@ vi.stubGlobal('navigator', { onLine: true });
 vi.stubGlobal('localStorage', {
   getItem: (k: string) => storage.get(k) ?? null,
   setItem: (k: string, v: string) => storage.set(k, v),
+  removeItem: (k: string) => storage.delete(k),
 });
 
 function ev(id: string, occurred: string): TripEvent {
@@ -134,7 +137,8 @@ function ev(id: string, occurred: string): TripEvent {
 /** Laisse les promesses en attente se terminer. */
 const flush = () => new Promise((resolve) => setTimeout(resolve, 20));
 
-beforeEach(() => {
+beforeEach(async () => {
+  await clearCache('cdb.');
   storage.clear();
   server = {};
   refusedIds = {};
@@ -320,6 +324,7 @@ describe('lecture : curseur (date, id)', () => {
     server.events = make(1500);
     storage.set('cdb.pull2.data', JSON.stringify({ events: [], outbox: [], cursor: stamp }));
     storage.set('cdb.pull2.full_synced', JSON.stringify(new Date().toISOString()));
+    await loadStoreCache('pull2');
     const store = new EventStore('pull2');
     await flush();
     await store.sync();
@@ -332,7 +337,7 @@ describe('lecture : curseur (date, id)', () => {
     const store = new EventStore('pull3');
     await flush();
     await store.sync();
-    const saved = JSON.parse(storage.get('cdb.pull3.data')!);
+    const saved = readCache<{ cursor: string }>('cdb.pull3.data')!;
     expect(saved.cursor).toBe(`${stamp}|id-00002`);
     server.events = [];
     await store.sync();
@@ -394,8 +399,8 @@ describe('lignes supprimées : effacées du serveur après 30 jours', () => {
         .sort(),
     ).toEqual(['a', 'locale']);
     expect(
-      JSON.parse(storage.get('cdb.full1.data')!)
-        .events.map((e: TripEvent) => e.id)
+      readCache<{ events: TripEvent[] }>('cdb.full1.data')!
+        .events.map((e) => e.id)
         .sort(),
     ).toEqual(['a', 'locale']);
   });
@@ -409,6 +414,7 @@ describe('lignes supprimées : effacées du serveur après 30 jours', () => {
         cursor: null,
       }),
     );
+    await loadStoreCache('cols1');
     const store = new EventStore('cols1');
     expect(store.getState().events[0]).not.toHaveProperty('client');
     expect(store.getState().events[0]).not.toHaveProperty('cmr_number');

@@ -4,6 +4,7 @@ import { kmTimeline, type KmTimeline } from './emptyKm';
 import { fuelIntervals, type FuelInterval } from './fuel';
 import { DEFAULT_REMINDER_SETTINGS, type ReminderSettings } from './reminders';
 import { restChecks, type RestCheck } from './rest';
+import { loadCache, readCache, writeCache } from './localCache';
 import { cleanOrphanPhotos, flushTrash, trashPhotos, uploadPending } from './photos';
 import { supabase } from './supabase';
 import { DEFAULT_SHEET_SETTINGS, type SheetSettings } from './weekSheet';
@@ -44,6 +45,14 @@ const DAY_MS = 24 * 3600 * 1000;
  */
 const PURGE_AFTER_MS = 30 * DAY_MS;
 const FULL_SYNC_MS = 7 * DAY_MS;
+
+/** Clés locales d'un utilisateur : « cdb.<id>.<nom> ». */
+const storageKey = (userId: string, name: string) => `cdb.${userId}.${name}`;
+/** Données gardées dans le cache IndexedDB (`localCache.ts`) ; les autres clés, petites, restent dans localStorage. */
+const CACHED = ['data', 'waybills', 'week_maps', 'user_settings'];
+
+/** Charge le cache local de cet utilisateur : à attendre avant de créer son `EventStore`. */
+export const loadStoreCache = (userId: string) => loadCache(CACHED.map((name) => storageKey(userId, name)));
 
 interface Row {
   id: string;
@@ -242,12 +251,12 @@ export class EventStore {
     readonly userId: string,
     private options: { offline?: boolean } = {},
   ) {
-    // « data » garde son ancien format ({ events, outbox, cursor }) pour relire le cache existant.
-    const saved = this.read<{ events: TripEvent[]; outbox: string[]; cursor: string | null }>('data');
+    // Cache chargé avant (`loadStoreCache`). « data » garde son ancien format ({ events, outbox, cursor }).
+    const saved = readCache<{ events: TripEvent[]; outbox: string[]; cursor: string | null }>(this.key('data'));
     this.events.load(saved && { items: saved.events, outbox: saved.outbox, cursor: saved.cursor });
-    this.waybills.load(this.read<Saved<Waybill>>('waybills'));
-    this.weekMaps.load(this.read<Saved<WeekMap>>('week_maps'));
-    this.userSettings.load(this.read<Saved<UserSettingsRow>>('user_settings'));
+    this.waybills.load(readCache<Saved<Waybill>>(this.key('waybills')));
+    this.weekMaps.load(readCache<Saved<WeekMap>>(this.key('week_maps')));
+    this.userSettings.load(readCache<Saved<UserSettingsRow>>(this.key('user_settings')));
     this.state = this.snapshot();
     window.addEventListener('online', this.handleOnline);
     window.addEventListener('offline', this.emit);
@@ -695,10 +704,15 @@ export class EventStore {
   private persist() {
     if (this.disposed) return; // store arrêté : le cache local ne doit plus être réécrit
     const events = this.events.dump();
-    this.write('data', { events: events.items, outbox: events.outbox, cursor: events.cursor });
-    this.write('waybills', this.waybills.dump());
-    this.write('week_maps', this.weekMaps.dump());
-    this.write('user_settings', this.userSettings.dump());
+    writeCache({
+      [this.key('data')]: { events: events.items, outbox: events.outbox, cursor: events.cursor },
+      [this.key('waybills')]: this.waybills.dump(),
+      [this.key('week_maps')]: this.weekMaps.dump(),
+      [this.key('user_settings')]: this.userSettings.dump(),
+    }).catch(() => {
+      this.error = 'Stockage local plein ou indisponible';
+      this.emit();
+    });
     this.emit();
   }
 
@@ -709,7 +723,7 @@ export class EventStore {
   }
 
   private key(name: string) {
-    return `cdb.${this.userId}.${name}`;
+    return storageKey(this.userId, name);
   }
 
   private read<T>(name: string): T | null {

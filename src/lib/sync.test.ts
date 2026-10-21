@@ -1,9 +1,11 @@
+import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearCache } from './localCache';
 import { newWaybill, waybillStatus, type TripEvent } from '../types';
 
 vi.mock('./supabase', () => ({ supabase: {} }));
 
-const { EventStore } = await import('./sync');
+const { EventStore, loadStoreCache } = await import('./sync');
 const { isBlankWaybill } = await import('./waybills');
 
 // Environnement « navigateur » minimal : hors ligne, pour ne jamais appeler Supabase.
@@ -13,6 +15,12 @@ vi.stubGlobal('navigator', { onLine: false });
 vi.stubGlobal('localStorage', {
   getItem: (k: string) => storage.get(k) ?? null,
   setItem: (k: string, v: string) => storage.set(k, v),
+  removeItem: (k: string) => storage.delete(k),
+});
+
+beforeEach(async () => {
+  storage.clear();
+  await clearCache('cdb.');
 });
 
 function ev(id: string, type: TripEvent['type'], occurred: string): TripEvent {
@@ -58,13 +66,12 @@ describe('waybillStatus', () => {
 });
 
 describe('EventStore et lettres de voiture', () => {
-  beforeEach(() => storage.clear());
-
-  it('relit l’ancien cache local des étapes', () => {
+  it('relit l’ancien cache local des étapes', async () => {
     storage.set(
       'cdb.u.data',
       JSON.stringify({ events: [ev('a', 'chargement', '2026-10-12T08:00')], outbox: [], cursor: null }),
     );
+    await loadStoreCache('u');
     const store = new EventStore('u');
     expect(store.getState().events.map((e) => e.id)).toEqual(['a']);
     expect(store.getState().waybills).toEqual([]);
@@ -150,8 +157,6 @@ describe('EventStore et lettres de voiture', () => {
 });
 
 describe('cartes des semaines et lieux complétés', () => {
-  beforeEach(() => storage.clear());
-
   it('enregistre la carte d’une semaine et la relit', () => {
     const store = new EventStore('u');
     const start = new Date(2026, 0, 25, 22);
@@ -218,7 +223,6 @@ describe('cartes des semaines et lieux complétés', () => {
 
 describe('photos des LV', () => {
   const trash = () => JSON.parse(storage.get('cdb.photo-trash') ?? '[]') as string[];
-  beforeEach(() => storage.clear());
 
   it('photos retirées d’une LV, puis LV supprimée : mises à l’effacement', () => {
     const store = new EventStore('photos', { offline: true });

@@ -1,4 +1,6 @@
+import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearCache, readCache, writeCache } from './localCache';
 import type { TripEvent } from '../types';
 
 let session: object | null = { user: 1 };
@@ -61,7 +63,8 @@ function ev(id: string): TripEvent {
   };
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  await clearCache('cdb.');
   storage.clear();
   session = { user: 1 };
   signOutRemote.mockClear();
@@ -91,10 +94,13 @@ describe('signOutAndClear', () => {
     const store = new EventStore('u1', { offline: true });
     storage.set('cdb.u1.data', '{}');
     storage.set('cdb.settings', '{}');
+    await writeCache({ 'cdb.u1.waybills': {}, 'cdb.u2.data': {} });
     const ask = vi.fn(() => true);
     expect(await signOutAndClear(store, { ask })).toBe(true);
     expect(ask).toHaveBeenCalledTimes(1);
     expect(storage.has('cdb.u1.data')).toBe(false);
+    expect(readCache('cdb.u1.waybills')).toBeNull(); // cache IndexedDB effacé aussi
+    expect(readCache('cdb.u2.data')).toEqual({}); // autre compte gardé
     expect(storage.has('cdb.settings')).toBe(true);
     expect(clearedFor).toEqual(['u1']);
     expect(signOutRemote).toHaveBeenCalledTimes(1);
@@ -107,7 +113,7 @@ describe('signOutAndClear', () => {
     expect(await signOutAndClear(store, { ask })).toBe(false);
     expect(ask).toHaveBeenCalledTimes(2);
     expect(ask.mock.calls[1][0]).toMatch(/1 modification n’est pas encore envoyée.*effacera/);
-    expect(storage.has('cdb.u1.data')).toBe(true);
+    expect(readCache('cdb.u1.data')).not.toBeNull();
     expect(clearedFor).toEqual([]);
     expect(signOutRemote).not.toHaveBeenCalled();
   });
@@ -115,9 +121,9 @@ describe('signOutAndClear', () => {
   it('modifications non envoyées et perte confirmée : tout est effacé', async () => {
     const store = new EventStore('u1', { offline: true });
     store.save(ev('a'));
-    expect(storage.has('cdb.u1.data')).toBe(true);
+    expect(readCache('cdb.u1.data')).not.toBeNull();
     expect(await signOutAndClear(store, { ask: () => true })).toBe(true);
-    expect(storage.has('cdb.u1.data')).toBe(false);
+    expect(readCache('cdb.u1.data')).toBeNull();
     expect(signOutRemote).toHaveBeenCalledTimes(1);
   });
 

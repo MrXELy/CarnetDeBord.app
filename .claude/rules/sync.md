@@ -4,8 +4,9 @@ paths: ["src/lib/sync.ts", "src/lib/syncRun.test.ts", "src/lib/sync.test.ts", "s
 
 # Synchro et déconnexion
 
-## `src/lib/sync.ts` : synchro hors ligne d'abord (cache localStorage, file d'envoi), `EventStore`
+## `src/lib/sync.ts` : synchro hors ligne d'abord (cache local, file d'envoi), `EventStore`
 
+- Cache local (étapes, LV, cartes, réglages partagés) dans **IndexedDB** (`src/lib/localCache.ts`, base `carnetdebord-cache`), gardé aussi en mémoire : `loadStoreCache(userId)` à attendre avant `new EventStore`. localStorage (environ 5 Mo, partagés avec tout `mrxely.github.io`) aurait débordé en quelques années. Un ancien cache dans localStorage est recopié une fois puis effacé de localStorage. Les petites clés (`plates`, `full_synced`, `purged`, `photos_cleaned`) restent dans localStorage. Tests : `fake-indexeddb`.
 - Chaque `Collection` a un compteur `version` ; les listes `events` et `waybills` gardent le même tableau tant que rien ne change (les caches et les `useMemo` s'appuient dessus). **Tout code qui modifie `items` doit augmenter `version`.** `loadedAt` et `deliveredAt` utilisent un index mémorisé.
 - Une synchro demandée pendant une synchro en cours est relancée une seule fois à sa fin.
 - Si le lot d'envoi est refusé, les lignes repartent une par une (`isRowRefusal`) : la ligne refusée reste dans la file, l'erreur la nomme (`RowRefusedError`) et la synchro continue (réception, LV, photos, cartes, réglages) ; une LV qui pointe vers une étape refusée est refusée seule. Panne réseau, session expirée, colonne ou table absente : pas de renvoi ligne par ligne.

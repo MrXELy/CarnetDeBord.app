@@ -1,11 +1,12 @@
+import { clearCache } from './localCache';
 import { clearUserPhotos, pendingPhotoCount } from './photos';
 import { supabase } from './supabase';
 import type { EventStore } from './sync';
 
 /**
- * Efface les données locales d'un utilisateur : toutes les clés `cdb.<id>.*` (étapes, LV, cartes, réglages
- * partagés, dernières plaques…). Les réglages de l'appareil (`cdb.settings` : carte, mode Europe) et les clés
- * des autres comptes sont gardés.
+ * Efface les données locales d'un utilisateur dans localStorage : toutes les clés `cdb.<id>.*` (dernières plaques,
+ * dates de ménage, cache d'une ancienne version de l'appli ; le cache actuel est effacé par `clearCache`).
+ * Les réglages de l'appareil (`cdb.settings` : carte, mode Europe) et les clés des autres comptes sont gardés.
  */
 export function clearLocalData(userId: string, storage: Pick<Storage, 'length' | 'key' | 'removeItem'> = localStorage) {
   const prefix = `cdb.${userId}.`;
@@ -130,6 +131,7 @@ async function signOutSteps(store: EventStore, { ask, notify, reload, progress, 
 
   // Session fermée : le store ne revient pas (plus d'utilisateur), on peut effacer les données locales.
   clearLocalData(store.userId);
+  await clearCache(`cdb.${store.userId}.`).catch(() => {}); // IndexedDB indisponible : rien à effacer
   await clearUserPhotos(store.userId);
   return true;
 }

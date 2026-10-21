@@ -4,7 +4,8 @@ import Login from './components/Login';
 import WeekView from './components/WeekView';
 import { supabase } from './lib/supabase';
 import { readDemoData, type DemoData } from './lib/demoData';
-import { EventStore } from './lib/sync';
+import { readCache, writeCache } from './lib/localCache';
+import { EventStore, loadStoreCache } from './lib/sync';
 import { StoreContext } from './lib/useEvents';
 import type { TripEvent } from './types';
 
@@ -30,9 +31,17 @@ function SignedInApp() {
   const userId = session?.user.id;
   useEffect(() => {
     if (!userId) return setStore(null);
-    const s = new EventStore(userId);
-    setStore(s);
-    return () => s.dispose();
+    let s: EventStore | null = null;
+    let alive = true;
+    loadStoreCache(userId).then(() => {
+      if (!alive) return;
+      s = new EventStore(userId);
+      setStore(s);
+    });
+    return () => {
+      alive = false;
+      s?.dispose();
+    };
   }, [userId]);
 
   if (session === undefined) return null;
@@ -53,18 +62,20 @@ const DEMO_KEY = 'cdb.demo.data';
  * « Sauvegarder la démo » des Options) au premier lancement ou avec « ?demo=reset ». Fichier absent : historique vide.
  */
 async function seedDemo(reset: boolean) {
-  if (!reset && localStorage.getItem(DEMO_KEY)) return;
+  await loadStoreCache('demo');
+  if (!reset && readCache(DEMO_KEY)) return;
   const files = import.meta.glob<TripEvent[] | DemoData>('../data/demo-events.json', { import: 'default' });
   const load = Object.values(files)[0];
   const { events, waybills = [], settings } = readDemoData(load ? await load() : []);
-  const saved = (items: unknown[]) => JSON.stringify({ items, outbox: [], cursor: null });
-  localStorage.setItem(DEMO_KEY, JSON.stringify({ events, outbox: [], cursor: null }));
-  localStorage.setItem('cdb.demo.waybills', saved(waybills));
-  // Réglages (frais, feuille de semaine) : une ligne, identifiée par l'utilisateur de démo.
-  localStorage.setItem(
-    'cdb.demo.user_settings',
-    saved(settings ? [{ id: 'demo', updated_at: '', deleted_at: null, allowances: null, ...settings }] : []),
-  );
+  const saved = (items: unknown[]) => ({ items, outbox: [], cursor: null });
+  await writeCache({
+    [DEMO_KEY]: { events, outbox: [], cursor: null },
+    'cdb.demo.waybills': saved(waybills),
+    // Réglages (frais, feuille de semaine) : une ligne, identifiée par l'utilisateur de démo.
+    'cdb.demo.user_settings': saved(
+      settings ? [{ id: 'demo', updated_at: '', deleted_at: null, allowances: null, ...settings }] : [],
+    ),
+  });
 }
 
 function DemoApp({ reset }: { reset: boolean }) {
