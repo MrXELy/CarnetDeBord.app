@@ -2341,3 +2341,9 @@ button.st-kv-item:active { transform: scale(0.97); }
 .search-kinds button.selected { border-color: var(--tone, var(--accent)); }
 .search-kinds button:not([class*='tone-']).selected { background: var(--accent); color: var(--accent-text); }
 .search { border: 2px solid transparent; }
+
+/* Choisir une semaine : numéro en gros, dates, km à droite */
+.week-row-number { flex: none; width: 3.2em; font-size: 1.35rem; font-weight: 800; }
+.week-row .week-row-title { flex: 1; font-weight: 500; color: var(--muted); }
+.week-row.selected .week-row-number { color: var(--accent-text); }
+.month-head h3 { margin: 6px 4px 0; }

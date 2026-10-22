@@ -1,4 +1,4 @@
-import { isSameDay } from 'date-fns';
+import { addHours, getISOWeek, isSameDay } from 'date-fns';
 import { CalendarDays, CalendarCheck, Map as MapIcon, X } from 'lucide-react';
 import { useEffect, useMemo, useRef } from 'react';
 import { listWeeks, monthLabel, weekLabel, weekStart } from '../lib/dates';
@@ -24,6 +24,10 @@ export default function WeekPicker({ current, onPick, onMonthMap, onWeekMap, onC
   const datePicker = useRef<HTMLInputElement>(null);
 
   const sheet = useSheet(onClose);
+  const thisWeek = weekStart(new Date());
+  // Km du mois : somme des semaines qui ont des km (null si aucune).
+  const monthKm = (list: typeof weeks) =>
+    list.some((w) => w.km != null) ? list.reduce((sum, w) => sum + (w.km ?? 0), 0) : null;
 
   // La semaine affichée est visible dès l'ouverture, même loin dans la liste.
   useEffect(() => {
@@ -91,7 +95,10 @@ export default function WeekPicker({ current, onPick, onMonthMap, onWeekMap, onC
             months.map((m) => (
               <section key={m.label} className="settings-group">
                 <div className="month-head">
-                  <h3>{m.label}</h3>
+                  <h3>
+                    {m.label}
+                    {monthKm(m.weeks) != null && ` · ${monthKm(m.weeks)!.toLocaleString('fr-FR')} km`}
+                  </h3>
                   <button
                     type="button"
                     className="btn-link btn-icon month-map-btn"
@@ -112,7 +119,11 @@ export default function WeekPicker({ current, onPick, onMonthMap, onWeekMap, onC
                         className={`week-row${isCurrent ? ' selected' : ''}`}
                         onClick={() => pick(w.start)}
                       >
-                        <span className="week-row-title">{weekLabel(w.start)}</span>
+                        <span className="week-row-number">S{getISOWeek(addHours(w.start, 2))}</span>
+                        <span className="week-row-title">
+                          {weekLabel(w.start).split(' · ')[1]}
+                          {isSameDay(w.start, thisWeek) && ' · en cours'}
+                        </span>
                         {/* Une seule ligne sur téléphone : les km, ou à défaut le nombre d'étapes. */}
                         <span className="week-row-meta">
                           {w.km != null
