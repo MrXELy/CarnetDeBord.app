@@ -114,7 +114,7 @@ export default function WeekView() {
     try {
       // Le dessin du PDF (et sa bibliothèque) n'est chargé qu'ici.
       const { weekSheetPdf } = await import('../lib/weekSheetPdf');
-      const sheet = buildWeekSheet(events, waybills, start, sheetSettings);
+      const sheet = buildWeekSheet(events, waybills, start, sheetSettings, store.allowances());
       const name = `feuille-semaine-${sheet.week}-${sheet.monday.getFullYear()}.pdf`;
       await shareFile(weekSheetPdf(sheet), name, `Feuille de semaine ${sheet.week}`);
     } catch (err) {

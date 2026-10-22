@@ -73,6 +73,8 @@ export interface Allowance {
   amount: number | null;
   /** Jour sans étape passé hors des bases. */
   blocked?: boolean;
+  /** Repas du midi ou du soir (feuille de remboursement). */
+  meal?: 'midi' | 'soir';
 }
 
 /** Comparaison des noms de villes : sans accents, majuscules, tirets ni « Saint »/« St ». */
@@ -196,9 +198,10 @@ export function computeAllowances(events: TripEvent[], settings: AllowanceSettin
   if (settings.bases.length === 0) return [];
   const { days, starts } = workDays(events);
   const out: Allowance[] = [];
-  const add = (dayDate: Date, kind: AllowanceKind, foreign: boolean, blocked = false) => {
+  const add = (dayDate: Date, kind: AllowanceKind, foreign: boolean, blocked = false, meal?: 'midi' | 'soir') => {
     const day = format(dayDate, 'yyyy-MM-dd');
-    out.push({ day, kind, foreign, amount: amountOf(settings.rates, day, kind, foreign), ...(blocked && { blocked }) });
+    const amount = amountOf(settings.rates, day, kind, foreign);
+    out.push({ day, kind, foreign, amount, ...(blocked && { blocked }), ...(meal && { meal }) });
   };
 
   days.forEach((wd, i) => {
@@ -223,8 +226,8 @@ export function computeAllowances(events: TripEvent[], settings: AllowanceSettin
     if (away) {
       add(day, noon ? 'gd2' : 'gd1', isForeign(wd.end));
     } else {
-      if (noon) add(day, 'repas', abroad);
-      if (covers(start, end, day, [18, 45], [21, 15])) add(day, 'repas', abroad);
+      if (noon) add(day, 'repas', abroad, false, 'midi');
+      if (covers(start, end, day, [18, 45], [21, 15])) add(day, 'repas', abroad, false, 'soir');
     }
 
     // Jours sans étape passés là où la journée s'est terminée, comptés une fois la route reprise

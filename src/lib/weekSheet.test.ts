@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { newWaybill, type TripEvent, type Waybill } from '../types';
 import { weekStart } from './dates';
+import { computeAllowances, DEFAULT_RATES } from './allowances';
 import { buildWeekSheet, fuelColumn, sheetPlace, sheetPlate, type SheetSettings } from './weekSheet';
 
 let n = 0;
@@ -50,8 +51,8 @@ const start = weekStart(new Date('2026-03-02T12:00'));
 describe('sheetPlate et sheetPlace', () => {
   it('écrit la plaque et le lieu comme sur papier', () => {
     expect(sheetPlate('AB-123-CD')).toBe('AB 123 CD');
-    expect(sheetPlace({ city: 'Narbonne', department: '11', country_code: 'FR' })).toBe('Narbonne 11');
-    expect(sheetPlace({ city: 'Irun', department: null, country_code: 'ES' })).toBe('Irun ES');
+    expect(sheetPlace({ city: 'Narbonne', department: '11', country_code: 'FR' })).toBe('Narbonne (11)');
+    expect(sheetPlace({ city: 'Irun', department: null, country_code: 'ES' })).toBe('Irun (ES)');
   });
 });
 
@@ -83,10 +84,15 @@ describe('buildWeekSheet', () => {
     const sheet = buildWeekSheet(events, [], start, settings);
     expect(sheet.week).toBe(10);
     expect(sheet.tractor).toBe('AA 111 AA');
-    expect(sheet.departures[1]).toMatchObject({ place: 'Narbonne 11', km: 100_000 });
-    expect(sheet.departures[2]).toMatchObject({ place: 'Toulouse 31', km: 100_500 });
+    expect(sheet.departures[1]).toMatchObject({ place: 'Narbonne (11)', km: 100_000 });
+    expect(sheet.departures[2]).toMatchObject({ place: 'Toulouse (31)', km: 100_500 });
     expect(sheet.departures[0]).toBeNull();
-    expect(sheet).toMatchObject({ startPlace: 'Narbonne', endPlace: 'Narbonne', startKm: 100_000, endKm: 101_000 });
+    expect(sheet).toMatchObject({
+      startPlace: 'Narbonne (11)',
+      endPlace: 'Narbonne (11)',
+      startKm: 100_000,
+      endKm: 101_000,
+    });
     expect(sheet.totalKm).toBe(1000);
     expect(sheet.fuel[0]).toEqual([expect.objectContaining({ column: 1, litres: 400, adblue: 50, full: true })]);
     expect(sheet.fuel[1]).toEqual([expect.objectContaining({ column: 5, litres: 150, full: false })]);
@@ -97,7 +103,7 @@ describe('buildWeekSheet', () => {
   it('met un départ du dimanche soir sur la ligne Dimanche', () => {
     const events = [ev('debut_journee', '2026-03-01T22:30', 'Narbonne', '11', 100_000)];
     const sheet = buildWeekSheet(events, [], start, settings);
-    expect(sheet.departures[0]).toMatchObject({ place: 'Narbonne 11' });
+    expect(sheet.departures[0]).toMatchObject({ place: 'Narbonne (11)' });
   });
 
   it('note chaque opération au jour où elle a lieu, la livraison sur la ligne de son chargement du même jour', () => {
@@ -128,7 +134,7 @@ describe('buildWeekSheet', () => {
       expect.objectContaining({
         trailer: 'BB 222 BB',
         shipper: 'Usine A',
-        shipperPlace: 'Toulouse 31',
+        shipperPlace: 'Toulouse (31)',
         consignee: '',
         number: '123',
         weightKg: 24_000,
@@ -145,7 +151,7 @@ describe('buildWeekSheet', () => {
         weightKg: 24_000,
         number: '123',
       }),
-      expect.objectContaining({ shipper: 'Usine C', consignee: 'Client D', consigneePlace: 'Périgueux 24' }),
+      expect.objectContaining({ shipper: 'Usine C', consignee: 'Client D', consigneePlace: 'Périgueux (24)' }),
     ]);
   });
 
@@ -232,5 +238,31 @@ describe('buildWeekSheet', () => {
       ['BB 222 BB', 100_210, 100_500],
       ['', null, 100_510],
     ]);
+  });
+});
+
+describe('feuille de remboursement de frais', () => {
+  it('range chaque journée au jour de sa fin et compte les indemnités de la semaine', () => {
+    const events = [
+      ev('debut_journee', '2026-03-02T01:15', 'Narbonne', '11', 100_000),
+      ev('fin_journee', '2026-03-02T12:05', 'Toulouse', '31', 100_300),
+      ev('debut_journee', '2026-03-02T21:15', 'Toulouse', '31', 100_300),
+      ev('fin_journee', '2026-03-03T08:00', 'Toulouse', '31', 100_500),
+      ev('debut_journee', '2026-03-03T10:00', 'Toulouse', '31', 100_500),
+      ev('fin_journee', '2026-03-03T20:00', 'Narbonne', '11', 100_800),
+    ];
+    const allowances = computeAllowances(events, {
+      bases: [{ city: 'Narbonne', department: '11' } as never],
+      rates: [DEFAULT_RATES],
+    });
+    const sheet = buildWeekSheet(events, [], start, { ...settings, matricule: '0001', hireDate: '01/20' }, allowances);
+    expect(sheet.matricule).toBe('0001');
+    expect(sheet.expenseDays[1]).toMatchObject({ startPlace: 'Narbonne (11)', endPlace: 'Toulouse (31)' });
+    // Départ lundi soir, fin mardi : ligne Mardi, puis la journée suivante du mardi ne garde que sa fin.
+    expect(sheet.expenseDays[2]?.start.getDate()).toBe(2);
+    expect(sheet.expenseDays[2]?.endPlace).toBe('Narbonne (11)');
+    expect(sheet.expenses.map((e) => e.count)).toEqual([1, 1, 0, 2, 0, 0]);
+    expect(sheet.expenseTotal).toBe(Math.round((8.87 + 17.68 + 2 * 52.31) * 100) / 100);
+    expect(sheet.signedOn?.getDate()).toBe(3);
   });
 });

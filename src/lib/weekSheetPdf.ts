@@ -1,10 +1,12 @@
 import { format } from 'date-fns';
 import { jsPDF } from 'jspdf';
-import { DEPOT_COUNT, ROAD_COLUMNS, type WeekSheet } from './weekSheet';
+import logo from '../assets/logo.jpg?inline';
+import { DEPOT_COUNT, EXPENSE_LINES, ROAD_COLUMNS, type WeekSheet } from './weekSheet';
 
 /*
  * Feuille de semaine en PDF, redessinée d'après la feuille papier (A3 pliée en deux) :
- * page 1 en A4, l'intérieur (pages 2-3) en A3 paysage, page 4 (carburant) en A4 paysage.
+ * page 1 en A4, l'intérieur (pages 2-3) en A3 paysage, page 4 (carburant) en A4 paysage,
+ * puis la feuille de remboursement de frais (A4, imprimée en noir). Logo (dessins seuls, découpés d'un scan) en pages 1 et 5.
  * Mesures en millimètres, relevées sur la feuille. Le cadre est imprimé en bordeaux, les données en bleu.
  */
 
@@ -37,6 +39,9 @@ const tonnes = (kg: number | null) =>
   kg == null ? '' : `${String(Number((kg / 1000).toFixed(2))).replace('.', ',')} t`;
 
 class Sheet {
+  /** Couleur du cadre (bordeaux, noir pour la feuille de frais). */
+  frame = FRAME;
+
   constructor(readonly doc: jsPDF) {}
 
   font(size: number, bold = false, color = LABEL) {
@@ -94,7 +99,7 @@ class Sheet {
   }
 
   stroke(width: number) {
-    this.doc.setDrawColor(FRAME);
+    this.doc.setDrawColor(this.frame);
     this.doc.setLineWidth(width);
   }
 
@@ -129,6 +134,8 @@ const DAYS_P4 = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'D
 
 /** Page 1 : conducteur, véhicule, semaine et départ de chaque jour. */
 function page1(s: Sheet, w: WeekSheet) {
+  s.doc.addImage(logo, 'JPEG', 8, 20, 42, 11.7);
+
   // Conducteur et véhicule.
   s.box(54, 13, 70, 30);
   s.label('ETIQUETTE', 57, 18, 7.5);
@@ -386,7 +393,128 @@ function page4(s: Sheet, w: WeekSheet) {
   s.dots(110, 150, 199.5);
 }
 
-/** Les 4 pages de la feuille de semaine, en PDF. */
+const euroText = (n: number) => (n ? n.toFixed(2).replace('.', ',') : '');
+
+/** Page 5 (A4) : feuille de remboursement de frais. */
+function page5(s: Sheet, w: WeekSheet) {
+  s.frame = LABEL;
+  s.doc.addImage(logo, 'JPEG', 27, 17, 55, 15.3);
+
+  // Conducteur.
+  s.box(112, 14, 86, 31, 0.5);
+  [
+    ['Matricule :', w.matricule],
+    ['NOM- Prénom :', w.driver],
+    ["Date d'Embauche :", w.hireDate],
+  ].forEach(([label, value], i) => {
+    const y = 23 + i * 9;
+    s.label(label, 115, y, 11, { bold: true });
+    const x = 115 + s.doc.getTextWidth(label) + 1.5;
+    s.dots(x, 194, y + 0.5);
+    s.data(value, x + 1, y - 0.7, 194 - x - 2, 12);
+  });
+
+  // Titre et semaine.
+  s.label('REMBOURSEMENT DE FRAIS', 105, 57, 15, { bold: true, align: 'center' });
+  s.label('Semaine N°', 63, 66, 12, { bold: true });
+  s.dots(85, 96, 66.5);
+  s.data(String(w.week), 85, 65.3, 11, 12, 'center');
+  s.label('Du :', 98, 66, 12, { bold: true });
+  s.dots(107, 129, 66.5);
+  s.data(format(w.monday, 'dd/MM/yy'), 107, 65.3, 22, 12, 'center');
+  s.label('au :', 131, 66, 12, { bold: true });
+  s.dots(140, 162, 66.5);
+  s.data(format(w.saturday, 'dd/MM/yy'), 140, 65.3, 22, 12, 'center');
+
+  // Journées : un départ la veille porte le nom de son jour en petit.
+  const x = [22, 42, 72, 120, 147, 196];
+  const top = 71;
+  const head = 10;
+  const row = 9;
+  const bottom = top + head + row * 7;
+  s.box(x[0], top, x[5] - x[0], bottom - top, 0.7);
+  x.slice(1, -1).forEach((cx) => s.line(cx, top, cx, bottom, 0.5));
+  for (let i = 0; i < 7; i++) s.line(x[0], top + head + row * i, x[5], top + head + row * i, 0.5);
+  s.lines(['JOURS'], (x[0] + x[1]) / 2, top + head / 2, 8.5, true);
+  s.lines(['Heure Début de', 'Journée'], (x[1] + x[2]) / 2, top + head / 2, 8, true);
+  s.lines(['Lieu Début de Journée'], (x[2] + x[3]) / 2, top + head / 2, 8, true);
+  s.lines(['Heure Fin de', 'Journée'], (x[3] + x[4]) / 2, top + head / 2, 8, true);
+  s.lines(['Lieu Fin de Journée'], (x[4] + x[5]) / 2, top + head / 2, 8, true);
+  const hour = (d: Date) => format(d, "H'h'mm");
+  DAYS_P1.forEach((day, i) => {
+    const t = top + head + row * i;
+    const y = t + row / 2 + 1.6;
+    s.label(day.toUpperCase(), x[0] + 1.5, t + 4, 8);
+    const d = w.expenseDays[i];
+    if (!d) return;
+    s.data(hour(d.start), x[1] + 1, y, x[2] - x[1] - 2, 12, 'center');
+    if (d.start.getDay() !== i)
+      s.data(DAYS_P1[d.start.getDay()].toLowerCase(), x[1] + 1, t + 3, x[2] - x[1] - 2, 7, 'right');
+    s.data(d.startPlace, x[2] + 2, y, x[3] - x[2] - 4, 12);
+    s.data(hour(d.end), x[3] + 1, y, x[4] - x[3] - 2, 12, 'center');
+    s.data(d.endPlace, x[4] + 2, y, x[5] - x[4] - 4, 12);
+  });
+
+  // Indemnités : nombre à gauche, montant à droite.
+  const fx = [47, 57, 132, 170];
+  const ftop = 152;
+  const frow = 5.5;
+  const fbottom = ftop + frow * EXPENSE_LINES.length;
+  s.box(fx[0], ftop, fx[3] - fx[0], fbottom - ftop, 0.5);
+  fx.slice(1, -1).forEach((cx) => s.line(cx, ftop, cx, fbottom));
+  EXPENSE_LINES.forEach((line, i) => {
+    const t = ftop + frow * i;
+    const y = t + frow / 2 + 1.3;
+    if (i > 0) s.line(fx[0], t, fx[3], t);
+    s.label(line.label.toUpperCase(), fx[1] + 1.5, y, 8);
+    const e = w.expenses[i];
+    if (e.count) s.data(String(e.count), fx[0] + 1, y, fx[1] - fx[0] - 2, 10, 'center');
+    s.data(euroText(e.amount), fx[2] + 2, y, fx[3] - fx[2] - 4, 10, 'right');
+  });
+  s.label('TOTAL FRAIS', fx[2] - 2, fbottom + 5, 9, { align: 'right' });
+  s.box(fx[2], fbottom, fx[3] - fx[2], 8, 0.5);
+  s.data(euroText(w.expenseTotal), fx[2] + 2, fbottom + 5.5, fx[3] - fx[2] - 4, 11, 'right');
+
+  // Autres frais : laissés vides (justificatifs à joindre).
+  const otop = fbottom + 18;
+  s.label('AUTRES FRAIS - (JOINDRE TOUS LES JUSTIFICATIFS NÉCESSAIRES)', fx[0], otop - 2, 9, { bold: true });
+  const ocol = 131;
+  s.box(fx[0], otop, fx[3] - fx[0], 18, 0.5);
+  s.line(ocol, otop, ocol, otop + 18);
+  for (let i = 1; i < 4; i++) s.line(fx[0], otop + 4.5 * i, fx[3], otop + 4.5 * i);
+  s.label('TOTAL AUTRES FRAIS', ocol - 2, otop + 23, 8, { align: 'right' });
+  s.box(ocol, otop + 18, fx[3] - ocol, 8, 0.5);
+
+  s.label('TOTAL GENERAL', ocol - 2, otop + 38, 9, { align: 'right' });
+  s.box(ocol, otop + 33, fx[3] - ocol, 8, 0.8);
+  s.data(euroText(w.expenseTotal), ocol + 2, otop + 38.5, fx[3] - ocol - 4, 11, 'right');
+
+  // Signatures : la date est celle de la dernière fin de journée.
+  const sy = otop + 54;
+  s.label('Signature du demandeur*:', 21, sy, 11, { bold: true });
+  s.label('le', 21, sy + 11, 11);
+  s.dots(26, 56, sy + 11.5);
+  if (w.signedOn) s.data(format(w.signedOn, 'dd/MM/yy'), 26, sy + 10.3, 30, 12, 'center');
+  s.label('Signature :', 21, sy + 22, 11);
+  s.line(42, sy + 22.5, 75, sy + 22.5, 0.3);
+  s.label('Nom du Responsable :', 114, sy, 11, { bold: true });
+  s.line(157, sy + 0.5, 184, sy + 0.5, 0.3);
+  s.label('le ____/____/____', 114, sy + 11, 11);
+  s.label('Signature :', 114, sy + 22, 11);
+  s.line(135, sy + 22.5, 168, sy + 22.5, 0.3);
+  s.doc.setFont('helvetica', 'italic');
+  s.doc.setFontSize(7);
+  s.doc.text(
+    clean(
+      "*en signant ce formulaire je déclare être à ce jour titulaire d'un permis de conduire en cours de validité pour la catégorie du véhicule que je conduis.",
+    ),
+    105,
+    sy + 31,
+    { align: 'center' },
+  );
+}
+
+/** Les 4 pages de la feuille de semaine, puis la feuille de remboursement de frais, en PDF. */
 export function weekSheetPdf(w: WeekSheet): Blob {
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   doc.setProperties({ title: `Feuille de semaine ${w.week}` });
@@ -396,5 +524,7 @@ export function weekSheetPdf(w: WeekSheet): Blob {
   page23(s, w);
   doc.addPage('a4', 'landscape');
   page4(s, w);
+  doc.addPage('a4', 'portrait');
+  page5(s, w);
   return doc.output('blob');
 }

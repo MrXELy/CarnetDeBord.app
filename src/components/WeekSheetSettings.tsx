@@ -25,7 +25,22 @@ export default function WeekSheetSettingsSection() {
           <span className="setting-title">Agence de rattachement</span>
           <Text value={settings.agency} label="Agence de rattachement" onCommit={(agency) => save({ agency })} />
         </label>
-        <span className="hint">Écrits tels quels sur la feuille.</span>
+        <label className="ws-field">
+          <span className="setting-title">Matricule</span>
+          <Text value={settings.matricule ?? ''} label="Matricule" onCommit={(matricule) => save({ matricule })} />
+        </label>
+        <label className="ws-field">
+          <span className="setting-title">Date d’embauche</span>
+          <Text
+            value={settings.hireDate ?? ''}
+            label="Date d’embauche"
+            placeholder="mm/aa"
+            onCommit={(hireDate) => save({ hireDate })}
+          />
+        </label>
+        <span className="hint">
+          Écrits tels quels sur la feuille (matricule et date d’embauche : page « Remboursement de frais »).
+        </span>
       </div>
 
       <div className="setting-row usage">

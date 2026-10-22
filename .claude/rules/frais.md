@@ -10,6 +10,7 @@ paths: ["src/lib/allowances.ts", "src/lib/allowances.test.ts", "src/components/A
 ## Règles validées sur les vraies semaines avec l'utilisateur
 
 - Calcul par journée de travail d'après l'heure et le lieu des **débuts et fins de journée** seulement.
+- Les repas à la base portent `meal: 'midi' | 'soir'` (lignes séparées sur la feuille de remboursement).
 - Fin hors des bases → GD 2 repas + découcher si la journée couvre 11h45–14h15, sinon GD 1 repas. Fin à une base → repas midi (11h45–14h15) et soir (18h45–21h15).
 - Casse-croûte : départ strictement avant 5h **et pas de découcher la veille** (sinon compris dans le GD).
 - Repas unique de nuit : 4 h entre 22h et 7h, sans casse-croûte ni découcher la veille.

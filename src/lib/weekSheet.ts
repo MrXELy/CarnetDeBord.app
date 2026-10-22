@@ -1,5 +1,6 @@
 import { addDays, addHours, getDay, getISOWeek, parseISO, startOfDay } from 'date-fns';
 import type { TripEvent, Waybill } from '../types';
+import type { Allowance } from './allowances';
 import { workDay } from './dates';
 import { isFullTank, plainCity as plain } from './fuel';
 
@@ -9,6 +10,9 @@ export interface SheetSettings {
   driver: string;
   /** Agence de rattachement. */
   agency: string;
+  /** Matricule et date d'embauche (« 05/21 »), pour la feuille de remboursement de frais. */
+  matricule?: string;
+  hireDate?: string;
   /** Colonnes « Dépôts » de la page carburant (5 au plus). */
   depots: SheetDepot[];
 }
@@ -51,6 +55,24 @@ export interface OpRow {
   number: string;
 }
 
+/** Page 5 : une ligne de la feuille de remboursement de frais. */
+export interface ExpenseDay {
+  start: Date;
+  startPlace: string;
+  end: Date;
+  endPlace: string;
+}
+
+/** Page 5 : indemnités, dans l'ordre de la feuille. */
+export const EXPENSE_LINES = [
+  { label: 'Casse-croûte', test: (a: Allowance) => a.kind === 'casse_croute' },
+  { label: 'Repas midi', test: (a: Allowance) => a.kind === 'repas' && a.meal !== 'soir' },
+  { label: 'Repas soir', test: (a: Allowance) => a.kind === 'repas' && a.meal === 'soir' },
+  { label: 'Grand déplacement (1 repas + 1 découcher)', test: (a: Allowance) => a.kind === 'gd1' },
+  { label: 'Grand déplacement (2 repas + 1 découcher)', test: (a: Allowance) => a.kind === 'gd2' },
+  { label: 'Repas unique de nuit', test: (a: Allowance) => a.kind === 'repas_nuit' },
+] as const;
+
 /** Page 4 : une prise de carburant. */
 export interface FuelLine {
   date: Date;
@@ -85,16 +107,23 @@ export interface WeekSheet {
   /** Lundi … Dimanche. */
   fuel: FuelLine[][];
   totalLitres: number;
+  /** Page 5 : en-tête, journées (Dimanche … Samedi, au jour de leur fin), indemnités et date de signature. */
+  matricule: string;
+  hireDate: string;
+  expenseDays: (ExpenseDay | null)[];
+  expenses: { count: number; amount: number }[];
+  expenseTotal: number;
+  signedOn: Date | null;
 }
 
 /** Plaque écrite comme sur papier : « AB-123-CD » → « AB 123 CD ». */
 export const sheetPlate = (plate: string | null | undefined) => (plate ?? '').trim().replace(/-/g, ' ');
 
-/** Lieu écrit comme sur papier : « Narbonne 11 », ou le pays hors de France (« Irun ES »). */
+/** Lieu écrit sur la feuille : « Narbonne (11) », ou le pays hors de France (« Irun (ES) »). */
 export function sheetPlace(e: Pick<TripEvent, 'city' | 'department' | 'country_code'>): string {
   if (!e.city) return '';
   const suffix = !e.country_code || e.country_code === 'FR' ? e.department : e.country_code;
-  return suffix ? `${e.city} ${suffix}` : e.city;
+  return suffix ? `${e.city} (${suffix})` : e.city;
 }
 
 /** Colonne des litres : AS24 et DKV ont la leur, sinon le dépôt de la ville du plein, sinon Divers. */
@@ -238,6 +267,7 @@ export function buildWeekSheet(
   waybills: Waybill[],
   start: Date,
   settings: SheetSettings,
+  allowances: Allowance[] = [],
 ): WeekSheet {
   const end = addDays(start, 7);
   const events = allEvents
@@ -288,6 +318,33 @@ export function buildWeekSheet(
 
   const first = events.find((e) => e.type === 'debut_journee');
   const last = [...events].reverse().find((e) => e.type === 'fin_journee');
+  // Page 5 : chaque journée sur la ligne du jour où elle finit (départ la veille au soir compris).
+  const expenseDays: (ExpenseDay | null)[] = Array(7).fill(null);
+  let dayStart: TripEvent | null = null;
+  for (const e of events) {
+    if (e.type === 'debut_journee') dayStart = e;
+    else if (e.type === 'fin_journee' && dayStart) {
+      const finished = parseISO(e.occurred_at);
+      const i = getDay(finished);
+      expenseDays[i] = {
+        start: expenseDays[i]?.start ?? parseISO(dayStart.occurred_at),
+        startPlace: expenseDays[i]?.startPlace ?? sheetPlace(dayStart),
+        end: finished,
+        endPlace: sheetPlace(e),
+      };
+      dayStart = null;
+    }
+  }
+  // Indemnités dont le jour (à midi) tombe dans la semaine, comme le récap des frais.
+  const weekAllowances = allowances.filter((a) => {
+    const noon = addHours(parseISO(a.day), 12);
+    return noon >= start && noon < end;
+  });
+  const expenses = EXPENSE_LINES.map((line) => {
+    const list = weekAllowances.filter(line.test);
+    return { count: list.length, amount: Math.round(list.reduce((s, a) => s + (a.amount ?? 0), 0) * 100) / 100 };
+  });
+
   const startKm = first?.odometer_km ?? null;
   const endKm = last?.odometer_km ?? null;
 
@@ -300,13 +357,19 @@ export function buildWeekSheet(
     tractor: mainTractor(events),
     departures,
     operations: byDay.map((list) => dayRows(list, loaded, delivered)),
-    startPlace: first ? (first.city ?? '') : '',
-    endPlace: last ? (last.city ?? '') : '',
+    startPlace: first ? sheetPlace(first) : '',
+    endPlace: last ? sheetPlace(last) : '',
     startKm,
     endKm,
     totalKm: startKm != null && endKm != null && endKm >= startKm ? endKm - startKm : null,
     depotLabels: Array.from({ length: DEPOT_COUNT }, (_, i) => settings.depots[i]?.label.trim() ?? ''),
     fuel,
     totalLitres: fuel.flat().reduce((sum, f) => sum + (f.litres ?? 0), 0),
+    matricule: settings.matricule?.trim() ?? '',
+    hireDate: settings.hireDate?.trim() ?? '',
+    expenseDays,
+    expenses,
+    expenseTotal: Math.round(expenses.reduce((s, x) => s + x.amount, 0) * 100) / 100,
+    signedOn: last ? parseISO(last.occurred_at) : null,
   };
 }
