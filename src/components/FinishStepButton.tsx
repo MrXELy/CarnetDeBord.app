@@ -19,9 +19,8 @@ export default function FinishStepButton() {
       <EventIcon type={step.type} className="finish-icon" />
       <span className="finish-text">
         <span className="finish-title">{label}</span>
-        <span className="finish-sub">
-          {[formatPlace(step), `arrivé à ${timeLabel(step.occurred_at)}`].filter(Boolean).join(' · ')}
-        </span>
+        {formatPlace(step) && <span className="finish-sub">{formatPlace(step)}</span>}
+        <span className="finish-sub">Arrivée à {timeLabel(step.occurred_at)}</span>
       </span>
       <Check size={22} strokeWidth={2.5} aria-hidden />
     </button>
