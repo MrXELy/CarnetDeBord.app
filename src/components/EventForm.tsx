@@ -667,7 +667,7 @@ export default function EventForm({ event, onClose }: Props) {
                 {loads.map((w) => lvTile(w, () => setEditing({ waybill: w, isNew: false, side: 'load' })))}
                 <button type="button" className="btn-link lv-manual" onClick={() => editLoad()}>
                   <Plus size={16} aria-hidden />
-                  Saisir une lettre à la main
+                  Ajouter une lettre de voiture
                 </button>
                 <input
                   ref={scanInput}
