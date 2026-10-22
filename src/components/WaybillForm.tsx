@@ -301,8 +301,8 @@ export default function WaybillForm(props: Props) {
       <span className="read-tag">LU</span>
     ));
 
-  // LV vide à l'ouverture et encore sans photo : bouton « Scanner » à la place de la bande des photos.
-  const scanFirst = blankAtOpen && photos.length === 0;
+  // Pas encore de photo : gros bouton « Scanner » à la place de la bande des photos.
+  const scanFirst = photos.length === 0;
   const last = photos[photos.length - 1];
   const canRead = last && reading.state !== 'busy' && !read.has(last);
   // Après une lecture économique (réussie ou non) : possibilité de relire avec le modèle le plus fiable.
@@ -469,7 +469,7 @@ export default function WaybillForm(props: Props) {
             {/* Côté chargement (bleu), puis côté livraison (vert), puis la lettre elle-même. */}
             <div className="lv-step lv-step-edit tone-chargement">
               <span className="lv-step-label">Chargement</span>
-              <PlaceField value={loading} onChange={setLoading} />
+              <PlaceField value={loading} onChange={setLoading} compact />
               {(steps.loading?.at || noLoading) && (
                 <input
                   type="datetime-local"
@@ -488,7 +488,7 @@ export default function WaybillForm(props: Props) {
                 {steps.delivery ? 'Livraison' : 'Livraison prévue'}
                 {readTag('planned_city', plannedText(planned))}
               </span>
-              <PlaceField key={plannedKey} value={planned} onChange={setPlanned} />
+              <PlaceField key={plannedKey} value={planned} onChange={setPlanned} compact />
               {steps.delivery?.at && (
                 <input
                   type="datetime-local"
