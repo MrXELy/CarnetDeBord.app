@@ -2313,3 +2313,15 @@ button.st-kv-item:active { transform: scale(0.97); }
 .lv-week { display: grid; gap: 8px; }
 .lv-week + .lv-week { margin-top: 10px; }
 .lv-week-title { margin: 4px 4px 0; font-size: 0.95rem; font-weight: 600; color: var(--muted); }
+
+/* Graphique des km dans la grande tuile bleu clair : barres sombres, textes sombres */
+.st-hero .st-chart { margin-top: 8px; }
+.st-hero .st-chart text,
+.st-hero .st-chart .st-value { fill: var(--accent-text); }
+.st-hero .st-bar rect[fill^='url'] { fill: rgba(26, 28, 34, 0.55); }
+.st-hero .st-bar rect[fill='url(#st-best)'] { fill: #1a1c22; }
+.st-hero .st-bar-vide { fill: rgba(255, 255, 255, 0.55); }
+.st-hero .st-bar-empty { fill: rgba(26, 28, 34, 0.18); }
+.st-hero .st-grid { stroke: rgba(26, 28, 34, 0.12); }
+.st-hero .st-axis { stroke: rgba(26, 28, 34, 0.3); }
+.st-hero .hint { color: var(--accent-text); opacity: 0.75; }

@@ -11,6 +11,8 @@ export default function KmChart(props: {
   timeline: KmTimeline;
   now: Date;
   onPick: (p: Period) => void;
+  /** Dans la grande tuile des km : sans titre de section, barres sombres sur le fond bleu clair. */
+  bare?: boolean;
 }) {
   const bars = subPeriods(props.period).map((p) => {
     const range = periodRange(p);
@@ -33,8 +35,8 @@ export default function KmChart(props: {
   for (let v = 0; v <= top; v += step) ticks.push(v);
   const title = { jour: '', semaine: 'Km par jour', mois: 'Km par semaine', annee: 'Km par mois' }[props.period.kind];
 
-  return (
-    <Section title={title}>
+  const chart = (
+    <>
       <svg className="st-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={title}>
         <defs>
           <linearGradient id="st-bar" x1="0" y1="0" x2="0" y2="1">
@@ -104,7 +106,11 @@ export default function KmChart(props: {
           );
         })}
       </svg>
-      <p className="hint">En doré, la plus grosse barre ; en gris, la part à vide. Touche une barre pour l’ouvrir.</p>
-    </Section>
+      <p className="hint">
+        {props.bare ? 'En plus foncé, la plus grosse barre' : 'En doré, la plus grosse barre'} ; en clair, la part à
+        vide. Touche une barre pour l’ouvrir.
+      </p>
+    </>
   );
+  return props.bare ? chart : <Section title={title}>{chart}</Section>;
 }
