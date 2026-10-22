@@ -585,7 +585,8 @@ export default function EventForm({ event, onClose }: Props) {
                     id="km-field"
                     type="text"
                     inputMode="numeric"
-                    value={km}
+                    // Milliers séparés à l'affichage (« 123 456 ») ; seuls les chiffres sont gardés.
+                    value={km && Number(km).toLocaleString('fr-FR')}
                     onChange={(e) => setKm(e.target.value.replace(/\D/g, ''))}
                     placeholder="km"
                   />
