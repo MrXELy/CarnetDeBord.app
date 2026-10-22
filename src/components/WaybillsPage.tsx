@@ -1,5 +1,7 @@
+import { parseISO } from 'date-fns';
 import { Search, X } from 'lucide-react';
 import { useState } from 'react';
+import { weekLabel, weekStart } from '../lib/dates';
 import { applyStepChanges, placeOf } from '../lib/places';
 import { normalize } from '../lib/search';
 import { useSheet } from '../lib/useSheet';
@@ -57,6 +59,17 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
       return [w.number, w.consignee, w.shipper, w.planned_city, w.goods].some((v) => v && normalize(v).includes(q));
     })
     .sort((a, b) => dateOf(b).localeCompare(dateOf(a)));
+
+  // Regroupées par semaine (celle de leur chargement), la plus récente en premier comme la liste.
+  const thisWeek = weekStart(new Date()).getTime();
+  const weeks: [string, Waybill[]][] = [];
+  for (const w of list) {
+    const start = weekStart(parseISO(dateOf(w)));
+    const label = start.getTime() === thisWeek ? 'Cette semaine' : weekLabel(start);
+    const last = weeks[weeks.length - 1];
+    if (last?.[0] === label) last[1].push(w);
+    else weeks.push([label, [w]]);
+  }
 
   const count = (f: WaybillFilter) =>
     f === 'a_completer'
@@ -116,8 +129,13 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
               </p>
             ) : (
               <div className={`lv-list slide-${slide}`} key={filter}>
-                {list.map((w) => (
-                  <WaybillLine key={w.id} waybill={w} onClick={() => setEditing(w)} showStatus />
+                {weeks.map(([label, items]) => (
+                  <section key={label} className="lv-week">
+                    <h3 className="lv-week-title">{label}</h3>
+                    {items.map((w) => (
+                      <WaybillLine key={w.id} waybill={w} onClick={() => setEditing(w)} showStatus />
+                    ))}
+                  </section>
                 ))}
               </div>
             )}

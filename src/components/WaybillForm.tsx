@@ -1,5 +1,5 @@
 import { format, parseISO } from 'date-fns';
-import { Camera, ChevronDown, LoaderCircle, Pencil, ScanSearch, ScanText, X } from 'lucide-react';
+import { Camera, Check, ChevronDown, Pencil, ScanSearch, ScanText, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { toLocalInput } from '../lib/dates';
 import { formatPlace, placeFromLabel, resolveCity } from '../lib/geo';
@@ -40,7 +40,9 @@ interface Props {
 }
 
 type Reading =
-  { state: 'idle' } | { state: 'busy'; message: string } | { state: 'done' | 'error' | 'waiting'; message: string };
+  | { state: 'idle' }
+  | { state: 'busy'; message: string; step: 0 | 1 | 2 }
+  | { state: 'done' | 'error' | 'waiting'; message: string };
 
 const clean = (s: string) => s.trim() || null;
 
@@ -148,7 +150,7 @@ export default function WaybillForm(props: Props) {
     const first = photos.length === 0;
     // Ligne de la lecture précédente, remise après l'ajout d'une photo qui n'est pas lue.
     const before = reading;
-    setReading({ state: 'busy', message: 'Préparation de la photo…' });
+    setReading({ state: 'busy', message: 'Préparation de la photo…', step: 0 });
     let path: string;
     try {
       const blob = await compressPhoto(file);
@@ -180,14 +182,15 @@ export default function WaybillForm(props: Props) {
       const progress = liveProgress(text);
       const steps = liveSteps(progress);
       setDetails({ mode, progress });
-      if (steps.length) setReading({ state: 'busy', message: steps[steps.length - 1] });
+      if (steps.length) setReading({ state: 'busy', message: steps[steps.length - 1], step: 2 });
     };
     try {
-      setReading({ state: 'busy', message: 'Envoi de la photo…' });
+      setReading({ state: 'busy', message: 'Envoi de la photo…', step: 1 });
       if (!demo) await uploadPending(store.userId);
       setReading({
         state: 'busy',
         message: mode === 'handwritten' ? 'Relecture en mode fiable…' : 'L’IA regarde la photo…',
+        step: 2,
       });
       const result = demo ? await demoReading(onText) : await readWaybillPhoto(path, mode, onText);
       setDetails({
@@ -424,9 +427,28 @@ export default function WaybillForm(props: Props) {
                   if (file) void addPhoto(file);
                 }}
               />
-              {reading.state !== 'idle' && (
+              {reading.state === 'busy' && (
+                <ol className="reading-steps" aria-live="polite">
+                  {[
+                    'Préparation de la photo',
+                    'Envoi de la photo',
+                    details?.mode === 'handwritten' ? 'Relecture en mode fiable' : 'L’IA regarde la photo',
+                  ].map((label, i) => (
+                    <li key={label} className={i < reading.step ? 'done' : i === reading.step ? 'current' : ''}>
+                      <span className="reading-step-mark" aria-hidden>
+                        {i < reading.step && <Check size={16} strokeWidth={3} />}
+                      </span>
+                      {label}
+                    </li>
+                  ))}
+                  {/* Pendant la lecture : la dernière remarque ou information écrite par l'IA. */}
+                  {reading.step === 2 && !reading.message.endsWith('…') && (
+                    <li className="reading-live">{reading.message}</li>
+                  )}
+                </ol>
+              )}
+              {reading.state !== 'idle' && reading.state !== 'busy' && (
                 <div className={`reading reading-${reading.state}`}>
-                  {reading.state === 'busy' && <LoaderCircle size={16} className="spin" />}
                   <span className="reading-text">{reading.message}</span>
                   {details && (
                     <button
