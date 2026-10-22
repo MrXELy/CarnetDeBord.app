@@ -2478,3 +2478,61 @@ button.st-kv-item:active { transform: scale(0.97); }
 .field-row .label-line { flex: none; }
 .form-footer .footer-secondary { flex: 1; justify-content: center; min-height: 64px; font-size: 0.92rem; }
 .form-footer > .btn-primary.btn-icon { justify-content: center; }
+
+/* ---------- Formulaire d'étape (maquettes « Nouvelle étape », « Modifier l'étape », « Carburant ») ---------- */
+/* Arrivée et fin côte à côte, en gros */
+.time-tile { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.time-tile input { padding: 2px 0; background: none; font-size: 1.9rem; }
+.time-tile input:focus { box-shadow: none; }
+.time-tile-note { grid-column: 1 / -1; }
+
+/* Lieu sur une ligne : la ville à droite, le bouton GPS au bout */
+.place-row .place-field { flex: 1; min-width: 0; }
+.place-row .place-input input { padding: 10px 0; background: none; border: none; text-align: right; font-size: 1.1rem; font-weight: 700; }
+.place-row .place-input input:focus { box-shadow: none; }
+.place-row .place-input .btn-secondary { width: 44px; min-height: 44px; border-radius: 14px; background: #343845; }
+.place-row .suggestions { top: 52px; right: 0; }
+.field-group .place-row .place-field input { background: none; }
+.field-note { padding: 0 0 10px; border-top: none !important; }
+.field-value { margin-left: auto; font-size: 1.05rem; font-weight: 700; }
+.field-row .field-name { flex: none; }
+
+/* Bouton carré dans une ligne (lire le km) */
+.row-icon-btn { flex: none; display: grid; place-items: center; width: 44px; min-height: 44px; padding: 0; border-radius: 14px; background: #343845; }
+
+/* Lettres de voiture d'un chargement ou d'une livraison : une tuile par lettre */
+.lv-group { display: grid; gap: 8px; }
+.lv-tile { display: flex; align-items: center; gap: 4px; border: 3px solid transparent; border-radius: 22px; background: var(--glass); }
+.lv-tile.selected { border-color: #c6f0da; background: #22432f; }
+.lv-tile-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 10px 14px;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: left;
+}
+.lv-tile-main > svg { flex: none; color: var(--muted); }
+.lv-tile-text { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.lv-tile-text span { font-size: 0.85rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lv-check-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-left: 12px;
+  padding: 0;
+  border: 3px solid #6b707c;
+  border-radius: 10px;
+  background: none;
+  color: #12261b;
+}
+.lv-tile.selected .lv-check-btn { border-color: #c6f0da; background: #c6f0da; }
+.lv-manual { display: inline-flex; align-items: center; gap: 6px; justify-self: start; min-height: 44px; text-decoration: none; font-weight: 600; }
+.form-footer .btn-secondary.footer-delete { background: var(--glass); }

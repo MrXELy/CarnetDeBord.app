@@ -1,10 +1,9 @@
-import { format, parseISO } from 'date-fns';
+import { addDays, format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { AlarmClock, Camera, Eye, LoaderCircle, Pencil, Plus, Trash2, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { AlarmClock, Camera, Check, ChevronRight, FileText, LoaderCircle, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { durationLabel, toLocalInput } from '../lib/dates';
 import { isDoumenCity, isFullTank } from '../lib/fuel';
-import { formatPlace } from '../lib/geo';
 import { numText, parseNum } from '../lib/numbers';
 import { hasEnd, suggestedType } from '../lib/onSite';
 import { odometerMessage, readOdometerPhoto } from '../lib/odometer';
@@ -37,7 +36,6 @@ import EventIcon from './EventIcon';
 import PlaceField, { EMPTY_PLACE } from './PlaceField';
 import RestNotice from './RestNotice';
 import WaybillForm from './WaybillForm';
-import WaybillLine from './WaybillLine';
 
 interface Props {
   event: TripEvent | null;
@@ -76,6 +74,11 @@ export default function EventForm({ event, onClose }: Props) {
   // Change quand le lieu est prérempli, pour réafficher le champ avec la nouvelle valeur.
   const [placeKey, setPlaceKey] = useState(0);
   const [placeFromDayEnd, setPlaceFromDayEnd] = useState(false);
+  // Cases des types ouvertes : nouvelle étape (« Que fais-tu ? »), ou « Changer » touché.
+  const [pickType, setPickType] = useState(isNew);
+  // Ligne « Jour » ouverte (sinon « Aujourd'hui »), remarque ouverte sur une nouvelle étape.
+  const [showDay, setShowDay] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
 
   // Lettres de voiture : tout reste en brouillon jusqu'à « Enregistrer ».
   const [originalLoads] = useState(() => (event ? store.loadedAt(event.id) : []));
@@ -369,6 +372,38 @@ export default function EventForm({ event, onClose }: Props) {
     return { 'aria-label': label, title: label };
   };
 
+  // Jour et heure séparés : la ligne « Heure » montre seulement l'heure, le jour s'affiche s'il n'est pas aujourd'hui.
+  const whenDay = when.slice(0, 10);
+  const whenTime = when.slice(11, 16);
+  const today = toLocalInput(new Date()).slice(0, 10);
+  const shownDay = showDay || whenDay !== today;
+  // Fin : même jour que l'arrivée, ou le lendemain si l'heure est plus tôt (fin après minuit).
+  const finishedTime = (finished || when).slice(11, 16);
+  function setFinishedTime(time: string) {
+    if (!time) return setFinished('');
+    const day = time < whenTime ? toLocalInput(addDays(new Date(`${whenDay}T12:00`), 1)).slice(0, 10) : whenDay;
+    setFinished(`${day}T${time}`);
+  }
+  const typeInfo = type ? eventTypeInfo(type) : null;
+
+  // Une LV en tuile : son numéro (ou « à remplir »), le trajet et la marchandise ; touchée, sa fiche s'ouvre.
+  const lvTile = (w: Waybill, open: () => void, leading?: ReactNode) => (
+    <div key={w.id} className={`lv-tile${leading && checked.has(w.id) ? ' selected' : ''}`}>
+      {leading}
+      <button type="button" className="lv-tile-main" onClick={open} {...openLabel(w)}>
+        <FileText size={22} aria-hidden />
+        <span className="lv-tile-text">
+          <b>{isBlankWaybill(w) ? 'Remplir la lettre' : w.number ? `LV ${w.number}` : 'Voir la lettre'}</b>
+          <span>
+            {[[w.shipper, w.consignee].filter(Boolean).join(' → '), w.goods].filter(Boolean).join(' · ') ||
+              'Pas encore remplie'}
+          </span>
+        </span>
+        <ChevronRight size={20} aria-hidden />
+      </button>
+    </div>
+  );
+
   return (
     <>
       <div className="modal-backdrop" ref={sheet.ref} onClick={sheet.close}>
@@ -377,51 +412,67 @@ export default function EventForm({ event, onClose }: Props) {
             <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
               <X size={22} />
             </button>
-            {!isNew && type && (
+            {type && !pickType && (
               <span className={`card-icon tone-${type}`} aria-hidden>
                 <EventIcon type={type} size={22} strokeWidth={2} className="event-icon" />
               </span>
             )}
             <div className="form-title">
-              <h2>{isNew ? 'Que fais-tu ?' : 'Modifier l’étape'}</h2>
-              {!isNew && type && (
+              <h2>{pickType ? 'Que fais-tu ?' : isNew ? typeInfo?.label : 'Modifier l’étape'}</h2>
+              {!isNew && typeInfo && (
                 <span>
-                  {eventTypeInfo(type).label} · {format(parseISO(event.occurred_at), 'EEEE d', { locale: fr })}
+                  {typeInfo.label} · {format(parseISO(event.occurred_at), 'EEEE d', { locale: fr })}
                 </span>
               )}
             </div>
+            {!pickType && (
+              <button type="button" className="btn-secondary btn-small" onClick={() => setPickType(true)}>
+                Changer
+              </button>
+            )}
           </header>
 
           <div className="modal-body">
-            <fieldset>
-              <legend className="sr-only">Type d’opération</legend>
-              <div className="type-grid">
-                {EVENT_TYPES.map((t) => (
-                  <button
-                    type="button"
-                    key={t.value}
-                    className={`type-btn type-${t.value} tone-${t.value}${type === t.value ? ' selected' : ''}`}
-                    aria-pressed={type === t.value}
-                    onClick={() => chooseType(t.value)}
-                  >
-                    {!isDayBoundary(t.value) && (
-                      <EventIcon type={t.value} size={26} strokeWidth={2} className="event-icon" />
-                    )}
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
+            {pickType && (
+              <fieldset>
+                <legend className="sr-only">Type d’opération</legend>
+                <div className="type-grid">
+                  {EVENT_TYPES.map((t) => (
+                    <button
+                      type="button"
+                      key={t.value}
+                      className={`type-btn type-${t.value} tone-${t.value}${type === t.value ? ' selected' : ''}`}
+                      aria-pressed={type === t.value}
+                      onClick={() => {
+                        chooseType(t.value);
+                        setPickType(false);
+                      }}
+                    >
+                      {!isDayBoundary(t.value) && (
+                        <EventIcon type={t.value} size={26} strokeWidth={2} className="event-icon" />
+                      )}
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            )}
 
-            {withEnd && (
+            {/* Modifier un chargement ou une livraison : arrivée et fin côte à côte, temps sur place dessous. */}
+            {withEnd && !isNew && (
               <div className={`time-tile tone-${type}`}>
                 <label>
                   Arrivée
-                  <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} required />
+                  <input
+                    type="time"
+                    value={whenTime}
+                    onChange={(e) => setWhen(`${whenDay}T${e.target.value}`)}
+                    required
+                  />
                 </label>
                 <label>
                   {type === 'chargement' ? 'Fin du chargement' : 'Fin de la livraison'}
-                  <input type="datetime-local" value={finished || when} onChange={(e) => setFinished(e.target.value)} />
+                  <input type="time" value={finishedTime} onChange={(e) => setFinishedTime(e.target.value)} />
                 </label>
                 <span className="time-tile-note">
                   {!onSite
@@ -430,205 +481,6 @@ export default function EventForm({ event, onClose }: Props) {
                       ? 'Fin avant l’arrivée'
                       : `${durationLabel(onSite)} sur place`}
                 </span>
-              </div>
-            )}
-
-            <div className="field-group">
-              <div className="label field-stack">
-                Lieu
-                <PlaceField key={placeKey} value={place} onChange={setPlace} autoLocate={isNew && placeKey === 0} />
-                {placeFromDayEnd && <span className="hint">Repris de la dernière fin de journée</span>}
-              </div>
-
-              {!withEnd && (
-                <label className="field-row">
-                  Date et heure
-                  <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} required />
-                </label>
-              )}
-
-              <div className="field-stack">
-                <label className="field-row">
-                  Compteur
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={km}
-                    onChange={(e) => setKm(e.target.value.replace(/\D/g, ''))}
-                    placeholder="km"
-                  />
-                </label>
-                <button
-                  type="button"
-                  className="btn-secondary btn-icon lv-add"
-                  onClick={() => kmCamera.current?.click()}
-                  disabled={kmReading?.state === 'busy'}
-                >
-                  {kmReading?.state === 'busy' ? <LoaderCircle size={20} className="spin" /> : <Camera size={20} />}
-                  Lire le km sur le chrono
-                </button>
-                <input
-                  ref={kmCamera}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  hidden
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = '';
-                    if (file) void readKm(file);
-                  }}
-                />
-                {kmReading && (
-                  <span className={`reading reading-${kmReading.state}`}>
-                    {kmReading.state === 'busy' && <LoaderCircle size={16} className="spin" />}
-                    {kmReading.message}
-                  </span>
-                )}
-                {lastKm != null && (
-                  <span className="hint">
-                    Dernier relevé : {lastKm.toLocaleString('fr-FR')} km
-                    {kmValue != null && kmValue < lastKm && (
-                      <strong className="hint-err"> · inférieur au précédent</strong>
-                    )}
-                  </span>
-                )}
-              </div>
-
-              {!editPlates ? (
-                <button type="button" className="field-row plates-summary" onClick={() => setEditPlates(true)}>
-                  <span className="field-name">Camion</span>
-                  <span className="plates-values">
-                    <span className="plate">{tractor}</span>
-                    {trailer && <span className="plate">{trailer}</span>}
-                  </span>
-                  <Pencil size={16} aria-hidden />
-                  <span className="sr-only">Modifier les immatriculations</span>
-                </button>
-              ) : (
-                <>
-                  <label className="field-row">
-                    Tracteur
-                    <input
-                      className="plate"
-                      value={tractor}
-                      onChange={(e) => setTractor(e.target.value.toUpperCase())}
-                      placeholder="AB-123-CD"
-                    />
-                  </label>
-                  <label className="field-row">
-                    Remorque
-                    <input
-                      className="plate"
-                      value={trailer}
-                      onChange={(e) => setTrailer(e.target.value.toUpperCase())}
-                      placeholder="EF-456-GH"
-                    />
-                  </label>
-                </>
-              )}
-            </div>
-            {restCheck && <RestNotice check={restCheck} icon={type === 'fin_journee' ? AlarmClock : undefined} />}
-
-            {type === 'chargement' && (
-              <div className="label">
-                Lettres de voiture
-                {loads.length > 0 && (
-                  <div className="lv-list">
-                    {loads.map((w) => (
-                      <WaybillLine
-                        key={w.id}
-                        waybill={w}
-                        loading={{ place: formatPlace(place), at: whenIso }}
-                        onClick={() => setEditing({ waybill: w, isNew: false, side: 'load' })}
-                        trailing={
-                          <button
-                            type="button"
-                            className="icon-btn"
-                            {...openLabel(w)}
-                            onClick={() => setEditing({ waybill: w, isNew: false, side: 'load' })}
-                          >
-                            {isBlankWaybill(w) ? <Pencil size={16} /> : <Eye size={16} />}
-                          </button>
-                        }
-                      />
-                    ))}
-                  </div>
-                )}
-                <div className="lv-actions">
-                  <button
-                    type="button"
-                    className="btn-primary btn-icon lv-add"
-                    onClick={() => scanInput.current?.click()}
-                  >
-                    <Camera size={18} />
-                    Scanner une LV
-                  </button>
-                  <button type="button" className="btn-secondary btn-icon lv-add" onClick={() => editLoad()}>
-                    <Plus size={18} />
-                    Saisir
-                  </button>
-                </div>
-                <input
-                  ref={scanInput}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  hidden
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = '';
-                    if (file) editLoad(file);
-                  }}
-                />
-                <span className="hint">Le numéro peut être complété plus tard.</span>
-              </div>
-            )}
-
-            {type === 'livraison' && (
-              <div className="label">
-                Lettres de voiture livrées
-                {candidates.length === 0 ? (
-                  <span className="hint">Aucune lettre de voiture dans le camion.</span>
-                ) : (
-                  <div className="lv-list">
-                    {candidates.map((w) => (
-                      <WaybillLine
-                        key={w.id}
-                        waybill={w}
-                        selected={checked.has(w.id)}
-                        onClick={() => toggle(w.id)}
-                        leading={
-                          <input
-                            type="checkbox"
-                            className="lv-check"
-                            checked={checked.has(w.id)}
-                            onChange={() => toggle(w.id)}
-                            aria-label={`Livrée : ${w.consignee ?? w.number ?? 'lettre'}`}
-                          />
-                        }
-                        trailing={
-                          <button
-                            type="button"
-                            className="icon-btn"
-                            {...openLabel(w)}
-                            onClick={() => setEditing({ waybill: w, isNew: false, side: 'delivery' })}
-                          >
-                            {isBlankWaybill(w) ? <Pencil size={16} /> : <Eye size={16} />}
-                          </button>
-                        }
-                      />
-                    ))}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  className="btn-secondary btn-icon lv-add"
-                  onClick={() => setEditing({ waybill: newWaybill(), isNew: true, side: 'delivery' })}
-                >
-                  <Plus size={18} />
-                  Nouvelle lettre de voiture
-                </button>
               </div>
             )}
 
@@ -675,21 +527,217 @@ export default function EventForm({ event, onClose }: Props) {
                 </fieldset>
                 <div className="row">
                   <label className="big-field">
-                    Gasoil (L)
+                    Litres
                     <input type="text" inputMode="decimal" value={diesel} onChange={(e) => setDiesel(e.target.value)} />
                   </label>
                   <label className="big-field">
-                    AdBlue (L)
+                    AdBlue
                     <input type="text" inputMode="decimal" value={adblue} onChange={(e) => setAdblue(e.target.value)} />
                   </label>
                 </div>
               </>
             )}
 
-            <label className="big-field notes-field">
-              Remarques
-              <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
-            </label>
+            <div className="field-group">
+              <div className="field-row place-row">
+                <span className="field-name">Lieu</span>
+                <PlaceField key={placeKey} value={place} onChange={setPlace} autoLocate={isNew && placeKey === 0} />
+              </div>
+              {placeFromDayEnd && <span className="hint field-note">Repris de la dernière fin de journée</span>}
+
+              {(isNew || !withEnd) && (
+                <label className="field-row">
+                  {withEnd ? 'Arrivée' : 'Heure'}
+                  <input
+                    type="time"
+                    value={whenTime}
+                    onChange={(e) => setWhen(`${whenDay}T${e.target.value}`)}
+                    required
+                  />
+                </label>
+              )}
+              {shownDay ? (
+                <label className="field-row">
+                  Jour
+                  <input
+                    type="date"
+                    value={whenDay}
+                    onChange={(e) => setWhen(`${e.target.value}T${whenTime}`)}
+                    required
+                  />
+                </label>
+              ) : (
+                <button type="button" className="field-row options-link" onClick={() => setShowDay(true)}>
+                  <span className="field-name">Jour</span>
+                  <span className="field-value">Aujourd’hui</span>
+                  <ChevronRight size={18} aria-hidden />
+                </button>
+              )}
+
+              <div className="field-stack">
+                <div className="field-row">
+                  <label htmlFor="km-field" className="field-name">
+                    Compteur
+                  </label>
+                  <input
+                    id="km-field"
+                    type="text"
+                    inputMode="numeric"
+                    value={km}
+                    onChange={(e) => setKm(e.target.value.replace(/\D/g, ''))}
+                    placeholder="km"
+                  />
+                  {!isFuel && (
+                    <button
+                      type="button"
+                      className="btn-secondary row-icon-btn"
+                      onClick={() => kmCamera.current?.click()}
+                      disabled={kmReading?.state === 'busy'}
+                      aria-label="Lire le km sur le chrono"
+                      title="Lire le km sur le chrono"
+                    >
+                      {kmReading?.state === 'busy' ? <LoaderCircle size={20} className="spin" /> : <Camera size={20} />}
+                    </button>
+                  )}
+                </div>
+                {isFuel && (
+                  <button
+                    type="button"
+                    className="btn-secondary btn-icon lv-add"
+                    onClick={() => kmCamera.current?.click()}
+                    disabled={kmReading?.state === 'busy'}
+                  >
+                    {kmReading?.state === 'busy' ? <LoaderCircle size={20} className="spin" /> : <Camera size={20} />}
+                    Lire le km sur le chrono
+                  </button>
+                )}
+                <input
+                  ref={kmCamera}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  hidden
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (file) void readKm(file);
+                  }}
+                />
+                {kmReading && (
+                  <span className={`reading reading-${kmReading.state}`}>
+                    {kmReading.state === 'busy' && <LoaderCircle size={16} className="spin" />}
+                    {kmReading.message}
+                  </span>
+                )}
+                {lastKm != null && (
+                  <span className="hint">
+                    Dernier relevé : {lastKm.toLocaleString('fr-FR')} km
+                    {kmValue != null && kmValue < lastKm && (
+                      <strong className="hint-err"> · inférieur au précédent</strong>
+                    )}
+                  </span>
+                )}
+              </div>
+
+              {isNew && !editPlates ? (
+                <button type="button" className="field-row plates-summary" onClick={() => setEditPlates(true)}>
+                  <span className="field-name">Camion</span>
+                  <span className="plates-values">
+                    <span className="plate">{tractor}</span>
+                    {trailer && <span className="plate">{trailer}</span>}
+                  </span>
+                  <Pencil size={16} aria-hidden />
+                  <span className="sr-only">Modifier les immatriculations</span>
+                </button>
+              ) : (
+                <>
+                  <label className="field-row">
+                    Tracteur
+                    <input
+                      className="plate"
+                      value={tractor}
+                      onChange={(e) => setTractor(e.target.value.toUpperCase())}
+                      placeholder="AB-123-CD"
+                    />
+                  </label>
+                  <label className="field-row">
+                    Remorque
+                    <input
+                      className="plate"
+                      value={trailer}
+                      onChange={(e) => setTrailer(e.target.value.toUpperCase())}
+                      placeholder="EF-456-GH"
+                    />
+                  </label>
+                </>
+              )}
+            </div>
+            {restCheck && <RestNotice check={restCheck} icon={type === 'fin_journee' ? AlarmClock : undefined} />}
+
+            {type === 'chargement' && (
+              <div className="lv-group">
+                {loads.map((w) => lvTile(w, () => setEditing({ waybill: w, isNew: false, side: 'load' })))}
+                <button type="button" className="btn-link lv-manual" onClick={() => editLoad()}>
+                  <Plus size={16} aria-hidden />
+                  Saisir une lettre à la main
+                </button>
+                <input
+                  ref={scanInput}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  hidden
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = '';
+                    if (file) editLoad(file);
+                  }}
+                />
+              </div>
+            )}
+
+            {type === 'livraison' && (
+              <div className="lv-group">
+                <span className="field-name">Lettres livrées ici</span>
+                {candidates.length === 0 && <span className="hint">Aucune lettre de voiture dans le camion.</span>}
+                {candidates.map((w) =>
+                  lvTile(
+                    w,
+                    () => setEditing({ waybill: w, isNew: false, side: 'delivery' }),
+                    <button
+                      type="button"
+                      className="lv-check-btn"
+                      role="checkbox"
+                      aria-checked={checked.has(w.id)}
+                      aria-label={`Livrée : ${w.consignee ?? w.number ?? 'lettre'}`}
+                      onClick={() => toggle(w.id)}
+                    >
+                      {checked.has(w.id) && <Check size={18} strokeWidth={3} />}
+                    </button>,
+                  ),
+                )}
+                <button
+                  type="button"
+                  className="btn-link lv-manual"
+                  onClick={() => setEditing({ waybill: newWaybill(), isNew: true, side: 'delivery' })}
+                >
+                  <Plus size={16} aria-hidden />
+                  Nouvelle lettre de voiture
+                </button>
+              </div>
+            )}
+
+            {!isNew || notes || showNotes ? (
+              <label className="big-field notes-field">
+                Remarques
+                <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+              </label>
+            ) : (
+              <button type="button" className="btn-link lv-manual" onClick={() => setShowNotes(true)}>
+                <Plus size={16} aria-hidden />
+                Ajouter une remarque
+              </button>
+            )}
 
             {error && <p className="form-message">{error}</p>}
           </div>
@@ -704,6 +752,17 @@ export default function EventForm({ event, onClose }: Props) {
                 aria-label="Supprimer cette étape"
               >
                 <Trash2 size={22} />
+              </button>
+            )}
+            {type === 'chargement' && (
+              <button
+                type="button"
+                className="btn-secondary footer-delete"
+                onClick={() => scanInput.current?.click()}
+                aria-label="Photographier la lettre de voiture"
+                title="Photographier la lettre de voiture"
+              >
+                <Camera size={24} />
               </button>
             )}
             <button className="btn-primary">Enregistrer</button>
