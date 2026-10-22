@@ -135,21 +135,26 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
 
 /* ---------- Connexion ---------- */
 .login {
-  max-width: 380px;
+  max-width: 420px;
   margin: 0 auto;
-  padding: 12vh 20px 32px;
-  text-align: center;
+  padding: calc(10vh + env(safe-area-inset-top, 0px)) 20px 32px;
 }
 
-.login-logo { width: 72px; height: 72px; }
-.login h1 { margin: 12px 0 4px; font-size: 1.6rem; }
+.login-logo { width: 72px; height: 72px; border-radius: 22px; }
+.login h1 { margin: 16px 0 6px; font-size: 2rem; font-weight: 800; line-height: 1.1; }
+.login .muted { font-size: 1.05rem; }
+.login .btn-primary { min-height: 64px; font-size: 1.1rem; }
+.login .form-message { margin: 16px 0; }
 
 .login-form {
   display: grid;
-  gap: 14px;
-  margin: 28px 0 12px;
-  text-align: left;
+  gap: 12px;
+  margin: 32px 0 12px;
 }
+
+/* Champs de la connexion : grandes tuiles */
+.login-form label { padding: 12px 16px 6px; border-radius: 22px; background: var(--glass); }
+.login-form input { padding: 4px 0 8px; background: none; border: none; box-shadow: none; font-size: 1.1rem; font-weight: 600; }
 
 /* ---------- Mise en page ---------- */
 .app {
@@ -1437,7 +1442,8 @@ legend { margin-bottom: 6px; }
 
 /* Liste des semaines : une ligne par semaine, icône carte posée à droite dans la ligne. */
 .week-line { position: relative; }
-.week-line .week-row { padding-right: 52px; }
+.week-line .week-row { padding-right: 60px; }
+.week-line:has(.week-row.selected) .week-map-btn { color: var(--accent-text); }
 .week-line .week-row-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .week-map-btn {
@@ -1453,19 +1459,19 @@ legend { margin-bottom: 6px; }
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 13px 14px;
-  border: 1px solid var(--glass-border);
-  border-radius: 16px;
+  min-height: 64px;
+  padding: 13px 16px;
+  border: none;
+  border-radius: 20px;
   background: var(--glass);
   text-align: left;
 }
 
-.week-row.selected {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-}
+.week-row.selected { background: var(--accent); }
+.week-row.selected .week-row-title,
+.week-row.selected .week-row-meta { color: var(--accent-text); }
 
-.week-row-title { font-weight: 600; color: var(--text); }
+.week-row-title { font-weight: 700; color: var(--text); }
 
 .month-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .month-map-btn { font-size: 0.85rem; color: var(--accent); text-decoration: none; padding: 4px 6px; }
@@ -1474,7 +1480,7 @@ legend { margin-bottom: 6px; }
 .month-weeks { display: grid; gap: 6px; }
 .month-week-title { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text); }
 .month-week-title i { width: 12px; height: 12px; border-radius: 50%; flex: none; }
-.week-row-meta { font-size: 0.82rem; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.week-row-meta { font-size: 0.95rem; font-weight: 700; color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* Champ de date invisible : seul son calendrier s'affiche. */
 .date-jump {
@@ -1498,8 +1504,8 @@ legend { margin-bottom: 6px; }
   display: block;
   width: 100%;
   height: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: none;
+  border-radius: 26px;
   background: #0b0d11;
 }
 
@@ -1512,13 +1518,12 @@ legend { margin-bottom: 6px; }
   bottom: 10px;
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  background: rgb(11 13 17 / 0.75);
-  backdrop-filter: blur(6px);
+  border: none;
+  border-radius: 16px;
+  background: var(--bg);
   color: var(--text);
 }
 
@@ -1530,13 +1535,13 @@ legend { margin-bottom: 6px; }
   display: block;
   width: 100%;
   margin: 0 auto;
-  border-radius: var(--radius);
-  border: 1px solid var(--glass-border);
+  border-radius: 26px;
+  border: none;
   cursor: pointer;
 }
 .replay-canvas.vertical { width: auto; max-width: 100%; height: min(62vh, 720px); }
 .replay-controls { display: flex; align-items: center; gap: 12px; }
-.replay-controls .replay-play { position: static; flex: none; backdrop-filter: none; } /* pas sur la carte : flou inutile */
+.replay-controls .replay-play { position: static; flex: none; width: 56px; height: 56px; border-radius: 20px; background: var(--accent); color: var(--accent-text); }
 .replay-seek { flex: 1; accent-color: var(--accent); }
 .replay-view { display: grid; gap: 4px; font-size: 0.9rem; color: var(--muted); }
 .replay-view strong { color: var(--text); }
@@ -1604,13 +1609,14 @@ legend { margin-bottom: 6px; }
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
-  border: 1px solid var(--glass-border);
-  border-radius: 999px;
+  min-height: 36px;
+  padding: 4px 12px;
+  border: none;
+  border-radius: 12px;
   background: var(--glass);
   color: var(--muted);
   font: inherit;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
 }
 .map-route-btn:not(:disabled):hover { background: var(--glass-hover); color: var(--text); }
 
@@ -1618,8 +1624,8 @@ legend { margin-bottom: 6px; }
 /* Carte navigable (Leaflet, Plan IGN) */
 .route-map {
   height: min(58vh, 460px);
-  border-radius: var(--radius);
-  border: 1px solid var(--glass-border);
+  border-radius: 26px;
+  border: none;
   overflow: hidden;
   background: #1a1f28;
   z-index: 0; /* les contrôles de Leaflet restent sous les fenêtres ouvertes par-dessus */
@@ -1649,15 +1655,18 @@ legend { margin-bottom: 6px; }
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 12px 14px;
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius);
+  min-height: 72px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 22px;
   background: var(--glass);
   color: var(--text);
   font: inherit;
   text-align: left;
 }
-.route-option.selected { border-color: var(--accent); background: var(--glass-hover); }
+.route-option.selected { background: var(--accent); color: var(--accent-text); }
+.route-option.selected .muted,
+.route-option.selected .route-option-via { color: var(--accent-text); }
 .route-option > i { flex: none; width: 14px; height: 14px; border-radius: 50%; }
 .route-option-body { flex: 1; display: grid; gap: 1px; font-variant-numeric: tabular-nums; }
 .route-option-via { font-size: 0.82rem; font-weight: 600; color: var(--text); }
@@ -1668,9 +1677,9 @@ legend { margin-bottom: 6px; }
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 4px 3px 10px;
-  border: 1px solid var(--glass-border);
-  border-radius: 999px;
+  padding: 3px 4px 3px 12px;
+  border: none;
+  border-radius: 14px;
   background: var(--glass);
   font-size: 0.85rem;
 }
@@ -1709,24 +1718,25 @@ legend { margin-bottom: 6px; }
 
 .map-mode {
   display: flex;
-  padding: 3px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
+  padding: 4px;
+  border: none;
+  border-radius: 16px;
+  background: var(--glass);
 }
 
 .map-mode button {
   flex: 1;
+  min-height: 40px;
   padding: 6px 12px;
   border: none;
-  border-radius: 7px;
+  border-radius: 12px;
   background: transparent;
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--muted);
 }
 
-.map-mode button.selected { background: var(--surface-2); color: var(--accent); }
+.map-mode button.selected { background: #3a3e4a; color: var(--text); }
 .map-mode button:disabled { opacity: 0.45; }
 
 .map-toggle {
