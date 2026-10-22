@@ -56,7 +56,8 @@ button {
 button:disabled { cursor: default; }
 
 input,
-textarea {
+textarea,
+select {
   font: inherit;
   color: var(--text);
   width: 100%;
@@ -2192,3 +2193,84 @@ button.st-kv-item:active { transform: scale(0.97); }
 .plates-summary .field-name { margin-right: auto; }
 .plates-values { display: flex; gap: 10px; }
 .plates-summary svg { color: var(--muted); flex: none; }
+
+/* ---------- Options en tuiles ---------- */
+.options-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.options-tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 100px;
+  padding: 16px;
+  border: none;
+  border-radius: 24px;
+  background: var(--glass);
+  text-align: left;
+}
+.options-tile-label { font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+.options-tile-value { font-size: 1.5rem; font-weight: 800; }
+.options-tile.reminder-warn { background: #4a3613; color: #ffe2ad; }
+.options-tile.reminder-error { background: #3a2024; color: #ffc9cd; }
+.options-tile.reminder-warn .options-tile-label,
+.options-tile.reminder-error .options-tile-label { color: inherit; }
+.options-tile-add { border: 2px dashed #444856; background: none; color: var(--muted); }
+
+.options-boxes { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; }
+.options-box {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 6px;
+  min-height: 100px;
+  padding: 10px 6px;
+  border: none;
+  border-radius: 22px;
+  background: var(--glass);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: center;
+}
+.options-box small { font-size: 0.75rem; font-weight: 600; color: var(--muted); }
+.options-box:disabled { opacity: 0.5; }
+
+.options-row-text { display: grid; gap: 2px; font-size: 1rem; font-weight: 600; color: var(--text); }
+.options-link {
+  width: 100%;
+  border: none;
+  border-radius: 0;
+  background: none;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: left;
+}
+.options-link svg { flex: none; color: var(--muted); }
+.options-static { font-size: 1rem; font-weight: 600; }
+.options-static b { font-weight: 800; }
+.options-signout { min-height: 56px; justify-content: center; }
+
+/* Échéances : une tuile par document, ouverte au toucher */
+.reminder-tile { border-radius: 22px; background: var(--glass); }
+.reminder-tile.reminder-warn { background: #4a3613; color: #ffe2ad; }
+.reminder-tile.reminder-error { background: #3a2024; color: #ffc9cd; }
+.reminder-tile.reminder-warn .setting-title,
+.reminder-tile.reminder-error .setting-title,
+.reminder-tile.reminder-warn .hint,
+.reminder-tile.reminder-error .hint { color: inherit; }
+.reminder-tile.reminder-empty { border: 2px dashed #444856; background: none; }
+.reminder-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 76px;
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: left;
+}
+.reminder-name { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.reminder-delay { flex: none; font-size: 1.3rem; font-weight: 800; }
+.reminder-body { display: grid; gap: 8px; padding: 0 16px 16px; }

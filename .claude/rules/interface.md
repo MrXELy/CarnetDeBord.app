@@ -30,4 +30,4 @@ paths: ["src/styles.css", "src/App.tsx", "src/components/WeekView.tsx", "src/com
 
 ## Options
 
-Mode Europe pour la recherche de villes, exports CSV (étapes et LV), compteur des lectures automatiques du mois, échéances, frais, feuille de semaine, nettoyage des photos ; tout en bas, la version : commit et heure de construction (`__BUILD_COMMIT__`, `__BUILD_DATE__` posés par `define` dans `vite.config.ts`, « · test local » sur le serveur de test).
+En haut, les deux échéances les plus proches en tuiles (orange ou rouge si proches ou dépassées, délai court `shortDelay`) ; consommation moyenne ; exports CSV (étapes et LV) en cases ; tuile « Réglages » : villes de toute l'Europe, sous-pages **Échéances et ensemble routier**, **Frais de route** (bases et tarifs), **Feuille de semaine** (dans la même fenêtre, flèche retour), lectures automatiques du mois, nettoyage des photos ; « Se déconnecter » en bas ; tout en bas, la version : commit et heure de construction (`__BUILD_COMMIT__`, `__BUILD_DATE__` posés par `define` dans `vite.config.ts`, « · test local » sur le serveur de test). `section="reminders"` ouvre directement la sous-page des échéances.
