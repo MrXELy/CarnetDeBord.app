@@ -619,13 +619,11 @@ export default function EventForm({ event, onClose }: Props) {
                     {kmReading.message}
                   </span>
                 )}
-                {lastKm != null && (
-                  <span className="hint">
-                    Dernier relevé : {lastKm.toLocaleString('fr-FR')} km
-                    {kmValue != null && kmValue < lastKm && (
-                      <strong className="hint-err"> · inférieur au précédent</strong>
-                    )}
-                  </span>
+                {/* Seulement en cas d'erreur de saisie probable : km plus bas que le relevé précédent. */}
+                {lastKm != null && kmValue != null && kmValue < lastKm && (
+                  <strong className="hint hint-err">
+                    Plus bas que le dernier relevé ({lastKm.toLocaleString('fr-FR')} km)
+                  </strong>
                 )}
               </div>
 
