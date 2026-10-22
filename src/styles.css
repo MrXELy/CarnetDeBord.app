@@ -775,10 +775,6 @@ legend { margin-bottom: 6px; }
 
 /* Fiche LV en lecture seule : libellé discret, valeur en clair */
 .modal-body[hidden] { display: none; }
-.lv-fields { margin: 0; }
-.lv-fields div { display: grid; gap: 2px; }
-.lv-fields dt { font-size: 0.85rem; font-weight: 600; color: var(--muted); }
-.lv-fields dd { margin: 0; font-size: 1rem; white-space: pre-line; overflow-wrap: anywhere; }
 
 /* Fiche LV : champs regroupés en blocs (chargeur, destinataire, numéro et marchandise) */
 .form-block {
@@ -2471,7 +2467,7 @@ button.st-kv-item:active { transform: scale(0.97); }
 .lv-step-edit { gap: 8px; padding: 14px 16px; }
 .lv-step-edit input { background: rgba(0, 0, 0, 0.22); color: var(--tone); }
 .lv-fields { margin: 0; }
-.lv-fields dt { color: var(--muted); font-size: 0.9rem; font-weight: 600; }
+.lv-fields dt { flex: none; color: var(--muted); font-size: 0.9rem; font-weight: 600; }
 .lv-fields dd { margin: 0; flex: 1; min-width: 0; text-align: right; font-weight: 700; white-space: pre-line; overflow-wrap: anywhere; }
 .field-row.field-missing > :first-child,
 .field-row.field-missing dd { color: #ffe2ad; }
