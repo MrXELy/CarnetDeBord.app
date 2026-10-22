@@ -73,7 +73,6 @@ export default function EventForm({ event, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   // Change quand le lieu est prérempli, pour réafficher le champ avec la nouvelle valeur.
   const [placeKey, setPlaceKey] = useState(0);
-  const [placeFromDayEnd, setPlaceFromDayEnd] = useState(false);
   // Cases des types ouvertes : nouvelle étape (« Que fais-tu ? »), ou « Changer » touché.
   const [pickType, setPickType] = useState(isNew);
   // Ligne « Jour » ouverte (sinon « Aujourd'hui »), remarque ouverte sur une nouvelle étape.
@@ -260,7 +259,6 @@ export default function EventForm({ event, onClose }: Props) {
         lon: end.lon,
       });
       setPlaceKey((k) => k + 1);
-      setPlaceFromDayEnd(true);
     }
   }
 
@@ -291,7 +289,6 @@ export default function EventForm({ event, onClose }: Props) {
           if (changes.loadingPlace) {
             setPlace(changes.loadingPlace);
             setPlaceKey((k) => k + 1);
-            setPlaceFromDayEnd(false);
           }
           if (changes.loadingAt) setFormTime(changes.loadingAt);
           applyStepChanges(store, null, delivery?.id, changes);
@@ -541,9 +538,14 @@ export default function EventForm({ event, onClose }: Props) {
             <div className="field-group">
               <div className="field-row place-row">
                 <span className="field-name">Lieu</span>
-                <PlaceField key={placeKey} value={place} onChange={setPlace} autoLocate={isNew && placeKey === 0} />
+                <PlaceField
+                  key={placeKey}
+                  value={place}
+                  onChange={setPlace}
+                  autoLocate={isNew && placeKey === 0}
+                  compact
+                />
               </div>
-              {placeFromDayEnd && <span className="hint field-note">Repris de la dernière fin de journée</span>}
 
               {(isNew || !withEnd) && (
                 <label className="field-row">

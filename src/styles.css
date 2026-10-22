@@ -2493,7 +2493,6 @@ button.st-kv-item:active { transform: scale(0.97); }
 .place-row .place-input .btn-secondary { width: 44px; min-height: 44px; border-radius: 14px; background: #343845; }
 .place-row .suggestions { top: 52px; right: 0; }
 .field-group .place-row .place-field input { background: none; }
-.field-note { padding: 0 0 10px; border-top: none !important; }
 .field-value { margin-left: auto; font-size: 1.05rem; font-weight: 700; }
 .field-row .field-name { flex: none; }
 
