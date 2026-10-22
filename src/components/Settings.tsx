@@ -1,6 +1,6 @@
 import { format, parseISO } from 'date-fns';
 import { ChevronLeft, ChevronRight, Download, Eraser, LogOut, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { downloadCsv, eventsToCsv, waybillsToCsv } from '../lib/csv';
 import { demoSnapshot } from '../lib/demoData';
 import { averageRate, formatRate, intervalKm, recentIntervals } from '../lib/fuel';
@@ -46,6 +46,11 @@ export default function Settings({ onClose, section }: { onClose: () => void; se
 
   // Sous-page ouverte dans la même fenêtre : échéances, réglages des frais ou de la feuille de semaine.
   const [page, setPage] = useState<Page>(section === 'reminders' ? 'reminders' : 'main');
+  const panel = useRef<HTMLDivElement>(null);
+  // Autre sous-page : le panneau repart du haut (sinon il resterait descendu là où l'on a touché).
+  useEffect(() => {
+    panel.current?.scrollTo({ top: 0 });
+  }, [page]);
   const today = new Date();
   // Deux échéances les plus proches (avec une date), pour les tuiles du haut.
   const nextReminders = REMINDER_TYPES.map((type) => {
@@ -64,7 +69,7 @@ export default function Settings({ onClose, section }: { onClose: () => void; se
 
   return (
     <div className="modal-backdrop" ref={sheet.ref} onClick={sheet.close}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal" ref={panel} onClick={(e) => e.stopPropagation()}>
         <header className="modal-header" {...sheet.handle}>
           {page === 'main' ? (
             <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
