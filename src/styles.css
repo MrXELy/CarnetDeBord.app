@@ -1090,7 +1090,7 @@ legend { margin-bottom: 6px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ---------- Options ---------- */
-.settings-group { display: grid; gap: 8px; }
+.settings-group { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 
 .settings-group h3 {
   margin: 4px 4px 0;
@@ -2537,3 +2537,15 @@ button.st-kv-item:active { transform: scale(0.97); }
 .lv-tile.selected .lv-check-btn { border-color: #c6f0da; background: #c6f0da; }
 .lv-manual { display: inline-flex; align-items: center; gap: 6px; justify-self: start; min-height: 44px; text-decoration: none; font-weight: 600; }
 .form-footer .btn-secondary.footer-delete { background: var(--glass); }
+
+/* Listes en colonne : jamais plus larges que leur conteneur (un texte sur une ligne se coupe par « … »). */
+.lv-list,
+.lv-week,
+.lv-group,
+.days,
+.home,
+.in-truck,
+.st-content,
+.reminder-body,
+.pc-side,
+.pc-map { grid-template-columns: minmax(0, 1fr); }

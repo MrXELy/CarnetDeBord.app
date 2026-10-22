@@ -31,7 +31,7 @@ export default function WeekPicker({ current, onPick, onMonthMap, onWeekMap, onC
 
   // La semaine affichée est visible dès l'ouverture, même loin dans la liste.
   useEffect(() => {
-    selected.current?.scrollIntoView({ block: 'center' });
+    selected.current?.scrollIntoView({ block: 'center', inline: 'nearest' });
   }, []);
 
   function pick(start: Date) {
