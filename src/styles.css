@@ -1774,9 +1774,10 @@ legend { margin-bottom: 6px; }
   align-items: center;
   gap: 4px;
   max-width: 100%;
-  padding: 2px 8px;
+  min-height: 40px;
+  padding: 2px 12px;
   border: none;
-  border-radius: 10px;
+  border-radius: 14px;
   background: none;
   font-size: 1rem;
   font-weight: 800;
@@ -1795,11 +1796,18 @@ legend { margin-bottom: 6px; }
 .st-hero {
   display: grid;
   gap: 4px;
-  padding: 16px 18px;
-  border-radius: 20px;
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
+  padding: 18px 20px;
+  border-radius: 26px;
+  background: var(--accent);
+  color: var(--accent-text);
 }
+/* Sur la tuile bleu clair, textes et comparaisons en sombre */
+.st-hero .st-eyebrow,
+.st-hero .st-compare,
+.st-hero .st-hero-empty,
+.st-hero .st-hero-empty b,
+.st-hero .st-big { color: var(--accent-text); }
+.st-hero .st-chip { color: var(--accent-text); background: rgba(0, 0, 0, 0.12); }
 .st-eyebrow { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
 .st-big {
   font-size: 2.8rem;
@@ -1825,30 +1833,35 @@ legend { margin-bottom: 6px; }
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.st-chip.good { color: var(--ok); background: rgba(52, 211, 153, 0.12); }
-.st-chip.bad { color: var(--danger); background: rgba(248, 113, 113, 0.12); }
-.st-chip.flat { color: var(--muted); background: var(--glass); }
+.st-chip.good { color: #c6f0da; background: #22432f; }
+.st-chip.bad { color: #ffc9cd; background: #3a2024; }
+.st-chip.flat { color: var(--muted); background: var(--surface-2); }
 
 .st-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .st-tile.wide { grid-column: 1 / -1; }
 .st-tile {
   min-width: 0;
   display: grid;
-  gap: 2px;
+  gap: 4px;
   align-content: start;
-  padding: 12px 14px;
-  border-radius: 16px;
+  min-height: 100px;
+  padding: 16px;
+  border-radius: 24px;
   background: var(--glass);
-  border: 1px solid var(--glass-border);
 }
+/* Tuiles d'un type d'étape : à sa couleur */
+.st-tile[class*='tone-'] { background: var(--tone-bg); color: var(--tone); }
+.st-tile[class*='tone-'] .st-tile-label,
+.st-tile[class*='tone-'] .st-tile-sub,
+.st-tile[class*='tone-'] .st-tile-value small { color: var(--tone-sub); }
 .st-tile-label { display: flex; align-items: center; gap: 6px; font-size: 0.76rem; font-weight: 600; color: var(--muted); }
-.st-tile-label i { width: 8px; height: 8px; border-radius: 50%; background: var(--tone); box-shadow: 0 0 8px var(--tone); }
-.st-tile-value { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.st-tile-label i { display: none; }
+.st-tile-value { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
 .st-tile-value small { font-size: 0.78rem; font-weight: 700; color: var(--muted); }
 .st-tile-sub { display: flex; min-height: 1.1em; font-size: 0.74rem; color: var(--muted); }
 
 /* Sections repliables */
-.st-section { border-radius: 18px; background: var(--glass); border: 1px solid var(--glass-border); }
+.st-section { border-radius: 24px; background: var(--glass); }
 .st-section > summary {
   display: flex;
   align-items: center;
@@ -1905,10 +1918,10 @@ legend { margin-bottom: 6px; }
   display: grid;
   gap: 1px;
   align-content: start;
-  padding: 10px 12px;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
+  padding: 12px 14px;
+  border: none;
+  border-radius: 16px;
+  background: var(--surface-2);
   text-align: left;
 }
 button.st-kv-item:active { transform: scale(0.97); }
@@ -1935,16 +1948,16 @@ button.st-kv-item:active { transform: scale(0.97); }
   place-items: center;
   padding: 0;
   border: none;
-  border-radius: 8px;
-  font-size: 0.74rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
   font-weight: 700;
   color: var(--muted);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface-2);
 }
 .st-cal-day:disabled { cursor: default; }
-.st-cal-day.l1 { background: rgba(245, 158, 11, 0.18); color: var(--text); }
-.st-cal-day.l2 { background: rgba(245, 158, 11, 0.36); color: var(--text); }
-.st-cal-day.l3 { background: rgba(245, 158, 11, 0.6); color: var(--accent-text); }
+.st-cal-day.l1 { background: #2f3650; color: var(--text); }
+.st-cal-day.l2 { background: #3c4664; color: var(--text); }
+.st-cal-day.l3 { background: #6b7fb8; color: var(--text); }
 .st-cal-day.l4 { background: var(--accent); color: var(--accent-text); }
 .st-cal-day.today { box-shadow: inset 0 0 0 2px var(--text); }
 .st-cal-day.future { opacity: 0.35; }
