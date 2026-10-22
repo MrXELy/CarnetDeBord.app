@@ -22,6 +22,7 @@ paths: ["src/styles.css", "src/App.tsx", "src/components/WeekView.tsx", "src/com
 
 - **Vue semaine** avec récap des km (km de la semaine, de chaque jour, de la liste des semaines et des cartes : `periodKm` dans `src/lib/dates.ts`, même calcul par tronçons que les Statistiques), navigation par glissement, liste « Choisir une semaine » groupée par mois et saut à une date. Sous la semaine, pastilles des frais, de la carte et de la feuille de semaine sur une ligne.
 - Bouton flottant « Fin du chargement / de la livraison » à gauche du « + » (voir `lv.md`).
+- **Nouvelle étape** : type déjà choisi d'après la dernière étape (`suggestedType` dans `src/lib/onSite.ts`, pleins ignorés) : début de journée sans étape, après une fin ou 9 h sans étape ; livraison après un chargement ou s'il reste des LV dans le camion ; sinon chargement. Mêmes préremplissages qu'au toucher. Plaques repliées sur une ligne « Camion » (toucher pour modifier), ouvertes d'office si le tracteur est inconnu.
 - Haut de l'accueil : échéances (`HomeNotices.tsx`) ; heure limite sous le jour en cours (`DayLimitNotice.tsx`).
 
 ## Options

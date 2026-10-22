@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { newWaybill, type TripEvent } from '../types';
-import { onSiteMinutes, onSiteTimes, unfinishedStep } from './onSite';
+import { onSiteMinutes, onSiteTimes, suggestedType, unfinishedStep } from './onSite';
 
 let n = 0;
 function ev(type: TripEvent['type'], occurred: string, finished?: string, extra: Partial<TripEvent> = {}): TripEvent {
@@ -76,5 +76,30 @@ describe('onSiteTimes', () => {
         { name: 'Client A', average: 45, count: 2 },
       ],
     });
+  });
+});
+
+describe('suggestedType', () => {
+  const now = new Date('2026-03-10T14:00');
+  it('début de journée sans étape, après une fin ou un long arrêt', () => {
+    expect(suggestedType([], now, false)).toBe('debut_journee');
+    expect(suggestedType([ev('fin_journee', '2026-03-10T12:00')], now, false)).toBe('debut_journee');
+    expect(suggestedType([ev('livraison', '2026-03-10T03:00')], now, true)).toBe('debut_journee');
+  });
+  it('livraison après un chargement, même sans LV', () => {
+    expect(suggestedType([ev('chargement', '2026-03-10T12:00')], now, false)).toBe('livraison');
+  });
+  it('après un début ou une livraison : selon les LV dans le camion', () => {
+    const start = [ev('debut_journee', '2026-03-10T12:00')];
+    expect(suggestedType(start, now, true)).toBe('livraison');
+    expect(suggestedType(start, now, false)).toBe('chargement');
+  });
+  it('ignore les pleins et les étapes supprimées', () => {
+    const events = [
+      ev('livraison', '2026-03-10T13:30', undefined, { deleted_at: '2026-03-10T13:40' }),
+      ev('carburant', '2026-03-10T13:00'),
+      ev('chargement', '2026-03-10T12:00'),
+    ];
+    expect(suggestedType(events, now, false)).toBe('livraison');
   });
 });

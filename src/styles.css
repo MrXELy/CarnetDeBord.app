@@ -1988,3 +1988,20 @@ button.st-kv-item:active { transform: scale(0.97); }
 
 /* Heure limite de fin de la journée en cours, sous son jour */
 .day-limit { margin: 4px 0 8px; }
+
+/* Formulaire d'étape : plaques repliées sur une ligne, toucher pour les modifier */
+.plates-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 13px 14px;
+  background: var(--glass);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.plates-summary svg { margin-left: auto; color: var(--muted); flex: none; }

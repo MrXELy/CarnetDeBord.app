@@ -71,3 +71,20 @@ export function onSiteTimes(all: TripEvent[], waybills: Waybill[], range: Range,
     .slice(0, limit);
   return { average: count ? Math.round(total / count) : null, count, clients };
 }
+
+/** Au-delà de cet écart avec la dernière étape, on suppose un repos journalier (9 h minimum en RSE). */
+const NEW_DAY_GAP_MIN = 9 * 60;
+
+/**
+ * Type proposé pour une nouvelle étape, d'après la dernière notée (on saute les pleins) : début de journée après une fin
+ * ou un long arrêt, livraison après un chargement ou s'il reste des LV dans le camion, sinon chargement.
+ * `events` : le plus récent en premier ; `loaded` : des LV sont dans le camion.
+ */
+export function suggestedType(events: TripEvent[], now: Date, loaded: boolean): EventType {
+  const live = events.filter((e) => !e.deleted_at);
+  if (!live.length || differenceInMinutes(now, parseISO(live[0].occurred_at)) >= NEW_DAY_GAP_MIN)
+    return 'debut_journee';
+  const last = live.find((e) => e.type !== 'carburant') ?? live[0];
+  if (last.type === 'fin_journee') return 'debut_journee';
+  return last.type === 'chargement' || loaded ? 'livraison' : 'chargement';
+}

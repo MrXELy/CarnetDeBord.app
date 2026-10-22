@@ -5,7 +5,7 @@ import { durationLabel, toLocalInput } from '../lib/dates';
 import { isDoumenCity, isFullTank } from '../lib/fuel';
 import { formatPlace } from '../lib/geo';
 import { numText, parseNum } from '../lib/numbers';
-import { hasEnd } from '../lib/onSite';
+import { hasEnd, suggestedType } from '../lib/onSite';
 import { odometerMessage, readOdometerPhoto } from '../lib/odometer';
 import { restartAdvice, restChecks } from '../lib/rest';
 import {
@@ -58,6 +58,8 @@ export default function EventForm({ event, onClose }: Props) {
   const [type, setType] = useState<EventType | null>(event?.type ?? null);
   const [tractor, setTractor] = useState(event?.tractor_plate ?? plates.tractor);
   const [trailer, setTrailer] = useState(event?.trailer_plate ?? plates.trailer);
+  // Plaques repliées sur une ligne (elles changent rarement), ouvertes d'office si le tracteur est inconnu.
+  const [editPlates, setEditPlates] = useState(() => !(event?.tractor_plate ?? plates.tractor));
   const [km, setKm] = useState(event?.odometer_km?.toString() ?? '');
   const [place, setPlace] = useState<Place>(event ?? EMPTY_PLACE);
   const [when, setWhen] = useState(toLocalInput(event ? parseISO(event.occurred_at) : new Date()));
@@ -221,6 +223,13 @@ export default function EventForm({ event, onClose }: Props) {
   useEffect(() => {
     if (isFuel && !station && isDoumenCity(place.city)) chooseStation('Doumen');
   }, [isFuel, station, place.city]);
+
+  // Nouvelle étape : type le plus probable déjà choisi (modifiable), avec les mêmes préremplissages qu'au toucher.
+  useEffect(() => {
+    if (!isNew) return;
+    const now = new Date();
+    chooseType(suggestedType(events, now, store.inTruck(now).length > 0)); // une seule fois, à l’ouverture
+  }, []);
 
   /**
    * Un chargement saisi reçoit d'office une LV vide, à compléter plus tard.
@@ -406,26 +415,38 @@ export default function EventForm({ event, onClose }: Props) {
               </div>
             </fieldset>
 
-            <div className="row">
-              <label>
-                Tracteur
-                <input
-                  className="plate"
-                  value={tractor}
-                  onChange={(e) => setTractor(e.target.value.toUpperCase())}
-                  placeholder="AB-123-CD"
-                />
-              </label>
-              <label>
-                Remorque
-                <input
-                  className="plate"
-                  value={trailer}
-                  onChange={(e) => setTrailer(e.target.value.toUpperCase())}
-                  placeholder="EF-456-GH"
-                />
-              </label>
-            </div>
+            {!editPlates ? (
+              <div className="label">
+                Camion
+                <button type="button" className="plates-summary" onClick={() => setEditPlates(true)}>
+                  <span className="plate">{tractor}</span>
+                  {trailer && <span className="plate">{trailer}</span>}
+                  <Pencil size={16} aria-hidden />
+                  <span className="sr-only">Modifier les immatriculations</span>
+                </button>
+              </div>
+            ) : (
+              <div className="row">
+                <label>
+                  Tracteur
+                  <input
+                    className="plate"
+                    value={tractor}
+                    onChange={(e) => setTractor(e.target.value.toUpperCase())}
+                    placeholder="AB-123-CD"
+                  />
+                </label>
+                <label>
+                  Remorque
+                  <input
+                    className="plate"
+                    value={trailer}
+                    onChange={(e) => setTrailer(e.target.value.toUpperCase())}
+                    placeholder="EF-456-GH"
+                  />
+                </label>
+              </div>
+            )}
 
             <label>
               Kilométrage
