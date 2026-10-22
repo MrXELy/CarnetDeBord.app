@@ -1,7 +1,7 @@
-import { addDays } from 'date-fns';
+import { addDays, parseISO, set } from 'date-fns';
 import { Settings as SettingsIcon, X } from 'lucide-react';
-import { summarizeAllowances } from '../lib/allowances';
-import { weekLabel } from '../lib/dates';
+import { allowanceLabel, euros, summarizeAllowances } from '../lib/allowances';
+import { dayLabel, weekLabel } from '../lib/dates';
 import { formatPlace } from '../lib/geo';
 import { useEvents } from '../lib/useEvents';
 import { useSheet } from '../lib/useSheet';
@@ -17,8 +17,17 @@ interface Props {
 /** Frais de déplacement d'une semaine. */
 export default function AllowancesSheet({ start, onOpenSettings, onClose }: Props) {
   const { allowanceSettings, store } = useEvents();
-  const summary = summarizeAllowances(store.allowances(), { start, end: addDays(start, 7) });
+  const end = addDays(start, 7);
+  const summary = summarizeAllowances(store.allowances(), { start, end });
   const { bases } = allowanceSettings;
+  // Indemnités de la semaine regroupées par jour, le plus récent en premier (même rattachement que le résumé).
+  const byDay = new Map<string, string[]>();
+  for (const a of store.allowances()) {
+    const noon = set(parseISO(a.day), { hours: 12 });
+    if (noon < start || noon >= end) continue;
+    byDay.set(a.day, [...(byDay.get(a.day) ?? []), allowanceLabel(a.kind) + (a.foreign ? ' (étranger)' : '')]);
+  }
+  const days = [...byDay.entries()].sort(([a], [b]) => b.localeCompare(a));
 
   const sheet = useSheet(onClose);
 
@@ -44,6 +53,22 @@ export default function AllowancesSheet({ start, onOpenSettings, onClose }: Prop
             </div>
           ) : (
             <>
+              {summary.count > 0 && (
+                <div className="fr-hero">
+                  <span>Total de la semaine</span>
+                  <strong>{euros(summary.total)}</strong>
+                </div>
+              )}
+              {days.map(([day, labels]) => (
+                <div className="fr-day" key={day}>
+                  <span className="fr-day-name">{dayLabel(parseISO(day))}</span>
+                  <span className="fr-chips">
+                    {labels.map((label, i) => (
+                      <span key={i}>{label}</span>
+                    ))}
+                  </span>
+                </div>
+              ))}
               <AllowanceTable summary={summary} />
               <p className="hint">
                 Calculés d’après l’heure et le lieu des débuts et fins de journée. Bases :{' '}
