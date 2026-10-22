@@ -725,9 +725,14 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
 
 .modal-body {
   display: grid;
+  /* Une colonne à la largeur du panneau : un texte qui ne passe pas à la ligne se coupe au lieu de l'élargir. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   padding: 16px 16px max(24px, env(safe-area-inset-bottom));
 }
+
+/* Jamais de défilement de côté dans un panneau */
+.modal { overflow-x: clip; }
 
 label,
 .label,
@@ -748,9 +753,10 @@ legend { margin-bottom: 6px; }
 
 .row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
+.row .lv-add { padding-left: 10px; padding-right: 10px; }
 
 .label-line,
 .label > .label-line { display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--muted); }
@@ -1578,7 +1584,7 @@ legend { margin-bottom: 6px; }
 .week-row-title { font-weight: 700; color: var(--text); }
 
 .month-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.month-map-btn { font-size: 0.85rem; color: var(--accent); text-decoration: none; padding: 4px 6px; }
+.month-map-btn { flex: none; font-size: 0.85rem; color: var(--accent); text-decoration: none; padding: 4px 6px; }
 
 /* Semaines sous la carte du mois. */
 .month-weeks { display: grid; gap: 6px; }
@@ -2342,7 +2348,7 @@ button.st-kv-item:active { transform: scale(0.97); }
 .week-row-number { flex: none; width: 3.2em; font-size: 1.35rem; font-weight: 800; }
 .week-row .week-row-title { flex: 1; font-weight: 500; color: var(--muted); }
 .week-row.selected .week-row-number { color: var(--accent-text); }
-.month-head h3 { margin: 6px 4px 0; }
+.month-head h3 { min-width: 0; margin: 6px 4px 0; }
 
 /* Carte de la semaine : jours en petites cases sous la carte, puis Image et vidéo */
 .map-days { display: grid; grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)); gap: 4px; }
