@@ -1,3 +1,4 @@
+import { TriangleAlert } from 'lucide-react';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 
 interface State {
@@ -23,7 +24,10 @@ export default class ErrorBoundary extends Component<{ children: ReactNode }, St
     const { error } = this.state;
     if (!error) return this.props.children;
     return (
-      <main className="login">
+      <main className="login error-screen">
+        <span className="error-icon" aria-hidden>
+          <TriangleAlert size={36} />
+        </span>
         <h1>Oups, un problème</h1>
         <p className="muted">
           L’appli a rencontré une erreur. Tes étapes déjà enregistrées sont gardées sur l’appareil ; seule la saisie en
