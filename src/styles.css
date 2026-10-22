@@ -812,34 +812,142 @@ legend { margin-bottom: 6px; }
 
 .plate { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
 
+/* Types d'étape : chargement, livraison et carburant en grandes cases, début et fin empilés dans la 4e */
 .type-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(4, minmax(44px, auto));
+  grid-template-areas:
+    'chargement livraison'
+    'chargement livraison'
+    'carburant debut'
+    'carburant fin';
+  gap: 10px;
 }
+.type-chargement { grid-area: chargement; }
+.type-livraison { grid-area: livraison; }
+.type-carburant { grid-area: carburant; }
+.type-debut_journee { grid-area: debut; }
+.type-fin_journee { grid-area: fin; }
 
 .type-btn {
-  display: grid;
-  justify-items: center;
-  align-content: center;
-  gap: 6px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
   min-width: 0;
-  min-height: 80px;
-  padding: 8px 2px;
+  min-height: 96px;
+  padding: 13px 14px;
   background: var(--tone-bg);
   border: 3px solid transparent;
-  border-radius: 22px;
-  font-size: 0.85rem;
-  font-weight: 700;
+  border-radius: 24px;
+  font-size: 1.05rem;
+  font-weight: 800;
   color: var(--tone);
-  overflow: hidden;
-  text-overflow: ellipsis;
+  text-align: left;
   transition: transform 0.12s ease, border-color 0.2s ease;
+}
+
+/* Début et fin de journée : petites cases, texte centré */
+.type-debut_journee,
+.type-fin_journee {
+  min-height: 44px;
+  justify-content: center;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 18px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-align: center;
 }
 
 .type-btn .event-icon { color: inherit; }
 .type-btn:active { transform: scale(0.96); }
 .type-btn.selected { border-color: var(--tone); }
+
+/* En-tête du formulaire : titre et, en modification, type et jour de l'étape */
+.form-title { flex: 1; min-width: 0; display: grid; }
+.form-title span { font-size: 0.88rem; color: var(--muted); }
+.modal-header .card-icon { width: 44px; height: 44px; background: var(--tone-bg); color: var(--tone); }
+
+/* Arrivée et fin d'un chargement ou d'une livraison : tuile à la couleur du type */
+.time-tile {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 24px;
+  background: var(--tone-bg);
+}
+.time-tile label { color: var(--tone-sub); }
+.time-tile input { background: rgba(0, 0, 0, 0.22); color: var(--tone); font-size: 1.15rem; font-weight: 800; }
+.time-tile-note { font-size: 0.9rem; font-weight: 700; color: var(--tone); }
+
+/* Champs regroupés dans une tuile, une ligne par champ */
+.field-group {
+  display: grid;
+  padding: 4px 16px;
+  border-radius: 24px;
+  background: var(--glass);
+}
+.field-group > * + * { border-top: 1px solid #343845; }
+.field-stack { display: grid; gap: 8px; padding: 12px 0; }
+.field-stack > .field-row { padding: 0; }
+.field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  padding: 4px 0;
+}
+.field-row > input {
+  width: auto;
+  flex: 1;
+  min-width: 0;
+  padding: 10px 0;
+  background: none;
+  border: none;
+  text-align: right;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.field-row > input:focus { box-shadow: none; }
+.field-group .place-field input { background: #343845; }
+.field-name { color: var(--muted); font-size: 0.85rem; font-weight: 600; }
+
+/* Stations et réservoir : grandes cases */
+.station-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.station-grid button {
+  min-height: 60px;
+  padding: 8px;
+  border: 3px solid transparent;
+  border-radius: 22px;
+  background: var(--glass);
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+.station-grid button.selected { border-color: #ffe2ad; background: #4a3613; color: #ffe2ad; }
+
+/* Grand champ en tuile (litres, remarques) */
+.big-field { padding: 14px 16px; border-radius: 22px; background: var(--glass); }
+.big-field input { padding: 0; background: none; border: none; font-size: 1.9rem; font-weight: 800; }
+.big-field input:focus,
+.big-field textarea:focus { box-shadow: none; }
+.notes-field textarea { padding: 0; background: none; border: none; font-size: 1rem; }
+
+/* Bas du formulaire, toujours visible : supprimer (en modification) et enregistrer */
+.form-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px max(16px, env(safe-area-inset-bottom));
+  background: var(--sheet);
+}
+.form-footer .btn-primary { flex: 1; min-height: 64px; font-size: 1.15rem; }
+.footer-delete { flex: none; display: grid; place-items: center; width: 64px; padding: 0; }
 
 .segmented {
   display: grid;
@@ -868,10 +976,9 @@ legend { margin-bottom: 6px; }
 }
 
 /* Carburant : plein complet ou complément, deux grandes cases */
-.segmented.tank-choice { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.tank-choice button { display: grid; gap: 2px; min-height: 64px; }
+.station-grid.tank-choice { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tank-choice button { display: grid; gap: 2px; min-height: 72px; }
 .tank-choice small { font-size: 0.75rem; font-weight: 600; color: var(--muted); }
-.tank-choice button.selected { background: #4a3613; color: #ffe2ad; }
 .tank-choice button.selected small { color: #d4b886; }
 
 /* Filtres des LV : grandes cases, compteur en gros au-dessus, libellé en petit dessous */
@@ -2073,17 +2180,15 @@ button.st-kv-item:active { transform: scale(0.97); }
 
 /* Formulaire d'étape : plaques repliées sur une ligne, toucher pour les modifier */
 .plates-summary {
-  display: flex;
-  align-items: center;
-  gap: 12px;
   width: 100%;
-  padding: 13px 14px;
-  background: var(--glass);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
+  border: none;
+  border-radius: 0;
+  background: none;
   color: var(--text);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
-.plates-summary svg { margin-left: auto; color: var(--muted); flex: none; }
+.plates-summary .field-name { margin-right: auto; }
+.plates-values { display: flex; gap: 10px; }
+.plates-summary svg { color: var(--muted); flex: none; }
