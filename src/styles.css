@@ -779,39 +779,8 @@ legend { margin-bottom: 6px; }
 }
 .reading-details dd .read-tag { margin-left: 8px; }
 
-/* Fiche LV en lecture seule : libellé discret, valeur en clair */
+/* Fiche LV : la partie lecture ou la partie saisie est cachée */
 .modal-body[hidden] { display: none; }
-
-/* Fiche LV : champs regroupés en blocs (chargeur, destinataire, numéro et marchandise) */
-.form-block {
-  display: grid;
-  gap: 14px;
-  padding: 16px;
-  border-radius: 22px;
-  background: var(--glass);
-}
-
-/* Blocs chargeur (bleu) et destinataire (vert) de la fiche LV */
-.form-block[class*='tone-'] { background: var(--tone-bg); }
-.form-block[class*='tone-'] label,
-.form-block[class*='tone-'] .label,
-.form-block[class*='tone-'] dt { color: var(--tone-sub); }
-.form-block[class*='tone-'] dd { color: var(--tone); }
-.form-block[class*='tone-'] input,
-.form-block[class*='tone-'] textarea { background: rgba(0, 0, 0, 0.22); }
-
-.context-pill {
-  justify-self: start;
-  margin: 0;
-  padding: 6px 12px;
-  border-radius: 14px;
-  background: var(--glass);
-  color: var(--text);
-  font-size: 0.78rem;
-  font-weight: 700;
-  /* Chargement sur la première ligne, livraison sur la deuxième. */
-  white-space: pre-line;
-}
 
 .plate { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
 
@@ -1112,7 +1081,6 @@ legend { margin-bottom: 6px; }
 
 /* Bouton posé dans une tuile : un cran plus clair pour rester visible */
 .setting-row .btn-secondary,
-.form-block .btn-secondary,
 .st-section .btn-secondary { background: #343845; }
 
 .setting-text { flex: 1; display: grid; gap: 2px; }
@@ -1401,12 +1369,6 @@ legend { margin-bottom: 6px; }
 .lv-title { display: flex; align-items: center; gap: 8px; }
 .lv-photo { color: var(--muted); }
 
-.lv-actions {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 8px;
-}
-
 .photo-strip {
   display: flex;
   gap: 8px;
@@ -1527,9 +1489,6 @@ legend { margin-bottom: 6px; }
   display: flex;
   justify-content: space-between;
 }
-
-/* ---------- Choix de la semaine ---------- */
-.week-center { display: grid; justify-items: center; min-width: 0; }
 
 .week-title {
   display: flex;
