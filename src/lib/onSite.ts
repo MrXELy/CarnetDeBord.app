@@ -1,4 +1,4 @@
-import { differenceInMinutes, parseISO } from 'date-fns';
+import { addDays, differenceInMinutes, format, parseISO } from 'date-fns';
 import type { EventType, TripEvent, Waybill } from '../types';
 import { clientGrouper, inRange, type Range } from './stats';
 
@@ -15,6 +15,17 @@ export const hasEnd = (type: EventType) => type === 'chargement' || type === 'li
 export function unfinishedStep(events: TripEvent[]): TripEvent | null {
   const last = events.find((e) => !e.deleted_at);
   return last && hasEnd(last.type) && !last.finished_at ? last : null;
+}
+
+/**
+ * Fin d'un chargement ou d'une livraison d'après sa seule heure (« 15:20 ») : le jour de l'arrivée, ou le lendemain
+ * si l'heure est plus tôt (fin après minuit). `arrival` : « 2026-10-21T14:35 ». Null si l'une des deux est incomplète.
+ */
+export function endFromTime(arrival: string, time: string): Date | null {
+  const start = new Date(arrival);
+  if (Number.isNaN(start.getTime()) || !/^\d{2}:\d{2}$/.test(time)) return null;
+  const day = time < arrival.slice(11, 16) ? addDays(start, 1) : start;
+  return new Date(`${format(day, 'yyyy-MM-dd')}T${time}`);
 }
 
 /** Minutes entre l'arrivée (heure de l'étape) et la fin, ou null si inconnue, nulle (fin = arrivée) ou incohérente. */

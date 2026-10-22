@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { newWaybill, type TripEvent } from '../types';
-import { onSiteMinutes, onSiteTimes, suggestedType, unfinishedStep } from './onSite';
+import { onSiteMinutes, onSiteTimes, suggestedType, unfinishedStep, endFromTime } from './onSite';
 
 let n = 0;
 function ev(type: TripEvent['type'], occurred: string, finished?: string, extra: Partial<TripEvent> = {}): TripEvent {
@@ -101,5 +101,19 @@ describe('suggestedType', () => {
       ev('chargement', '2026-03-10T12:00'),
     ];
     expect(suggestedType(events, now, false)).toBe('livraison');
+  });
+});
+
+describe('endFromTime', () => {
+  it('même jour que l’arrivée, ou le lendemain si l’heure est plus tôt', () => {
+    expect(endFromTime('2026-10-21T14:35', '15:20')).toEqual(new Date(2026, 9, 21, 15, 20));
+    expect(endFromTime('2026-10-21T23:10', '01:05')).toEqual(new Date(2026, 9, 22, 1, 5));
+  });
+  it('suit l’arrivée quand son jour change', () => {
+    expect(endFromTime('2026-10-22T14:35', '15:20')).toEqual(new Date(2026, 9, 22, 15, 20));
+  });
+  it('rien si l’arrivée ou l’heure est incomplète', () => {
+    expect(endFromTime('2026-10-21T', '15:20')).toBeNull();
+    expect(endFromTime('2026-10-21T14:35', '')).toBeNull();
   });
 });

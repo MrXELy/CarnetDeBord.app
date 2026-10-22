@@ -1,11 +1,11 @@
-import { addDays, format, parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { AlarmClock, Camera, Check, ChevronRight, FileText, LoaderCircle, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { durationLabel, toLocalInput } from '../lib/dates';
 import { isDoumenCity, isFullTank } from '../lib/fuel';
 import { numText, parseNum } from '../lib/numbers';
-import { hasEnd, suggestedType } from '../lib/onSite';
+import { endFromTime, hasEnd, suggestedType } from '../lib/onSite';
 import { odometerMessage, readOdometerPhoto } from '../lib/odometer';
 import { restartAdvice, restChecks } from '../lib/rest';
 import {
@@ -103,9 +103,10 @@ export default function EventForm({ event, onClose }: Props) {
   // Fin d'un chargement ou d'une livraison : facultative. Pas encore saisie : le champ montre l'heure d'arrivée,
   // mais rien n'est enregistré (le bouton « Fin » de l'accueil reste proposé).
   const withEnd = type != null && hasEnd(type);
-  const end = new Date(finished);
-  const finishedIso = withEnd && finished && !Number.isNaN(end.getTime()) ? end.toISOString() : null;
-  const onSite = finishedIso && whenIso ? Math.round((end.getTime() - at.getTime()) / 60000) : null;
+  // Seule l'heure de fin compte : son jour suit toujours celui de l'arrivée (le lendemain si plus tôt).
+  const end = withEnd && finished ? endFromTime(when, finished.slice(11, 16)) : null;
+  const finishedIso = end ? end.toISOString() : null;
+  const onSite = end && whenIso ? Math.round((end.getTime() - at.getTime()) / 60000) : null;
 
   // LV livrables ici : celles du camion à cette heure, celles déjà livrées ici, et celles créées ici.
   const pool = new Map<string, Waybill>();
@@ -363,31 +364,21 @@ export default function EventForm({ event, onClose }: Props) {
     else setDeliveryEdits(new Map(deliveryEdits).set(w.id, { ...w, deleted_at: new Date().toISOString() }));
   }
 
-  // Bouton d'une LV dans la liste : une LV encore vide s'ouvre en saisie (crayon), une LV remplie en lecture (œil).
-  const openLabel = (w: Waybill) => {
-    const label = isBlankWaybill(w) ? 'Remplir la lettre' : 'Voir la lettre';
-    return { 'aria-label': label, title: label };
-  };
-
   // Jour et heure séparés : la ligne « Heure » montre seulement l'heure, le jour s'affiche s'il n'est pas aujourd'hui.
   const whenDay = when.slice(0, 10);
   const whenTime = when.slice(11, 16);
   const today = toLocalInput(new Date()).slice(0, 10);
   const shownDay = showDay || whenDay !== today;
-  // Fin : même jour que l'arrivée, ou le lendemain si l'heure est plus tôt (fin après minuit).
+  // Fin : seule son heure est saisie (voir `endFromTime`).
   const finishedTime = (finished || when).slice(11, 16);
-  function setFinishedTime(time: string) {
-    if (!time) return setFinished('');
-    const day = time < whenTime ? toLocalInput(addDays(new Date(`${whenDay}T12:00`), 1)).slice(0, 10) : whenDay;
-    setFinished(`${day}T${time}`);
-  }
+  const setFinishedTime = (time: string) => setFinished(time ? `${whenDay}T${time}` : '');
   const typeInfo = type ? eventTypeInfo(type) : null;
 
   // Une LV en tuile : son numéro (ou « à remplir »), le trajet et la marchandise ; touchée, sa fiche s'ouvre.
   const lvTile = (w: Waybill, open: () => void, leading?: ReactNode) => (
     <div key={w.id} className={`lv-tile${leading && checked.has(w.id) ? ' selected' : ''}`}>
       {leading}
-      <button type="button" className="lv-tile-main" onClick={open} {...openLabel(w)}>
+      <button type="button" className="lv-tile-main" onClick={open}>
         <FileText size={22} aria-hidden />
         <span className="lv-tile-text">
           <b>{isBlankWaybill(w) ? 'Remplir la lettre' : w.number ? `LV ${w.number}` : 'Voir la lettre'}</b>
