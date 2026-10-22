@@ -806,55 +806,57 @@ legend { margin-bottom: 6px; }
   display: grid;
   justify-items: center;
   align-content: center;
-  gap: 5px;
+  gap: 6px;
   min-width: 0;
-  min-height: 68px;
+  min-height: 80px;
   padding: 8px 2px;
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
-  border-radius: 18px;
-  font-size: 0.8rem;
+  background: var(--tone-bg);
+  border: 3px solid transparent;
+  border-radius: 22px;
+  font-size: 0.85rem;
   font-weight: 700;
-  color: #c7cbd4;
+  color: var(--tone);
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: transform 0.12s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.12s ease, border-color 0.2s ease;
 }
 
+.type-btn .event-icon { color: inherit; }
 .type-btn:active { transform: scale(0.96); }
-
-.type-btn.selected {
-  border-color: var(--tone);
-  background: color-mix(in srgb, var(--tone) 16%, transparent);
-  color: var(--tone);
-  box-shadow: 0 0 20px color-mix(in srgb, var(--tone) 22%, transparent);
-}
+.type-btn.selected { border-color: var(--tone); }
 
 .segmented {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
   padding: 4px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  background: var(--glass);
 }
 
 .segmented button {
   min-width: 0;
+  min-height: 44px;
   padding: 11px 6px;
   background: transparent;
   border: none;
-  border-radius: 12px;
+  border-radius: 16px;
   font-weight: 700;
-  color: #c7cbd4;
+  color: var(--muted);
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .segmented button.selected {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--accent);
+  background: #3a3e4a;
+  color: var(--text);
 }
+
+/* Carburant : plein complet ou complément, deux grandes cases */
+.segmented.tank-choice { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tank-choice button { display: grid; gap: 2px; min-height: 64px; }
+.tank-choice small { font-size: 0.75rem; font-weight: 600; color: var(--muted); }
+.tank-choice button.selected { background: #4a3613; color: #ffe2ad; }
+.tank-choice button.selected small { color: #d4b886; }
 
 /* Filtres des LV : compteur en gros au-dessus, libellé en petit dessous */
 .segmented.stacked button { display: grid; justify-items: center; gap: 1px; padding: 8px 4px; }

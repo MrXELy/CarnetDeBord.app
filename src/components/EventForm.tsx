@@ -641,21 +641,29 @@ export default function EventForm({ event, onClose }: Props) {
                     ))}
                   </div>
                 </fieldset>
-                <label className="setting-row">
-                  <span className="setting-text">
-                    <span className="setting-title">Plein complet</span>
-                    <span className="hint">
-                      {fullTank ? 'Réservoir rempli : sert au calcul de la consommation.' : 'Simple complément.'}
-                    </span>
-                  </span>
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    className="switch"
-                    checked={fullTank}
-                    onChange={(e) => setFullTank(e.target.checked)}
-                  />
-                </label>
+                <fieldset>
+                  <legend>Réservoir</legend>
+                  <div className="segmented tank-choice">
+                    <button
+                      type="button"
+                      className={fullTank ? 'selected' : ''}
+                      aria-pressed={fullTank}
+                      onClick={() => setFullTank(true)}
+                    >
+                      Plein complet
+                      <small>sert à la consommation</small>
+                    </button>
+                    <button
+                      type="button"
+                      className={fullTank ? '' : 'selected'}
+                      aria-pressed={!fullTank}
+                      onClick={() => setFullTank(false)}
+                    >
+                      Complément
+                      <small>simple appoint</small>
+                    </button>
+                  </div>
+                </fieldset>
                 <div className="row">
                   <label>
                     Gasoil (L)
