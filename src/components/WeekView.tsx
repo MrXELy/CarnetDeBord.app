@@ -91,8 +91,8 @@ export default function WeekView() {
   // Journée en cours : heure limite de fin (RSE), en tuile à côté des km du jour.
   const limit = useMemo(() => (today.inProgress ? dayLimit(events, now) : null), [today.inProgress, events, now]);
   const toComplete = waybills.filter((w) => waybillStatus(w) === 'a_completer').length;
-  // Avant le début de journée : rappel des livraisons à faire.
-  const inTruck = today.inProgress ? [] : store.inTruck(now);
+  // Seulement avant le début de journée (aucune étape aujourd'hui) : rappel des livraisons à faire.
+  const inTruck = today.events.length > 0 ? [] : store.inTruck(now);
   const finishing = unfinishedStep(events) != null;
   // PC : 3 colonnes (menu, semaine, carte) au lieu de l'accueil du téléphone.
   const wide = useWide();
