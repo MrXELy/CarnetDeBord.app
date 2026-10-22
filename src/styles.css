@@ -2347,3 +2347,24 @@ button.st-kv-item:active { transform: scale(0.97); }
 .week-row .week-row-title { flex: 1; font-weight: 500; color: var(--muted); }
 .week-row.selected .week-row-number { color: var(--accent-text); }
 .month-head h3 { margin: 6px 4px 0; }
+
+/* Carte de la semaine : jours en petites cases sous la carte, puis Image et vidéo */
+.map-days { display: grid; grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)); gap: 4px; }
+.map-day {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 3px;
+  min-height: 48px;
+  padding: 4px 2px;
+  border: none;
+  border-radius: 14px;
+  background: var(--glass);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+.map-day i { width: 8px; height: 8px; border-radius: 50%; }
+.map-day.selected { background: var(--accent); color: var(--accent-text); }
+.map-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.map-action { justify-content: center; min-height: 64px; }

@@ -235,17 +235,37 @@ export default function WeekMap({ start, events, day, onEdit, onClose }: Props) 
                     departments={mapDepartments}
                     label={`Carte des trajets : ${title}`}
                   />
-                  <ImageButton onExport={exportImage} disabled={busy || stops.length === 0} />
-                  {/* Semaine (ou journée) rejouée : bouton rond en bas à gauche de la carte. */}
+                </div>
+
+                {/* Semaine : un jour touché ouvre sa carte (et de là, sa vidéo). */}
+                {!day && days.length > 0 && (
+                  <div className="map-days" role="group" aria-label="Carte d’un jour">
+                    <span className="map-day selected">Tout</span>
+                    {days.map((d) => (
+                      <button
+                        type="button"
+                        key={d}
+                        className="map-day"
+                        onClick={() => setOpenDay(d)}
+                        aria-label={`Carte du ${shortDay(d)}${dayKm(d) != null ? `, ${dayKm(d)} km` : ''}`}
+                      >
+                        <i style={{ background: dayColor(d) }} />
+                        {shortDay(d).slice(0, 3)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="map-actions">
+                  <ImageButton onExport={exportImage} disabled={busy || stops.length === 0} label="Image" />
                   <button
                     type="button"
-                    className="map-image-btn map-replay-btn"
-                    aria-label={day ? 'Rejouer la journée' : 'Rejouer la semaine'}
-                    title={day ? 'Rejouer la journée' : 'Rejouer la semaine'}
+                    className="btn-primary btn-icon map-action"
                     disabled={busy || stops.length < 2}
                     onClick={() => setReplaying(true)}
                   >
-                    <Play size={18} />
+                    <Play size={20} />
+                    {day ? 'Revoir la journée' : 'Revoir en vidéo'}
                   </button>
                 </div>
 
@@ -288,23 +308,6 @@ export default function WeekMap({ start, events, day, onEdit, onClose }: Props) 
                   </button>
                 )}
 
-                {/* Semaine : toucher un jour ouvre sa carte. */}
-                {!day && (
-                  <div className="map-legend">
-                    {days.map((d) => (
-                      <button
-                        type="button"
-                        key={d}
-                        onClick={() => setOpenDay(d)}
-                        aria-label={`Carte du ${shortDay(d)}`}
-                      >
-                        <i style={{ background: dayColor(d) }} />
-                        {shortDay(d)}
-                        {dayKm(d) != null && <b> {dayKm(d)!.toLocaleString('fr-FR')} km</b>}
-                      </button>
-                    ))}
-                  </div>
-                )}
                 <p className="hint">
                   {totalKm != null && `${totalKm.toLocaleString('fr-FR')} km · `}
                   {stops.length} lieu{stops.length > 1 ? 'x' : ''}

@@ -18,7 +18,18 @@ const FRANCE_BOUNDS: Point[] = [
 
 const ringsPath = (rings: [number, number][][]) =>
   rings
-    .map((ring) => 'M' + ring.map(([lon, lat]) => project([lat, lon]).map((v) => v.toFixed(3)).join(' ')).join('L') + 'Z')
+    .map(
+      (ring) =>
+        'M' +
+        ring
+          .map(([lon, lat]) =>
+            project([lat, lon])
+              .map((v) => v.toFixed(3))
+              .join(' '),
+          )
+          .join('L') +
+        'Z',
+    )
     .join('');
 
 /** Contours de la France et des départements (tracés SVG en coordonnées projetées), aussi dessinés sur canvas. */
@@ -37,7 +48,12 @@ export type Box = { x: number; y: number; width: number; height: number };
  */
 function landmarks(box: Box, taken: Point[], unit: number, gap: number) {
   const maxRank = box.width < 4 ? 3 : box.width < 7 ? 2 : 1;
-  const blocked: Rect[] = taken.map(([x, y]) => [x - unit * gap, y - unit * gap * 0.8, x + unit * gap, y + unit * gap * 0.8]);
+  const blocked: Rect[] = taken.map(([x, y]) => [
+    x - unit * gap,
+    y - unit * gap * 0.8,
+    x + unit * gap,
+    y + unit * gap * 0.8,
+  ]);
   const shown: { name: string; at: Point; left: boolean }[] = [];
   for (const c of [...CITIES].sort((a, b) => a.rank - b.rank)) {
     if (c.rank > maxRank) continue;
@@ -66,7 +82,10 @@ function arrowsAlong(coords: Point[]): { at: Point; angle: number }[] {
   if (!total) return [];
   return [0.3, 0.7].map((f) => {
     const target = total * f;
-    const i = Math.max(1, lengths.findIndex((l) => l >= target));
+    const i = Math.max(
+      1,
+      lengths.findIndex((l) => l >= target),
+    );
     const [a, b] = [pts[i - 1], pts[i]];
     const t = (target - lengths[i - 1]) / (lengths[i] - lengths[i - 1] || 1);
     return {
@@ -174,7 +193,15 @@ const MapSvg = forwardRef<SVGSVGElement, Props>(function MapSvg(
         <path d={DEPARTEMENTS_PATH} fill="none" stroke="#2b3240" strokeWidth={unit * 0.7} strokeLinejoin="round" />
       )}
       <path d={FRANCE_PATH} fill="none" stroke="#3f4858" strokeWidth={unit * 1.2} strokeLinejoin="round" />
-      {(cities ? landmarks(box, pins.map((p) => p.at), unit, numbered ? 14 : 7) : []).map((c) => (
+      {(cities
+        ? landmarks(
+            box,
+            pins.map((p) => p.at),
+            unit,
+            numbered ? 14 : 7,
+          )
+        : []
+      ).map((c) => (
         <g key={c.name}>
           <circle cx={c.at[0]} cy={c.at[1]} r={unit * 2.2} fill="#7c8596" />
           <text
@@ -273,7 +300,16 @@ const MapSvg = forwardRef<SVGSVGElement, Props>(function MapSvg(
 export default MapSvg;
 
 /** Bouton rond posé en bas à droite de la carte : enregistre l'image (l'icône tourne pendant la création). */
-export function ImageButton({ onExport, disabled }: { onExport: () => Promise<void>; disabled: boolean }) {
+export function ImageButton({
+  onExport,
+  disabled,
+  label,
+}: {
+  onExport: () => Promise<void>;
+  disabled: boolean;
+  /** Avec un libellé : grand bouton sous la carte ; sans : petit bouton rond posé sur la carte. */
+  label?: string;
+}) {
   const [working, setWorking] = useState(false);
   async function run() {
     setWorking(true);
@@ -286,14 +322,15 @@ export function ImageButton({ onExport, disabled }: { onExport: () => Promise<vo
   return (
     <button
       type="button"
-      className="map-image-btn"
-      aria-label="Enregistrer l’image"
+      className={label ? 'btn-secondary btn-icon map-action' : 'map-image-btn'}
+      aria-label={label ? undefined : 'Enregistrer l’image'}
       aria-busy={working}
-      title="Enregistrer l’image"
+      title={label ? undefined : 'Enregistrer l’image'}
       disabled={disabled || working}
       onClick={run}
     >
-      {working ? <LoaderCircle size={18} className="spin" /> : <Download size={18} />}
+      {working ? <LoaderCircle size={20} className="spin" /> : <Download size={20} />}
+      {label}
     </button>
   );
 }
@@ -337,7 +374,6 @@ export async function renderImage(svg: SVGSVGElement, title: string, lines: stri
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Image impossible'))), 'image/png'),
   );
 }
-
 
 /** Sources de la carte : attribution et lien pour signaler une erreur, demandés par OpenStreetMap et FOSSGIS. */
 export function MapCredits() {
