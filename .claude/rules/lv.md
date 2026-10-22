@@ -31,4 +31,4 @@ Début et fin de journée, chargement, livraison, carburant (Doumen, AS24, DKV ;
 
 ## Kilométrage en photo
 
-Bouton « Lire le km sur le chrono » sous le compteur ; la même fonction `read-waybill` (`kind: 'odometer'`, Haiku) lit l'écran du chrono (VDO DTCO à l'arrêt : « 123456.7km ») ou le compteur. Photo envoyée directement, non stockée, comptée dans les mêmes limites. Alerte si le km est inférieur au dernier relevé ou s'il y a plus de 2000 km d'écart. Choix : pas de Bluetooth du chrono (DTCO 4.1, interface ITS : appli native, km pas garanti) ; fichier `.ddd` de la carte conducteur, piste possible plus tard pour vérifier les km.
+Appareil photo au bout de la ligne « Compteur » ; la même fonction `read-waybill` (`kind: 'odometer'`, Haiku) lit l'écran du chrono (VDO DTCO à l'arrêt : « 123456.7km ») ou le compteur. Photo envoyée directement, non stockée, comptée dans les mêmes limites. Alerte si le km est inférieur au dernier relevé ou s'il y a plus de 2000 km d'écart. Choix : pas de Bluetooth du chrono (DTCO 4.1, interface ITS : appli native, km pas garanti) ; fichier `.ddd` de la carte conducteur, piste possible plus tard pour vérifier les km.

@@ -589,30 +589,17 @@ export default function EventForm({ event, onClose }: Props) {
                     onChange={(e) => setKm(e.target.value.replace(/\D/g, ''))}
                     placeholder="km"
                   />
-                  {!isFuel && (
-                    <button
-                      type="button"
-                      className="btn-secondary row-icon-btn"
-                      onClick={() => kmCamera.current?.click()}
-                      disabled={kmReading?.state === 'busy'}
-                      aria-label="Lire le km sur le chrono"
-                      title="Lire le km sur le chrono"
-                    >
-                      {kmReading?.state === 'busy' ? <LoaderCircle size={20} className="spin" /> : <Camera size={20} />}
-                    </button>
-                  )}
-                </div>
-                {isFuel && (
                   <button
                     type="button"
-                    className="btn-secondary btn-icon lv-add"
+                    className="btn-secondary row-icon-btn"
                     onClick={() => kmCamera.current?.click()}
                     disabled={kmReading?.state === 'busy'}
+                    aria-label="Lire le km sur le chrono"
+                    title="Lire le km sur le chrono"
                   >
                     {kmReading?.state === 'busy' ? <LoaderCircle size={20} className="spin" /> : <Camera size={20} />}
-                    Lire le km sur le chrono
                   </button>
-                )}
+                </div>
                 <input
                   ref={kmCamera}
                   type="file"
