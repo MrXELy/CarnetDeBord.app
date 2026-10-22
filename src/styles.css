@@ -506,7 +506,7 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
 
 /* Repos trop court (RSE) sur un début de journée */
 .marker-alert { flex: none; display: flex; }
-.marker-alert.rest-warn { color: #f59e0b; }
+.marker-alert.rest-warn { color: #ffd28a; }
 .marker-alert.rest-error { color: var(--danger); }
 
 .card-body {
@@ -753,8 +753,8 @@ legend { margin-bottom: 6px; }
 .read-tag {
   padding: 1px 7px;
   border-radius: 999px;
-  background: rgba(52, 211, 153, 0.14);
-  color: #6ee7b7;
+  background: #22432f;
+  color: #c6f0da;
   font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -762,8 +762,8 @@ legend { margin-bottom: 6px; }
 
 /* L'IA n'est pas sûre de sa lecture : à vérifier en priorité */
 .read-tag-doubt {
-  background: rgba(251, 146, 60, 0.16);
-  color: #fdba74;
+  background: #4a3613;
+  color: #ffe2ad;
 }
 .reading-details dd .read-tag { margin-left: 8px; }
 
@@ -778,20 +778,27 @@ legend { margin-bottom: 6px; }
 .form-block {
   display: grid;
   gap: 14px;
-  padding: 14px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 16px;
+  border-radius: 22px;
+  background: var(--glass);
 }
+
+/* Blocs chargeur (bleu) et destinataire (vert) de la fiche LV */
+.form-block[class*='tone-'] { background: var(--tone-bg); }
+.form-block[class*='tone-'] label,
+.form-block[class*='tone-'] .label,
+.form-block[class*='tone-'] dt { color: var(--tone-sub); }
+.form-block[class*='tone-'] dd { color: var(--tone); }
+.form-block[class*='tone-'] input,
+.form-block[class*='tone-'] textarea { background: rgba(0, 0, 0, 0.22); }
 
 .context-pill {
   justify-self: start;
   margin: 0;
-  padding: 5px 12px;
+  padding: 6px 12px;
   border-radius: 14px;
-  background: rgba(96, 165, 250, 0.12);
-  border: 1px solid rgba(96, 165, 250, 0.25);
-  color: #93c5fd;
+  background: var(--glass);
+  color: var(--text);
   font-size: 0.78rem;
   font-weight: 700;
   /* Chargement sur la première ligne, livraison sur la deuxième. */
@@ -862,8 +869,20 @@ legend { margin-bottom: 6px; }
 .tank-choice button.selected { background: #4a3613; color: #ffe2ad; }
 .tank-choice button.selected small { color: #d4b886; }
 
-/* Filtres des LV : compteur en gros au-dessus, libellé en petit dessous */
-.segmented.stacked button { display: grid; justify-items: center; gap: 1px; padding: 8px 4px; }
+/* Filtres des LV : grandes cases, compteur en gros au-dessus, libellé en petit dessous */
+.segmented.stacked { gap: 8px; padding: 0; background: none; }
+.segmented.stacked button {
+  display: grid;
+  justify-items: start;
+  align-content: center;
+  gap: 1px;
+  min-height: 72px;
+  padding: 8px 14px;
+  border-radius: 20px;
+  background: var(--glass);
+  color: var(--text);
+}
+.segmented.stacked button.selected { background: var(--accent); color: var(--accent-text); }
 .segmented-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; }
 
 .hint {
@@ -882,8 +901,8 @@ legend { margin-bottom: 6px; }
   margin: 0;
   padding: 10px 12px;
   border-radius: 14px;
-  background: #3a1d1d;
-  color: #fecaca;
+  background: #3a2024;
+  color: #ffc9cd;
   font-size: 0.9rem;
 }
 
@@ -1035,12 +1054,12 @@ legend { margin-bottom: 6px; }
 .badge {
   justify-self: start;
   display: inline-block;
-  padding: 1px 8px;
-  border-radius: 999px;
+  padding: 4px 10px;
+  border-radius: 12px;
   font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  font-weight: 700;
+  color: #ffe2ad;
+  background: #4a3613;
 }
 
 .lv-list { display: grid; gap: 8px; }
@@ -1049,11 +1068,10 @@ legend { margin-bottom: 6px; }
   display: flex;
   align-items: center;
   gap: 4px;
-  padding-left: 14px;
+  padding-left: 16px;
   background: var(--glass);
-  border: 1px solid var(--glass-border);
-  border-radius: 18px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  border: 3px solid transparent;
+  border-radius: 22px;
 }
 
 .lv-row.selected {
@@ -1074,33 +1092,23 @@ legend { margin-bottom: 6px; }
   min-width: 0;
   display: grid;
   gap: 2px;
-  padding: 12px 6px 12px 0;
+  padding: 14px 8px 14px 0;
   border: none;
   background: transparent;
   text-align: left;
   font-weight: 400;
 }
 
-.lv-title { font-weight: 800; color: var(--text); }
+.lv-title { font-size: 1.05rem; font-weight: 800; color: var(--text); }
 
-/* État de la lettre (page des LV) : point coloré et libellé, à droite du titre */
+/* État de la lettre (page des LV) : étiquette colorée à droite du titre */
 .lv-state {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   margin-left: auto;
+  padding: 4px 10px;
+  border-radius: 12px;
   font-size: 0.75rem;
   font-weight: 700;
   white-space: nowrap;
-}
-
-.lv-state::before {
-  content: '';
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-  box-shadow: 0 0 8px currentColor;
 }
 
 .lv-meta {
@@ -1123,22 +1131,25 @@ legend { margin-bottom: 6px; }
 }
 
 .lv-status { font-weight: 600; }
-.lv-status-a_completer { color: var(--accent); }
-.lv-status-dans_camion { color: #60a5fa; }
-.lv-status-livree { color: var(--ok); }
+.lv-status-a_completer { color: #ffe2ad; }
+.lv-status-dans_camion { color: #cfe0ff; }
+.lv-status-livree { color: #c6f0da; }
+.lv-state.lv-status-dans_camion { background: #233a5c; }
+.lv-state.lv-status-livree { background: #22432f; }
 
 .lv-add { justify-content: center; font-weight: 600; }
 
-.segmented-count { font-size: 1.15rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.segmented-count { font-size: 1.6rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
 
 .search {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-left: 14px;
+  min-height: 56px;
+  padding-left: 16px;
   background: var(--glass);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
+  border: 2px solid transparent;
+  border-radius: 18px;
   color: var(--muted);
 }
 
@@ -1279,8 +1290,8 @@ legend { margin-bottom: 6px; }
   overflow: hidden;
   display: grid;
   place-items: center;
-  border: 1px solid var(--glass-border);
-  border-radius: 16px;
+  border: none;
+  border-radius: 20px;
   background: var(--glass);
   color: #c7cbd4;
 }
@@ -1290,8 +1301,8 @@ legend { margin-bottom: 6px; }
 .photo-add {
   align-content: center;
   gap: 4px;
-  border: 1.5px dashed rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.03);
+  border: 2px dashed #444856;
+  background: none;
   font-size: 0.8rem;
   font-weight: 700;
   text-align: center;
@@ -1304,9 +1315,9 @@ legend { margin-bottom: 6px; }
   align-items: center;
   gap: 8px;
   margin: 0;
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px solid var(--glass-border);
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: none;
   font-size: 0.85rem;
   font-weight: 500;
   color: var(--text);
@@ -1314,9 +1325,9 @@ legend { margin-bottom: 6px; }
   animation: fade-in 0.3s ease both;
 }
 
-.reading-done { background: rgba(52, 211, 153, 0.12); border-color: rgba(52, 211, 153, 0.28); color: #a7f3d0; }
-.reading-error { background: rgba(248, 113, 113, 0.12); border-color: rgba(248, 113, 113, 0.3); color: #fecaca; }
-.reading-waiting { background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.3); color: #fde68a; }
+.reading-done { background: #22432f; color: #c6f0da; }
+.reading-error { background: #3a2024; color: #ffc9cd; }
+.reading-waiting { background: #4a3613; color: #ffe2ad; }
 
 /*
  * Lecture d'une LV : une seule ligne, coupée par « … » (le texte complet est dans « Détails »).
@@ -1944,19 +1955,19 @@ button.st-kv-item:active { transform: scale(0.97); }
   align-items: flex-start;
   gap: 10px;
   margin: 0;
-  padding: 10px 12px;
-  border-radius: 14px;
-  border: 1px solid var(--glass-border);
+  padding: 12px 14px;
+  border-radius: 20px;
+  border: none;
   background: var(--glass);
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   color: var(--muted);
   animation: fade-in 0.3s ease both;
 }
 
 .rest-notice svg { flex: none; margin-top: 1px; }
 .rest-notice ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.rest-notice.rest-warn { background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.3); color: #fde68a; }
-.rest-notice.rest-error { background: rgba(248, 113, 113, 0.12); border-color: rgba(248, 113, 113, 0.3); color: #fecaca; }
+.rest-notice.rest-warn { background: #4a3613; color: #ffe2ad; }
+.rest-notice.rest-error { background: #3a2024; color: #ffc9cd; }
 .rest-notice.rest-error .rest-line-error { font-weight: 600; }
 .rest-notice:not(.rest-ok) .rest-line-ok { opacity: 0.8; }
 
@@ -1992,10 +2003,10 @@ button.st-kv-item:active { transform: scale(0.97); }
 /* Options : échéances */
 .reminder-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
 .reminder-hint { margin: 0 4px; }
-.setting-row.reminder-warn { background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.45); }
-.setting-row.reminder-error { background: rgba(248, 113, 113, 0.12); border-color: rgba(248, 113, 113, 0.5); }
-.setting-row.reminder-warn .setting-title { color: #fde68a; }
-.setting-row.reminder-error .setting-title { color: #fecaca; }
+.setting-row.reminder-warn { background: #4a3613; }
+.setting-row.reminder-error { background: #3a2024; }
+.setting-row.reminder-warn .setting-title { color: #ffe2ad; }
+.setting-row.reminder-error .setting-title { color: #ffc9cd; }
 
 /* Statistiques : alertes de repos, toucher ouvre le jour */
 .st-rest-alerts { display: grid; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; }
@@ -2004,15 +2015,15 @@ button.st-kv-item:active { transform: scale(0.97); }
   gap: 2px;
   width: 100%;
   padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(245, 158, 11, 0.3);
-  background: rgba(245, 158, 11, 0.1);
-  color: #fde68a;
+  border-radius: 16px;
+  border: none;
+  background: #4a3613;
+  color: #ffe2ad;
   font: inherit;
   font-size: 0.8rem;
   text-align: left;
 }
-.st-rest-alert.rest-error { border-color: rgba(248, 113, 113, 0.3); background: rgba(248, 113, 113, 0.1); color: #fecaca; }
+.st-rest-alert.rest-error { background: #3a2024; color: #ffc9cd; }
 .st-rest-alert b { font-size: 0.75rem; text-transform: capitalize; }
 .st-rest-alert:active { transform: scale(0.98); }
 

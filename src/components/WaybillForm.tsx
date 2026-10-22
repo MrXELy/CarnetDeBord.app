@@ -352,6 +352,7 @@ export default function WaybillForm(props: Props) {
                 </div>
               )}
               <Fields
+                tone="chargement"
                 rows={[
                   ['Client chargeur (expéditeur)', shipper],
                   ['Ville de chargement', steps.loading ? formatPlace(steps.loading.place) : ''],
@@ -359,6 +360,7 @@ export default function WaybillForm(props: Props) {
                 ]}
               />
               <Fields
+                tone="livraison"
                 rows={[
                   ['Client destinataire', consignee],
                   ['Ville de livraison prévue', plannedText(planned)],
@@ -464,8 +466,8 @@ export default function WaybillForm(props: Props) {
               ))}
             </datalist>
 
-            {/* Fiche en blocs : côté chargeur, côté destinataire, puis numéro et marchandise. */}
-            <div className="form-block">
+            {/* Fiche en blocs : côté chargeur (bleu), côté destinataire (vert), puis numéro et marchandise. */}
+            <div className="form-block tone-chargement">
               <label>
                 <span className="label-line">Client chargeur (expéditeur){readTag('shipper', shipper)}</span>
                 <input list="known-names" value={shipper} onChange={(e) => setShipper(e.target.value)} />
@@ -486,7 +488,7 @@ export default function WaybillForm(props: Props) {
               {stepError && <p className="form-message">{stepError}</p>}
             </div>
 
-            <div className="form-block">
+            <div className="form-block tone-livraison">
               <label>
                 <span className="label-line">Client destinataire{readTag('consignee', consignee)}</span>
                 <input list="known-names" value={consignee} onChange={(e) => setConsignee(e.target.value)} />
@@ -556,11 +558,11 @@ export default function WaybillForm(props: Props) {
 }
 
 /** Informations de la LV en lecture seule ; une ligne vide n'est pas affichée, ni un bloc tout vide. */
-function Fields({ rows }: { rows: [string, string][] }) {
+function Fields({ rows, tone }: { rows: [string, string][]; tone?: 'chargement' | 'livraison' }) {
   const shown = rows.filter(([, value]) => value.trim());
   if (!shown.length) return null;
   return (
-    <dl className="form-block lv-fields">
+    <dl className={`form-block lv-fields${tone ? ` tone-${tone}` : ''}`}>
       {shown.map(([label, value]) => (
         <div key={label}>
           <dt>{label}</dt>
