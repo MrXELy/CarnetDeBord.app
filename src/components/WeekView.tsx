@@ -11,9 +11,10 @@ import {
   Settings as SettingsIcon,
 } from 'lucide-react';
 import { Suspense, lazy, useMemo, useState } from 'react';
-import { currentDay, dayLabel, groupWeek, summarizeWeek, weekStart } from '../lib/dates';
+import { currentDay, dayLabel, durationLabel, groupWeek, summarizeDay, summarizeWeek, weekStart } from '../lib/dates';
 import { formatPlace } from '../lib/geo';
 import { unfinishedStep } from '../lib/onSite';
+import { dayLimit } from '../lib/rest';
 import { useEvents } from '../lib/useEvents';
 import { useNow } from '../lib/useNow';
 import { waybillStatus, type TripEvent } from '../types';
@@ -69,6 +70,9 @@ export default function WeekView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [events, thisWeek.getTime()],
   );
+  const todaySummary = summarizeDay(today.events);
+  // Journée en cours : heure limite de fin (RSE), en tuile à côté des km du jour.
+  const limit = useMemo(() => (today.inProgress ? dayLimit(events, now) : null), [today.inProgress, events, now]);
   const toComplete = waybills.filter((w) => waybillStatus(w) === 'a_completer').length;
   // Avant le début de journée : rappel des livraisons à faire.
   const inTruck = today.inProgress ? [] : store.inTruck(now);
@@ -123,6 +127,35 @@ export default function WeekView() {
           <ArrowUpRight size={28} strokeWidth={2.2} aria-hidden />
         </button>
 
+        {today.events.length > 0 && (
+          <div className="today-tiles">
+            <div className="today-tile">
+              <span>{today.inProgress ? 'Journée en cours' : 'Aujourd’hui'}</span>
+              <b>{todaySummary.km != null ? `${todaySummary.km.toLocaleString('fr-FR')} km` : '—'}</b>
+            </div>
+            {limit ? (
+              <div className={`today-tile rest-${limit.level}`} title={limit.lines[0]?.text}>
+                <span>{limit.level === 'error' ? 'Limite dépassée' : 'Fin de journée avant'}</span>
+                <b>{format(limit.until, 'HH:mm')}</b>
+                <small>
+                  {limit.level === 'error'
+                    ? `depuis ${format(limit.last, 'HH:mm')}`
+                    : limit.until < limit.last
+                      ? `${format(limit.last, 'HH:mm')} au plus tard`
+                      : 'au plus tard'}
+                </small>
+              </div>
+            ) : (
+              todaySummary.amplitude != null && (
+                <div className="today-tile">
+                  <span>Amplitude</span>
+                  <b>{durationLabel(todaySummary.amplitude)}</b>
+                </div>
+              )
+            )}
+          </div>
+        )}
+
         {inTruck.length > 0 && (
           <section className="in-truck">
             <h2 className="home-h2">
@@ -161,7 +194,8 @@ export default function WeekView() {
           <div className="days">
             <DaySection
               day={today}
-              title={today.inProgress ? 'Journée en cours' : 'Aujourd’hui'}
+              title="Étapes du jour"
+              noLimit
               index={0}
               onOpen={(event) => setEditing({ event })}
               onMap={() => {

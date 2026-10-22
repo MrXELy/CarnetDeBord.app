@@ -2378,3 +2378,16 @@ button.st-kv-item:active { transform: scale(0.97); }
 .reminder-text { align-items: center; gap: 12px; }
 .reminder-text > svg { width: 44px; height: 44px; padding: 11px; border-radius: 14px; background: rgba(0, 0, 0, 0.2); margin-top: 0; }
 .reminder-snooze { width: 48px; height: 48px; border-radius: 16px; }
+
+/* Accueil : km du jour et heure limite de fin, deux tuiles côte à côte */
+.today-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 10px; }
+.today-tile { display: grid; align-content: start; gap: 2px; padding: 14px 16px; border-radius: 22px; background: var(--glass); }
+.today-tile span { font-size: 0.85rem; color: var(--muted); }
+.today-tile b { font-size: 1.8rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.today-tile small { font-size: 0.78rem; color: var(--muted); }
+.today-tile.rest-warn { background: #4a3613; color: #ffe2ad; }
+.today-tile.rest-error { background: #3a2024; color: #ffc9cd; }
+.today-tile.rest-warn span,
+.today-tile.rest-warn small,
+.today-tile.rest-error span,
+.today-tile.rest-error small { color: inherit; }
