@@ -6,7 +6,7 @@ paths: ["src/lib/weekSheet.ts", "src/lib/weekSheet.test.ts", "src/lib/weekSheetP
 
 `src/lib/weekSheet.ts` : contenu (calcul pur, testé) ; `src/lib/weekSheetPdf.ts` : dessin en PDF (jsPDF, importé à la demande).
 
-- Pastille à icône de document sous la semaine, à côté des pastilles des frais et de la carte. La feuille papier de l'entreprise (A3 pliée) redessinée, cadre bordeaux et données en bleu, 3 pages : page 1 en A4 (conducteur, tracteur, agence, semaine n° du lundi au samedi, départ de chaque jour : lieu et km du premier début de journée, départ du dimanche soir sur la ligne Dimanche), intérieur en A3 paysage (chargements et livraisons), page 4 en A4 paysage (carburant), puis page 5 en A4 : feuille de remboursement de frais (noir, voir plus bas). Partagée sur téléphone, téléchargée sur PC.
+- Case « Feuille » dans la page Semaine, à côté des cases des frais et de la carte. La feuille papier de l'entreprise (A3 pliée) redessinée, cadre bordeaux et données en bleu, 3 pages : page 1 en A4 (conducteur, tracteur, agence, semaine n° du lundi au samedi, départ de chaque jour : lieu et km du premier début de journée, départ du dimanche soir sur la ligne Dimanche), intérieur en A3 paysage (chargements et livraisons), page 4 en A4 paysage (carburant), puis page 5 en A4 : feuille de remboursement de frais (noir, voir plus bas). Partagée sur téléphone, téléchargée sur PC.
 - Nom du conducteur, agence, matricule, date d'embauche et 5 colonnes « Dépôts » (titre + villes des pleins) dans les Options (`user_settings.week_sheet`, migration 009), **jamais dans le code**.
 
 ## Règles validées avec l'utilisateur sur ses semaines

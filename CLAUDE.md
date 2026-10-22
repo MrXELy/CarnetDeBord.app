@@ -52,7 +52,7 @@ Détails et règles validées avec l'utilisateur dans le fichier de `.claude/rul
 - **Feuille de semaine** : chaque chargement et livraison au jour où il a lieu, une ligne par LV ; consommation jamais remplie. → `feuille-semaine.md`
 - **Repos RSE** (CE 561/2006) : repos fractionné ignoré, pas de règle des 6 jours. → `repos.md`
 - **Mode démo** uniquement en développement, sans aucun appel à Supabase.
-- **Style « verre + frise »**, thème sombre, police Manrope, **le plus récent en premier**. → `interface.md`
+- **Style « grandes tuiles »** (remplace « verre + frise »), thème sombre, police Figtree, **le plus récent en premier** ; **accueil = journée en cours seulement**, la semaine s'ouvre depuis sa tuile. → `interface.md`
 
 ## Après chaque nouvelle fonction ou décision importante
 
