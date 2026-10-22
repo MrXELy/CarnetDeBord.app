@@ -7,6 +7,7 @@ import {
   setEntry,
   snooze,
   type ReminderSettings,
+  shortDelay,
 } from './reminders';
 
 const now = new Date('2026-10-19T10:00');
@@ -63,5 +64,18 @@ describe('échéances', () => {
     expect(reminderLevel(ct, { last: '2025-11-01', snoozedUntil: '2026-10-26' }, now)).toBe('warn');
     expect(reminderLevel(ct, { last: '2025-10-01' }, now)).toBe('error');
     expect(reminderLevel(ct, undefined, now)).toBeNull();
+  });
+});
+
+describe('shortDelay', () => {
+  const now = new Date(2026, 9, 22, 15);
+  it('jours, mois, ans', () => {
+    expect(shortDelay(new Date(2026, 10, 9), now)).toBe('18 j');
+    expect(shortDelay(new Date(2027, 2, 22), now)).toBe('5 mois');
+    expect(shortDelay(new Date(2028, 9, 22), now)).toBe('2 ans');
+  });
+  it('aujourd’hui et dépassée', () => {
+    expect(shortDelay(new Date(2026, 9, 22), now)).toBe('aujourd’hui');
+    expect(shortDelay(new Date(2026, 9, 1), now)).toBe('dépassée');
   });
 });

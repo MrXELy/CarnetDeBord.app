@@ -6,6 +6,7 @@ import { formatRate, intervalRate, isFullTank, type FuelInterval } from '../lib/
 import { formatPlace } from '../lib/geo';
 import { useStore } from '../lib/useEvents';
 import { namesOf } from '../lib/waybills';
+import EventIcon from './EventIcon';
 import { eventTypeInfo, isDayBoundary, waybillStatus, type TripEvent } from '../types';
 
 const litres = (n: number) => `${n.toLocaleString('fr-FR')} L`;
@@ -58,7 +59,9 @@ export default function EventCard({ event: e, onOpen }: { event: TripEvent; onOp
 
   return (
     <button className={`card tone-${e.type}`} onClick={onOpen}>
-      <span className="dot" aria-hidden />
+      <span className="card-icon">
+        <EventIcon type={e.type} size={22} strokeWidth={2} />
+      </span>
       <span className="card-body">
         <span className="card-top">
           <span className="card-type">{info.label}</span>

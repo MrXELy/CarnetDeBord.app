@@ -4,7 +4,7 @@ paths: ["src/lib/allowances.ts", "src/lib/allowances.test.ts", "src/components/A
 
 # Frais de déplacement (`src/lib/allowances.ts`)
 
-- Pastille des frais sous la semaine (icône et montant seulement, à côté de la pastille de la carte, icône seule ; ainsi les pastilles tiennent sur une ligne) (détail dans `AllowancesSheet.tsx`), tuile et section « Frais de route » dans les Statistiques (semaine, mois, année ; pas par jour).
+- Case des frais dans la page Semaine (icône et montant, à côté des cases carte et feuille, sur une ligne) (détail dans `AllowancesSheet.tsx`), tuile et section « Frais de route » dans les Statistiques (semaine, mois, année ; pas par jour).
 - Bases et tarifs (avec date d'effet) dans les Options, enregistrés dans `user_settings` (migration 006), **jamais dans le code**.
 
 ## Règles validées sur les vraies semaines avec l'utilisateur

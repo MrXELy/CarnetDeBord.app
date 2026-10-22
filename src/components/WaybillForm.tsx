@@ -1,5 +1,6 @@
 import { format, parseISO } from 'date-fns';
-import { Camera, ChevronDown, LoaderCircle, Pencil, ScanSearch, ScanText, X } from 'lucide-react';
+import { fr } from 'date-fns/locale';
+import { Camera, Check, ChevronDown, Pencil, ScanSearch, ScanText, Trash2, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { toLocalInput } from '../lib/dates';
 import { formatPlace, placeFromLabel, resolveCity } from '../lib/geo';
@@ -19,7 +20,7 @@ import { placeChanged, type LinkedSteps, type NewLoading, type StepChanges } fro
 import { useSheet } from '../lib/useSheet';
 import { useStore } from '../lib/useEvents';
 import { isBlankWaybill } from '../lib/waybills';
-import type { Place, Waybill } from '../types';
+import { waybillStatus, type Place, type Waybill } from '../types';
 import PhotoViewer, { PhotoThumb } from './PhotoViewer';
 import PlaceField, { EMPTY_PLACE } from './PlaceField';
 import ReadingDetails from './ReadingDetails';
@@ -27,8 +28,6 @@ import ReadingDetails from './ReadingDetails';
 interface Props {
   waybill: Waybill;
   isNew: boolean;
-  /** Ligne d'information sous le titre (ex. « Chargé à Cognac (16) le 12/10 »). */
-  context?: string;
   /** Photo prise juste avant d'ouvrir la fiche (« Scanner une LV »). */
   initialPhoto?: Blob;
   /** Étapes de chargement et de livraison, modifiables depuis la fiche (absentes si la LV n'en a pas). */
@@ -40,7 +39,9 @@ interface Props {
 }
 
 type Reading =
-  { state: 'idle' } | { state: 'busy'; message: string } | { state: 'done' | 'error' | 'waiting'; message: string };
+  | { state: 'idle' }
+  | { state: 'busy'; message: string; step: 0 | 1 | 2 }
+  | { state: 'done' | 'error' | 'waiting'; message: string };
 
 const clean = (s: string) => s.trim() || null;
 
@@ -48,9 +49,6 @@ const plannedText = (p: Place) => (p.country_code ? formatPlace(p) : p.city);
 
 /** Date ISO → valeur d'un champ « date et heure » (vide si absente). */
 const localTime = (iso: string | null | undefined) => (iso ? toLocalInput(new Date(iso)) : '');
-
-/** Date d'une étape en lecture : « 16/10/2026 06:30 ». */
-const shownTime = (iso: string | null | undefined) => (iso ? format(parseISO(iso), 'dd/MM/yyyy HH:mm') : '');
 
 /** Nouvelle date ISO si le champ a été changé et reste valide, sinon rien. */
 function changedTime(value: string, iso: string | null | undefined): string | undefined {
@@ -60,7 +58,7 @@ function changedTime(value: string, iso: string | null | undefined): string | un
 }
 
 export default function WaybillForm(props: Props) {
-  const { waybill, isNew, context, initialPhoto, steps = {}, onSave, onDelete, onClose } = props;
+  const { waybill, isNew, initialPhoto, steps = {}, onSave, onDelete, onClose } = props;
   const store = useStore();
   // Une LV déjà remplie s'ouvre en lecture seule (rien ne peut s'effacer par erreur) ; « Modifier » ouvre la saisie.
   // Nouvelle LV ou LV encore vide : saisie directe.
@@ -148,7 +146,7 @@ export default function WaybillForm(props: Props) {
     const first = photos.length === 0;
     // Ligne de la lecture précédente, remise après l'ajout d'une photo qui n'est pas lue.
     const before = reading;
-    setReading({ state: 'busy', message: 'Préparation de la photo…' });
+    setReading({ state: 'busy', message: 'Préparation de la photo…', step: 0 });
     let path: string;
     try {
       const blob = await compressPhoto(file);
@@ -180,14 +178,15 @@ export default function WaybillForm(props: Props) {
       const progress = liveProgress(text);
       const steps = liveSteps(progress);
       setDetails({ mode, progress });
-      if (steps.length) setReading({ state: 'busy', message: steps[steps.length - 1] });
+      if (steps.length) setReading({ state: 'busy', message: steps[steps.length - 1], step: 2 });
     };
     try {
-      setReading({ state: 'busy', message: 'Envoi de la photo…' });
+      setReading({ state: 'busy', message: 'Envoi de la photo…', step: 1 });
       if (!demo) await uploadPending(store.userId);
       setReading({
         state: 'busy',
         message: mode === 'handwritten' ? 'Relecture en mode fiable…' : 'L’IA regarde la photo…',
+        step: 2,
       });
       const result = demo ? await demoReading(onText) : await readWaybillPhoto(path, mode, onText);
       setDetails({
@@ -302,13 +301,115 @@ export default function WaybillForm(props: Props) {
       <span className="read-tag">LU</span>
     ));
 
-  // LV vide à l'ouverture et encore sans photo : bouton « Scanner » à la place de la bande des photos.
-  const scanFirst = blankAtOpen && photos.length === 0;
+  // Pas encore de photo : gros bouton « Scanner » à la place de la bande des photos.
+  const scanFirst = photos.length === 0;
   const last = photos[photos.length - 1];
   const canRead = last && reading.state !== 'busy' && !read.has(last);
   // Après une lecture économique (réussie ou non) : possibilité de relire avec le modèle le plus fiable.
   const canReread =
     last && (reading.state === 'done' || reading.state === 'error') && read.has(last) && !reliable.has(last);
+
+  const status = waybillStatus({ ...waybill, number: clean(number) });
+  const STATUS = { a_completer: 'À compléter', dans_camion: 'Dans le camion', livree: 'Livrée' } as const;
+  const shortTime = (iso: string | null | undefined) =>
+    iso ? format(parseISO(iso), 'EEE d MMM · HH:mm', { locale: fr }) : '';
+
+  // Photos : bande de vignettes (avec « Ajouter » en saisie), ou gros bouton « Scanner » pour une LV vide.
+  const photoStrip = (
+    <div className="label">
+      {editing && scanFirst ? (
+        // LV vide sans photo : un seul gros bouton pour la photographier (lue ensuite automatiquement).
+        <button
+          type="button"
+          className="btn-primary btn-icon lv-add"
+          onClick={() => camera.current?.click()}
+          disabled={reading.state === 'busy'}
+        >
+          <Camera size={20} />
+          Scanner la lettre de voiture
+        </button>
+      ) : (
+        (photos.length > 0 || editing) && (
+          <div className="photo-strip">
+            {photos.map((path) => (
+              <PhotoThumb key={path} path={path} onOpen={() => setViewing(path)} />
+            ))}
+            {editing && (
+              <button
+                type="button"
+                className="photo-add"
+                onClick={() => camera.current?.click()}
+                disabled={reading.state === 'busy'}
+                aria-label={photos.length ? 'Ajouter une photo' : 'Photo de la LV'}
+              >
+                <Camera size={22} />
+                <span>{photos.length ? 'Ajouter' : 'Photo'}</span>
+              </button>
+            )}
+          </div>
+        )
+      )}
+      <input
+        ref={camera}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) void addPhoto(file);
+        }}
+      />
+    </div>
+  );
+
+  // Lecture de la photo : étapes pendant la lecture, puis une ligne (remarques de l'IA) et ses détails.
+  const readingBlock = (
+    <>
+      {reading.state === 'busy' && (
+        <ol className="reading-steps" aria-live="polite">
+          {[
+            'Préparation de la photo',
+            'Envoi de la photo',
+            details?.mode === 'handwritten' ? 'Relecture en mode fiable' : 'L’IA regarde la photo',
+          ].map((label, i) => (
+            <li key={label} className={i < reading.step ? 'done' : i === reading.step ? 'current' : ''}>
+              <span className="reading-step-mark" aria-hidden>
+                {i < reading.step && <Check size={16} strokeWidth={3} />}
+              </span>
+              {label}
+            </li>
+          ))}
+          {/* Pendant la lecture : la dernière remarque ou information écrite par l'IA. */}
+          {reading.step === 2 && !reading.message.endsWith('…') && <li className="reading-live">{reading.message}</li>}
+        </ol>
+      )}
+      {reading.state !== 'idle' && reading.state !== 'busy' && (
+        <div className={`reading reading-${reading.state}`}>
+          <span className="reading-text">{reading.message}</span>
+          {details && (
+            <button
+              type="button"
+              className="reading-more"
+              aria-expanded={showDetails}
+              onClick={() => setShowDetails((v) => !v)}
+            >
+              Détails
+              <ChevronDown size={14} />
+            </button>
+          )}
+        </div>
+      )}
+      {details && showDetails && <ReadingDetails details={details} />}
+      {canRead && (
+        <button type="button" className="btn-secondary btn-icon lv-add" onClick={() => void readPhoto(last)}>
+          <ScanText size={18} />
+          Lire la photo
+        </button>
+      )}
+    </>
+  );
 
   return (
     <>
@@ -319,144 +420,45 @@ export default function WaybillForm(props: Props) {
               <X size={22} />
             </button>
             <h2>{isNew ? 'Nouvelle lettre de voiture' : 'Lettre de voiture'}</h2>
-            {editing ? (
-              <button key="ok" className="btn-primary btn-small">
-                OK
-              </button>
-            ) : (
-              // Passe la fiche en saisie. Clé différente de « OK » : React ne réutilise pas ce bouton en le
-              // changeant en bouton d'envoi pendant le toucher (le formulaire partirait et la fiche se fermerait).
-              <button
-                key="edit"
-                type="button"
-                className="btn-primary btn-small btn-icon"
-                onClick={() => setEditing(true)}
-              >
-                <Pencil size={16} aria-hidden />
-                Modifier
-              </button>
-            )}
+            <span className={`lv-state lv-status-${status}`}>{STATUS[status]}</span>
           </header>
 
           {!editing && (
             <div className="modal-body">
-              {context && <p className="context-pill">{context}</p>}
-              {photos.length > 0 && (
-                <div className="label">
-                  Photos
-                  <div className="photo-strip">
-                    {photos.map((path) => (
-                      <PhotoThumb key={path} path={path} onOpen={() => setViewing(path)} />
-                    ))}
-                  </div>
+              {photoStrip}
+              {notes.trim() && (
+                <div className="lv-remarks">
+                  <b>Remarques</b>
+                  <span>{notes}</span>
                 </div>
               )}
+              <div className="lv-steps">
+                <div className="lv-step tone-chargement">
+                  <span className="lv-step-label">Chargement</span>
+                  <span className="lv-step-city">{steps.loading ? formatPlace(steps.loading.place) || '?' : '?'}</span>
+                  <span className="lv-step-when">{shortTime(steps.loading?.at)}</span>
+                </div>
+                <div className="lv-step tone-livraison">
+                  <span className="lv-step-label">{steps.delivery ? 'Livraison' : 'Livraison prévue'}</span>
+                  <span className="lv-step-city">{plannedText(planned) || '?'}</span>
+                  <span className="lv-step-when">{steps.delivery ? shortTime(steps.delivery.at) : 'à livrer'}</span>
+                </div>
+              </div>
               <Fields
                 rows={[
-                  ['Client chargeur (expéditeur)', shipper],
-                  ['Ville de chargement', steps.loading ? formatPlace(steps.loading.place) : ''],
-                  ['Date et heure de chargement', shownTime(steps.loading?.at)],
-                ]}
-              />
-              <Fields
-                rows={[
-                  ['Client destinataire', consignee],
-                  ['Ville de livraison prévue', plannedText(planned)],
-                  ['Date et heure de livraison', shownTime(steps.delivery?.at)],
-                ]}
-              />
-              <Fields
-                rows={[
-                  ['N° lettre de voiture', number || 'À compléter'],
+                  ['N° LV', number || 'À compléter'],
+                  ['Expéditeur', shipper],
+                  ['Destinataire', consignee],
                   ['Marchandise', goods],
                   ['Poids', weight && `${weight} kg`],
-                  ['Remarques', notes],
                 ]}
               />
             </div>
           )}
 
           <div className="modal-body" hidden={!editing}>
-            {context && <p className="context-pill">{context}</p>}
-
-            <div className="label">
-              {scanFirst ? (
-                // LV vide sans photo : un seul gros bouton pour la photographier (lue ensuite automatiquement).
-                <button
-                  type="button"
-                  className="btn-primary btn-icon lv-add"
-                  onClick={() => camera.current?.click()}
-                  disabled={reading.state === 'busy'}
-                >
-                  <Camera size={18} />
-                  Scanner la lettre de voiture
-                </button>
-              ) : (
-                <>
-                  Photos
-                  <div className="photo-strip">
-                    {photos.map((path) => (
-                      <PhotoThumb key={path} path={path} onOpen={() => setViewing(path)} />
-                    ))}
-                    <button
-                      type="button"
-                      className="photo-add"
-                      onClick={() => camera.current?.click()}
-                      disabled={reading.state === 'busy'}
-                    >
-                      <Camera size={22} />
-                      <span>{photos.length ? 'Ajouter' : 'Photo de la LV'}</span>
-                    </button>
-                  </div>
-                </>
-              )}
-              <input
-                ref={camera}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                hidden
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  e.target.value = '';
-                  if (file) void addPhoto(file);
-                }}
-              />
-              {reading.state !== 'idle' && (
-                <div className={`reading reading-${reading.state}`}>
-                  {reading.state === 'busy' && <LoaderCircle size={16} className="spin" />}
-                  <span className="reading-text">{reading.message}</span>
-                  {details && (
-                    <button
-                      type="button"
-                      className="reading-more"
-                      aria-expanded={showDetails}
-                      onClick={() => setShowDetails((v) => !v)}
-                    >
-                      Détails
-                      <ChevronDown size={14} />
-                    </button>
-                  )}
-                </div>
-              )}
-              {details && showDetails && <ReadingDetails details={details} />}
-              {canRead && (
-                <button type="button" className="btn-secondary btn-icon lv-add" onClick={() => void readPhoto(last)}>
-                  <ScanText size={18} />
-                  Lire la photo
-                </button>
-              )}
-              {canReread && (
-                <button
-                  type="button"
-                  className="btn-secondary btn-icon lv-add"
-                  onClick={() => void readPhoto(last, 'handwritten')}
-                >
-                  <ScanSearch size={18} />
-                  Relire en mode fiable (≈ 2 centimes)
-                </button>
-              )}
-            </div>
+            {photoStrip}
+            {readingBlock}
 
             <datalist id="known-names">
               {names.map((n) => (
@@ -464,53 +466,53 @@ export default function WaybillForm(props: Props) {
               ))}
             </datalist>
 
-            {/* Fiche en blocs : côté chargeur, côté destinataire, puis numéro et marchandise. */}
-            <div className="form-block">
-              <label>
-                <span className="label-line">Client chargeur (expéditeur){readTag('shipper', shipper)}</span>
-                <input list="known-names" value={shipper} onChange={(e) => setShipper(e.target.value)} />
-              </label>
-              <div className="label">
-                Ville de chargement
-                <PlaceField value={loading} onChange={setLoading} />
-              </div>
+            {/* Côté chargement (bleu), puis côté livraison (vert), puis la lettre elle-même. */}
+            <div className="lv-step lv-step-edit tone-chargement">
+              <span className="lv-step-label">Chargement</span>
+              <PlaceField value={loading} onChange={setLoading} compact />
               {(steps.loading?.at || noLoading) && (
-                <label>
-                  Date et heure de chargement
-                  <input type="datetime-local" value={loadingWhen} onChange={(e) => setLoadingWhen(e.target.value)} />
-                </label>
+                <input
+                  type="datetime-local"
+                  aria-label="Date et heure de chargement"
+                  value={loadingWhen}
+                  onChange={(e) => setLoadingWhen(e.target.value)}
+                />
               )}
               {noLoading && (
                 <p className="hint">Ville et date remplies : l’étape de chargement est ajoutée à ce jour-là.</p>
               )}
               {stepError && <p className="form-message">{stepError}</p>}
             </div>
-
-            <div className="form-block">
-              <label>
-                <span className="label-line">Client destinataire{readTag('consignee', consignee)}</span>
-                <input list="known-names" value={consignee} onChange={(e) => setConsignee(e.target.value)} />
-              </label>
-              <div className="label">
-                <span className="label-line">
-                  Ville de livraison prévue{readTag('planned_city', plannedText(planned))}
-                </span>
-                <PlaceField key={plannedKey} value={planned} onChange={setPlanned} />
-              </div>
+            <div className="lv-step lv-step-edit tone-livraison">
+              <span className="lv-step-label">
+                {steps.delivery ? 'Livraison' : 'Livraison prévue'}
+                {readTag('planned_city', plannedText(planned))}
+              </span>
+              <PlaceField key={plannedKey} value={planned} onChange={setPlanned} compact />
               {steps.delivery?.at && (
-                <label>
-                  Date et heure de livraison
-                  <input type="datetime-local" value={deliveryWhen} onChange={(e) => setDeliveryWhen(e.target.value)} />
-                </label>
+                <input
+                  type="datetime-local"
+                  aria-label="Date et heure de livraison"
+                  value={deliveryWhen}
+                  onChange={(e) => setDeliveryWhen(e.target.value)}
+                />
               )}
             </div>
 
-            <div className="form-block">
-              <label>
-                <span className="label-line">N° lettre de voiture{readTag('number', number)}</span>
-                <input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="À compléter plus tard" />
+            <div className="field-group">
+              <label className="field-row">
+                <span className="label-line">N° LV{readTag('number', number)}</span>
+                <input value={number} onChange={(e) => setNumber(e.target.value)} placeholder="À compléter" />
               </label>
-              <label>
+              <label className="field-row">
+                <span className="label-line">Expéditeur{readTag('shipper', shipper)}</span>
+                <input list="known-names" value={shipper} onChange={(e) => setShipper(e.target.value)} />
+              </label>
+              <label className="field-row">
+                <span className="label-line">Destinataire{readTag('consignee', consignee)}</span>
+                <input list="known-names" value={consignee} onChange={(e) => setConsignee(e.target.value)} />
+              </label>
+              <label className="field-stack">
                 <span className="label-line">Marchandise{readTag('goods', goods)}</span>
                 <textarea
                   ref={goodsField}
@@ -521,22 +523,58 @@ export default function WaybillForm(props: Props) {
                   placeholder="Palettes de plâtre…"
                 />
               </label>
-              <div className="row">
-                <label>
-                  <span className="label-line">Poids (kg){readTag('weight_kg', weight)}</span>
-                  <input type="text" inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} />
-                </label>
-                <label>
-                  Remarques
-                  <input value={notes} onChange={(e) => setNotes(e.target.value)} />
-                </label>
-              </div>
+              <label className={`field-row${weight.trim() ? '' : ' field-missing'}`}>
+                <span className="label-line">Poids (kg){readTag('weight_kg', weight)}</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={weight}
+                  onChange={(e) => setWeight(e.target.value)}
+                  placeholder="À compléter"
+                />
+              </label>
+              <label className="field-row">
+                Remarques
+                <input value={notes} onChange={(e) => setNotes(e.target.value)} />
+              </label>
             </div>
+          </div>
 
-            <button className="btn-primary btn-block">OK</button>
-            {onDelete && (
-              <button type="button" className="btn-danger btn-block" onClick={remove}>
-                Supprimer la lettre
+          {/* Bas toujours visible : modifier (lecture seule), ou supprimer, relire et enregistrer (saisie). */}
+          <div className="form-footer">
+            {editing ? (
+              <>
+                {onDelete && (
+                  <button
+                    type="button"
+                    className="btn-danger footer-delete"
+                    onClick={remove}
+                    aria-label="Supprimer la lettre"
+                  >
+                    <Trash2 size={22} />
+                  </button>
+                )}
+                {canReread && (
+                  <button
+                    type="button"
+                    className="btn-secondary btn-icon footer-secondary"
+                    onClick={() => void readPhoto(last, 'handwritten')}
+                    title="Relire en mode fiable (≈ 2 centimes)"
+                  >
+                    <ScanSearch size={20} />
+                    Relire en mode fiable
+                  </button>
+                )}
+                <button key="ok" className="btn-primary">
+                  Enregistrer
+                </button>
+              </>
+            ) : (
+              // Passe la fiche en saisie. Clé différente de « Enregistrer » : React ne réutilise pas ce bouton en le
+              // changeant en bouton d'envoi pendant le toucher (le formulaire partirait et la fiche se fermerait).
+              <button key="edit" type="button" className="btn-primary btn-icon" onClick={() => setEditing(true)}>
+                <Pencil size={20} aria-hidden />
+                Modifier
               </button>
             )}
           </div>
@@ -555,14 +593,14 @@ export default function WaybillForm(props: Props) {
   );
 }
 
-/** Informations de la LV en lecture seule ; une ligne vide n'est pas affichée, ni un bloc tout vide. */
+/** Informations de la LV en lecture seule, une ligne « libellé … valeur » par champ ; les lignes vides sont cachées. */
 function Fields({ rows }: { rows: [string, string][] }) {
   const shown = rows.filter(([, value]) => value.trim());
   if (!shown.length) return null;
   return (
-    <dl className="form-block lv-fields">
+    <dl className="field-group lv-fields">
       {shown.map(([label, value]) => (
-        <div key={label}>
+        <div key={label} className={`field-row${value === 'À compléter' ? ' field-missing' : ''}`}>
           <dt>{label}</dt>
           <dd>{value}</dd>
         </div>

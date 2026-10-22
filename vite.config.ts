@@ -31,15 +31,15 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icons/icon.svg'],
-      // Police Manrope gardée hors ligne : seulement les caractères latins, utiles en français.
-      workbox: { globPatterns: ['**/*.{js,css,html}', '**/manrope-latin-*.woff2'] },
+      // Police Figtree gardée hors ligne : seulement les caractères latins, utiles en français.
+      workbox: { globPatterns: ['**/*.{js,css,html}', '**/figtree-latin-*.woff2'] },
       manifest: {
         name: 'CarnetDeBord.app',
         short_name: 'CarnetDeBord',
         description: 'Suivi des trajets du chauffeur routier',
         lang: 'fr',
-        theme_color: '#07080c',
-        background_color: '#07080c',
+        theme_color: '#1a1c22',
+        background_color: '#1a1c22',
         display: 'standalone',
         icons: [
           { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },

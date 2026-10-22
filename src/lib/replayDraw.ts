@@ -34,7 +34,7 @@ export function replayBox(replay: Replay, fmt: ReplayFormat): Box {
   return { x: cx - w / 2, y: cy - h / 2, width: w, height: h };
 }
 
-const FONT = '"Manrope Variable", system-ui, sans-serif';
+const FONT = '"Figtree Variable", system-ui, sans-serif';
 
 /** « Mardi 27 janvier » */
 function dayTitle(day: string): string {

@@ -7,6 +7,10 @@ import EventCard from './EventCard';
 
 interface Props {
   day: Day;
+  /** Titre à la place du nom du jour (accueil : « Journée en cours »). */
+  title?: string;
+  /** Sans l'heure limite de fin dessous (l'accueil la montre déjà en tuile). */
+  noLimit?: boolean;
   /** Rang du jour dans la semaine : décale l'apparition de ses étapes. */
   index: number;
   /** Étape trouvée par la recherche, mise en évidence. */
@@ -16,7 +20,7 @@ interface Props {
   onMap: () => void;
 }
 
-export default function DaySection({ day, index, found, onOpen, onMap }: Props) {
+export default function DaySection({ day, title, noLimit, index, found, onOpen, onMap }: Props) {
   const { km, amplitude } = summarizeDay(day.events);
   // Débuts de journée de moins de 24 h : la journée est peut-être en cours (heure limite de fin dessous).
   const recentStarts = day.events
@@ -26,7 +30,7 @@ export default function DaySection({ day, index, found, onOpen, onMap }: Props) 
     <section className="day">
       <h2 className="day-header">
         <span className="day-title">
-          {dayLabel(day.date)}
+          {title ?? dayLabel(day.date)}
           <button type="button" className="pill day-map" onClick={onMap} aria-label="Carte de la journée">
             <MapIcon size={13} aria-hidden />
           </button>
@@ -36,7 +40,7 @@ export default function DaySection({ day, index, found, onOpen, onMap }: Props) 
           {amplitude != null && <span>{durationLabel(amplitude)}</span>}
         </span>
       </h2>
-      {recentStarts.length > 0 && <DayLimitNotice startIds={recentStarts} />}
+      {!noLimit && recentStarts.length > 0 && <DayLimitNotice startIds={recentStarts} />}
       <ol className="timeline">
         {day.events.map((e, i) => (
           <li

@@ -1,11 +1,11 @@
-import { parseISO } from 'date-fns';
-import { AlarmClock, Camera, Eye, LoaderCircle, Pencil, Plus, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { format, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { AlarmClock, Camera, Check, ChevronRight, FileText, LoaderCircle, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { durationLabel, toLocalInput } from '../lib/dates';
 import { isDoumenCity, isFullTank } from '../lib/fuel';
-import { formatPlace } from '../lib/geo';
 import { numText, parseNum } from '../lib/numbers';
-import { hasEnd } from '../lib/onSite';
+import { endFromTime, hasEnd, suggestedType } from '../lib/onSite';
 import { odometerMessage, readOdometerPhoto } from '../lib/odometer';
 import { restartAdvice, restChecks } from '../lib/rest';
 import {
@@ -19,10 +19,12 @@ import {
 } from '../lib/places';
 import { useSheet } from '../lib/useSheet';
 import { useEvents } from '../lib/useEvents';
-import { isBlankWaybill, stopOf, waybillContext } from '../lib/waybills';
+import { isBlankWaybill } from '../lib/waybills';
 import {
   EVENT_TYPES,
   STATIONS,
+  eventTypeInfo,
+  isDayBoundary,
   newWaybill,
   type EventType,
   type Place,
@@ -34,7 +36,6 @@ import EventIcon from './EventIcon';
 import PlaceField, { EMPTY_PLACE } from './PlaceField';
 import RestNotice from './RestNotice';
 import WaybillForm from './WaybillForm';
-import WaybillLine from './WaybillLine';
 
 interface Props {
   event: TripEvent | null;
@@ -58,6 +59,8 @@ export default function EventForm({ event, onClose }: Props) {
   const [type, setType] = useState<EventType | null>(event?.type ?? null);
   const [tractor, setTractor] = useState(event?.tractor_plate ?? plates.tractor);
   const [trailer, setTrailer] = useState(event?.trailer_plate ?? plates.trailer);
+  // Plaques repliées sur une ligne (elles changent rarement), ouvertes d'office si le tracteur est inconnu.
+  const [editPlates, setEditPlates] = useState(() => !(event?.tractor_plate ?? plates.tractor));
   const [km, setKm] = useState(event?.odometer_km?.toString() ?? '');
   const [place, setPlace] = useState<Place>(event ?? EMPTY_PLACE);
   const [when, setWhen] = useState(toLocalInput(event ? parseISO(event.occurred_at) : new Date()));
@@ -70,7 +73,11 @@ export default function EventForm({ event, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   // Change quand le lieu est prérempli, pour réafficher le champ avec la nouvelle valeur.
   const [placeKey, setPlaceKey] = useState(0);
-  const [placeFromDayEnd, setPlaceFromDayEnd] = useState(false);
+  // Cases des types ouvertes : nouvelle étape (« Que fais-tu ? »), ou « Changer » touché.
+  const [pickType, setPickType] = useState(isNew);
+  // Ligne « Jour » ouverte (sinon « Aujourd'hui »), remarque ouverte sur une nouvelle étape.
+  const [showDay, setShowDay] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
 
   // Lettres de voiture : tout reste en brouillon jusqu'à « Enregistrer ».
   const [originalLoads] = useState(() => (event ? store.loadedAt(event.id) : []));
@@ -96,9 +103,10 @@ export default function EventForm({ event, onClose }: Props) {
   // Fin d'un chargement ou d'une livraison : facultative. Pas encore saisie : le champ montre l'heure d'arrivée,
   // mais rien n'est enregistré (le bouton « Fin » de l'accueil reste proposé).
   const withEnd = type != null && hasEnd(type);
-  const end = new Date(finished);
-  const finishedIso = withEnd && finished && !Number.isNaN(end.getTime()) ? end.toISOString() : null;
-  const onSite = finishedIso && whenIso ? Math.round((end.getTime() - at.getTime()) / 60000) : null;
+  // Seule l'heure de fin compte : son jour suit toujours celui de l'arrivée (le lendemain si plus tôt).
+  const end = withEnd && finished ? endFromTime(when, finished.slice(11, 16)) : null;
+  const finishedIso = end ? end.toISOString() : null;
+  const onSite = end && whenIso ? Math.round((end.getTime() - at.getTime()) / 60000) : null;
 
   // LV livrables ici : celles du camion à cette heure, celles déjà livrées ici, et celles créées ici.
   const pool = new Map<string, Waybill>();
@@ -222,6 +230,13 @@ export default function EventForm({ event, onClose }: Props) {
     if (isFuel && !station && isDoumenCity(place.city)) chooseStation('Doumen');
   }, [isFuel, station, place.city]);
 
+  // Nouvelle étape : type le plus probable déjà choisi (modifiable), avec les mêmes préremplissages qu'au toucher.
+  useEffect(() => {
+    if (!isNew) return;
+    const now = new Date();
+    chooseType(suggestedType(events, now, store.inTruck(now).length > 0)); // une seule fois, à l’ouverture
+  }, []);
+
   /**
    * Un chargement saisi reçoit d'office une LV vide, à compléter plus tard.
    * Un début de journée repart de la dernière fin de journée : le camion n'a normalement pas bougé.
@@ -245,7 +260,6 @@ export default function EventForm({ event, onClose }: Props) {
         lon: end.lon,
       });
       setPlaceKey((k) => k + 1);
-      setPlaceFromDayEnd(true);
     }
   }
 
@@ -276,7 +290,6 @@ export default function EventForm({ event, onClose }: Props) {
           if (changes.loadingPlace) {
             setPlace(changes.loadingPlace);
             setPlaceKey((k) => k + 1);
-            setPlaceFromDayEnd(false);
           }
           if (changes.loadingAt) setFormTime(changes.loadingAt);
           applyStepChanges(store, null, delivery?.id, changes);
@@ -351,29 +364,33 @@ export default function EventForm({ event, onClose }: Props) {
     else setDeliveryEdits(new Map(deliveryEdits).set(w.id, { ...w, deleted_at: new Date().toISOString() }));
   }
 
-  // Bouton d'une LV dans la liste : une LV encore vide s'ouvre en saisie (crayon), une LV remplie en lecture (œil).
-  const openLabel = (w: Waybill) => {
-    const label = isBlankWaybill(w) ? 'Remplir la lettre' : 'Voir la lettre';
-    return { 'aria-label': label, title: label };
-  };
+  // Jour et heure séparés : la ligne « Heure » montre seulement l'heure, le jour s'affiche s'il n'est pas aujourd'hui.
+  const whenDay = when.slice(0, 10);
+  const whenTime = when.slice(11, 16);
+  const today = toLocalInput(new Date()).slice(0, 10);
+  const shownDay = showDay || whenDay !== today;
+  // Fin : seule son heure est saisie (voir `endFromTime`).
+  const finishedTime = (finished || when).slice(11, 16);
+  const setFinishedTime = (time: string) => setFinished(time ? `${whenDay}T${time}` : '');
+  const typeInfo = type ? eventTypeInfo(type) : null;
 
-  // Pastille de la fiche LV : chargement et livraison, celui de cette fiche pris tel qu'il est saisi.
-  function editingContext(): string | undefined {
-    if (!editing) return;
-    const w = editing.waybill;
-    const here = { place, at: whenIso };
-    if (editing.side === 'load') return waybillContext(here, stopOf(store.event(w.delivery_event_id)));
-    const pending = newLoadings.get(w.id);
-    const loading = pending ? { place: pending.place, at: pending.at } : stopOf(store.event(w.loading_event_id));
-    // Cochée (ou saisie ici) : livrée à cette étape ; décochée : pas livrée ici, peut-être ailleurs.
-    const delivery =
-      checked.has(w.id) || editing.isNew
-        ? here
-        : w.delivery_event_id !== event?.id
-          ? stopOf(store.event(w.delivery_event_id))
-          : null;
-    return waybillContext(loading, delivery);
-  }
+  // Une LV en tuile : son numéro (ou « à remplir »), le trajet et la marchandise ; touchée, sa fiche s'ouvre.
+  const lvTile = (w: Waybill, open: () => void, leading?: ReactNode) => (
+    <div key={w.id} className={`lv-tile${leading && checked.has(w.id) ? ' selected' : ''}`}>
+      {leading}
+      <button type="button" className="lv-tile-main" onClick={open}>
+        <FileText size={22} aria-hidden />
+        <span className="lv-tile-text">
+          <b>{isBlankWaybill(w) ? 'Remplir la lettre' : w.number ? `LV ${w.number}` : 'Voir la lettre'}</b>
+          <span>
+            {[[w.shipper, w.consignee].filter(Boolean).join(' → '), w.goods].filter(Boolean).join(' · ') ||
+              'Pas encore remplie'}
+          </span>
+        </span>
+        <ChevronRight size={20} aria-hidden />
+      </button>
+    </div>
+  );
 
   return (
     <>
@@ -383,70 +400,198 @@ export default function EventForm({ event, onClose }: Props) {
             <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
               <X size={22} />
             </button>
-            <h2>{isNew ? 'Nouvelle étape' : 'Modifier l’étape'}</h2>
-            <button className="btn-primary btn-small">Enregistrer</button>
+            {type && !pickType && (
+              <span className={`card-icon tone-${type}`} aria-hidden>
+                <EventIcon type={type} size={22} strokeWidth={2} className="event-icon" />
+              </span>
+            )}
+            <div className="form-title">
+              <h2>{pickType ? 'Que fais-tu ?' : isNew ? typeInfo?.label : 'Modifier l’étape'}</h2>
+              {!isNew && typeInfo && (
+                <span>
+                  {typeInfo.label} · {format(parseISO(event.occurred_at), 'EEEE d', { locale: fr })}
+                </span>
+              )}
+            </div>
+            {!pickType && (
+              <button type="button" className="btn-secondary btn-small" onClick={() => setPickType(true)}>
+                Changer
+              </button>
+            )}
           </header>
 
           <div className="modal-body">
-            <fieldset>
-              <legend>Type d’opération</legend>
-              <div className="type-grid">
-                {EVENT_TYPES.map((t) => (
+            {pickType && (
+              <fieldset>
+                <legend className="sr-only">Type d’opération</legend>
+                <div className="type-grid">
+                  {EVENT_TYPES.map((t) => (
+                    <button
+                      type="button"
+                      key={t.value}
+                      className={`type-btn type-${t.value} tone-${t.value}${type === t.value ? ' selected' : ''}`}
+                      aria-pressed={type === t.value}
+                      onClick={() => {
+                        chooseType(t.value);
+                        setPickType(false);
+                      }}
+                    >
+                      {!isDayBoundary(t.value) && (
+                        <EventIcon type={t.value} size={26} strokeWidth={2} className="event-icon" />
+                      )}
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+
+            {/* Modifier un chargement ou une livraison : arrivée et fin côte à côte, temps sur place dessous. */}
+            {withEnd && !isNew && (
+              <div className={`time-tile tone-${type}`}>
+                <label>
+                  Arrivée
+                  <input
+                    type="time"
+                    value={whenTime}
+                    onChange={(e) => setWhen(`${whenDay}T${e.target.value}`)}
+                    required
+                  />
+                </label>
+                <label>
+                  {type === 'chargement' ? 'Fin du chargement' : 'Fin de la livraison'}
+                  <input type="time" value={finishedTime} onChange={(e) => setFinishedTime(e.target.value)} />
+                </label>
+                <span className="time-tile-note">
+                  {!onSite
+                    ? 'Fin facultative : le bouton « Fin » de l’accueil la remplit.'
+                    : onSite < 0
+                      ? 'Fin avant l’arrivée'
+                      : `${durationLabel(onSite)} sur place`}
+                </span>
+              </div>
+            )}
+
+            {isFuel && (
+              <>
+                <fieldset>
+                  <legend>Station</legend>
+                  <div className="station-grid">
+                    {STATIONS.map((s) => (
+                      <button
+                        type="button"
+                        key={s}
+                        className={station === s ? 'selected' : ''}
+                        aria-pressed={station === s}
+                        onClick={() => chooseStation(s)}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+                <fieldset>
+                  <legend>Réservoir</legend>
+                  <div className="station-grid tank-choice">
+                    <button
+                      type="button"
+                      className={fullTank ? 'selected' : ''}
+                      aria-pressed={fullTank}
+                      onClick={() => setFullTank(true)}
+                    >
+                      Plein complet
+                      <small>sert à la consommation</small>
+                    </button>
+                    <button
+                      type="button"
+                      className={fullTank ? '' : 'selected'}
+                      aria-pressed={!fullTank}
+                      onClick={() => setFullTank(false)}
+                    >
+                      Complément
+                      <small>simple appoint</small>
+                    </button>
+                  </div>
+                </fieldset>
+                <div className="row">
+                  <label className="big-field">
+                    Litres
+                    <input type="text" inputMode="decimal" value={diesel} onChange={(e) => setDiesel(e.target.value)} />
+                  </label>
+                  <label className="big-field">
+                    AdBlue
+                    <input type="text" inputMode="decimal" value={adblue} onChange={(e) => setAdblue(e.target.value)} />
+                  </label>
+                </div>
+              </>
+            )}
+
+            <div className="field-group">
+              <div className="field-row place-row">
+                <span className="field-name">Lieu</span>
+                <PlaceField
+                  key={placeKey}
+                  value={place}
+                  onChange={setPlace}
+                  autoLocate={isNew && placeKey === 0}
+                  compact
+                />
+              </div>
+
+              {(isNew || !withEnd) && (
+                <label className="field-row">
+                  {withEnd ? 'Arrivée' : 'Heure'}
+                  <input
+                    type="time"
+                    value={whenTime}
+                    onChange={(e) => setWhen(`${whenDay}T${e.target.value}`)}
+                    required
+                  />
+                </label>
+              )}
+              {shownDay ? (
+                <label className="field-row">
+                  Jour
+                  <input
+                    type="date"
+                    value={whenDay}
+                    onChange={(e) => setWhen(`${e.target.value}T${whenTime}`)}
+                    required
+                  />
+                </label>
+              ) : (
+                <button type="button" className="field-row options-link" onClick={() => setShowDay(true)}>
+                  <span className="field-name">Jour</span>
+                  <span className="field-value">Aujourd’hui</span>
+                  <ChevronRight size={18} aria-hidden />
+                </button>
+              )}
+
+              <div className="field-stack">
+                <div className="field-row">
+                  <label htmlFor="km-field" className="field-name">
+                    Compteur
+                  </label>
+                  <input
+                    id="km-field"
+                    type="text"
+                    inputMode="numeric"
+                    // Milliers séparés à l'affichage (« 123 456 ») ; seuls les chiffres sont gardés.
+                    value={km && Number(km).toLocaleString('fr-FR')}
+                    onChange={(e) => setKm(e.target.value.replace(/\D/g, ''))}
+                    placeholder="km"
+                  />
                   <button
                     type="button"
-                    key={t.value}
-                    className={`type-btn tone-${t.value}${type === t.value ? ' selected' : ''}`}
-                    onClick={() => chooseType(t.value)}
-                    title={t.label}
+                    className="btn-secondary row-icon-btn"
+                    onClick={() => kmCamera.current?.click()}
+                    disabled={kmReading?.state === 'busy'}
+                    aria-label="Lire le km sur le chrono"
+                    title="Lire le km sur le chrono"
                   >
-                    <EventIcon type={t.value} className="event-icon" />
-                    {t.short}
+                    {kmReading?.state === 'busy' ? <LoaderCircle size={20} className="spin" /> : <Camera size={20} />}
                   </button>
-                ))}
-              </div>
-            </fieldset>
-
-            <div className="row">
-              <label>
-                Tracteur
-                <input
-                  className="plate"
-                  value={tractor}
-                  onChange={(e) => setTractor(e.target.value.toUpperCase())}
-                  placeholder="AB-123-CD"
-                />
-              </label>
-              <label>
-                Remorque
-                <input
-                  className="plate"
-                  value={trailer}
-                  onChange={(e) => setTrailer(e.target.value.toUpperCase())}
-                  placeholder="EF-456-GH"
-                />
-              </label>
-            </div>
-
-            <label>
-              Kilométrage
-              <div className="input-with-btn">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={km}
-                  onChange={(e) => setKm(e.target.value.replace(/\D/g, ''))}
-                  placeholder="km au compteur"
-                />
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => kmCamera.current?.click()}
-                  disabled={kmReading?.state === 'busy'}
-                  title="Lire le km sur une photo"
-                >
-                  {kmReading?.state === 'busy' ? <LoaderCircle size={20} className="spin" /> : <Camera size={20} />}
-                  <span className="sr-only">Lire le km sur une photo</span>
-                </button>
+                </div>
                 <input
                   ref={kmCamera}
                   type="file"
@@ -459,87 +604,62 @@ export default function EventForm({ event, onClose }: Props) {
                     if (file) void readKm(file);
                   }}
                 />
+                {kmReading && (
+                  <span className={`reading reading-${kmReading.state}`}>
+                    {kmReading.state === 'busy' && <LoaderCircle size={16} className="spin" />}
+                    {kmReading.message}
+                  </span>
+                )}
+                {/* Seulement en cas d'erreur de saisie probable : km plus bas que le relevé précédent. */}
+                {lastKm != null && kmValue != null && kmValue < lastKm && (
+                  <strong className="hint hint-err">
+                    Plus bas que le dernier relevé ({lastKm.toLocaleString('fr-FR')} km)
+                  </strong>
+                )}
               </div>
-              {kmReading && (
-                <span className={`reading reading-${kmReading.state}`}>
-                  {kmReading.state === 'busy' && <LoaderCircle size={16} className="spin" />}
-                  {kmReading.message}
-                </span>
-              )}
-              {lastKm != null && (
-                <span className="hint">
-                  Dernier relevé : {lastKm.toLocaleString('fr-FR')} km
-                  {kmValue != null && kmValue < lastKm && (
-                    <strong className="hint-err"> · inférieur au précédent</strong>
-                  )}
-                </span>
-              )}
-            </label>
 
-            <div className="label">
-              Lieu
-              <PlaceField key={placeKey} value={place} onChange={setPlace} autoLocate={isNew && placeKey === 0} />
-              {placeFromDayEnd && <span className="hint">Repris de la dernière fin de journée</span>}
+              {isNew && !editPlates ? (
+                <button type="button" className="field-row plates-summary" onClick={() => setEditPlates(true)}>
+                  <span className="field-name">Camion</span>
+                  <span className="plates-values">
+                    <span className="plate">{tractor}</span>
+                    {trailer && <span className="plate">{trailer}</span>}
+                  </span>
+                  <Pencil size={16} aria-hidden />
+                  <span className="sr-only">Modifier les immatriculations</span>
+                </button>
+              ) : (
+                <>
+                  <label className="field-row">
+                    Tracteur
+                    <input
+                      className="plate"
+                      value={tractor}
+                      onChange={(e) => setTractor(e.target.value.toUpperCase())}
+                      placeholder="AB-123-CD"
+                    />
+                  </label>
+                  <label className="field-row">
+                    Remorque
+                    <input
+                      className="plate"
+                      value={trailer}
+                      onChange={(e) => setTrailer(e.target.value.toUpperCase())}
+                      placeholder="EF-456-GH"
+                    />
+                  </label>
+                </>
+              )}
             </div>
-
-            <label>
-              {withEnd ? 'Arrivée' : 'Date et heure'}
-              <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} required />
-            </label>
-            {withEnd && (
-              <label>
-                {type === 'chargement' ? 'Fin du chargement' : 'Fin de la livraison'}
-                <input type="datetime-local" value={finished || when} onChange={(e) => setFinished(e.target.value)} />
-                <span className="hint">
-                  {!onSite
-                    ? 'Facultatif : le bouton « Fin » de l’accueil la remplit.'
-                    : onSite < 0
-                      ? 'Avant l’arrivée'
-                      : `${durationLabel(onSite)} sur place`}
-                </span>
-              </label>
-            )}
             {restCheck && <RestNotice check={restCheck} icon={type === 'fin_journee' ? AlarmClock : undefined} />}
 
             {type === 'chargement' && (
-              <div className="label">
-                Lettres de voiture
-                {loads.length > 0 && (
-                  <div className="lv-list">
-                    {loads.map((w) => (
-                      <WaybillLine
-                        key={w.id}
-                        waybill={w}
-                        loading={{ place: formatPlace(place), at: whenIso }}
-                        onClick={() => setEditing({ waybill: w, isNew: false, side: 'load' })}
-                        trailing={
-                          <button
-                            type="button"
-                            className="icon-btn"
-                            {...openLabel(w)}
-                            onClick={() => setEditing({ waybill: w, isNew: false, side: 'load' })}
-                          >
-                            {isBlankWaybill(w) ? <Pencil size={16} /> : <Eye size={16} />}
-                          </button>
-                        }
-                      />
-                    ))}
-                  </div>
-                )}
-                <div className="lv-actions">
-                  <button
-                    type="button"
-                    className="btn-primary btn-icon lv-add"
-                    onClick={() => scanInput.current?.click()}
-                  >
-                    <Camera size={18} />
-                    Scanner une LV
-                  </button>
-                  <button type="button" className="btn-secondary btn-icon lv-add" onClick={() => editLoad()}>
-                    <Plus size={18} />
-                    Saisir
-                  </button>
-                </div>
+              <div className="lv-group">
+                {loads.map((w) => lvTile(w, () => setEditing({ waybill: w, isNew: false, side: 'load' })))}
+                <button type="button" className="btn-link lv-manual" onClick={() => editLoad()}>
+                  <Plus size={16} aria-hidden />
+                  Ajouter une lettre de voiture
+                </button>
                 <input
                   ref={scanInput}
                   type="file"
@@ -552,115 +672,79 @@ export default function EventForm({ event, onClose }: Props) {
                     if (file) editLoad(file);
                   }}
                 />
-                <span className="hint">Le numéro peut être complété plus tard.</span>
               </div>
             )}
 
             {type === 'livraison' && (
-              <div className="label">
-                Lettres de voiture livrées
-                {candidates.length === 0 ? (
-                  <span className="hint">Aucune lettre de voiture dans le camion.</span>
-                ) : (
-                  <div className="lv-list">
-                    {candidates.map((w) => (
-                      <WaybillLine
-                        key={w.id}
-                        waybill={w}
-                        selected={checked.has(w.id)}
-                        onClick={() => toggle(w.id)}
-                        leading={
-                          <input
-                            type="checkbox"
-                            className="lv-check"
-                            checked={checked.has(w.id)}
-                            onChange={() => toggle(w.id)}
-                            aria-label={`Livrée : ${w.consignee ?? w.number ?? 'lettre'}`}
-                          />
-                        }
-                        trailing={
-                          <button
-                            type="button"
-                            className="icon-btn"
-                            {...openLabel(w)}
-                            onClick={() => setEditing({ waybill: w, isNew: false, side: 'delivery' })}
-                          >
-                            {isBlankWaybill(w) ? <Pencil size={16} /> : <Eye size={16} />}
-                          </button>
-                        }
-                      />
-                    ))}
-                  </div>
+              <div className="lv-group">
+                <span className="field-name">Lettres livrées ici</span>
+                {candidates.length === 0 && <span className="hint">Aucune lettre de voiture dans le camion.</span>}
+                {candidates.map((w) =>
+                  lvTile(
+                    w,
+                    () => setEditing({ waybill: w, isNew: false, side: 'delivery' }),
+                    <button
+                      type="button"
+                      className="lv-check-btn"
+                      role="checkbox"
+                      aria-checked={checked.has(w.id)}
+                      aria-label={`Livrée : ${w.consignee ?? w.number ?? 'lettre'}`}
+                      onClick={() => toggle(w.id)}
+                    >
+                      {checked.has(w.id) && <Check size={18} strokeWidth={3} />}
+                    </button>,
+                  ),
                 )}
                 <button
                   type="button"
-                  className="btn-secondary btn-icon lv-add"
+                  className="btn-link lv-manual"
                   onClick={() => setEditing({ waybill: newWaybill(), isNew: true, side: 'delivery' })}
                 >
-                  <Plus size={18} />
+                  <Plus size={16} aria-hidden />
                   Nouvelle lettre de voiture
                 </button>
               </div>
             )}
 
-            {isFuel && (
-              <>
-                <fieldset>
-                  <legend>Station</legend>
-                  <div className="segmented">
-                    {STATIONS.map((s) => (
-                      <button
-                        type="button"
-                        key={s}
-                        className={station === s ? 'selected' : ''}
-                        onClick={() => chooseStation(s)}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </fieldset>
-                <label className="setting-row">
-                  <span className="setting-text">
-                    <span className="setting-title">Plein complet</span>
-                    <span className="hint">
-                      {fullTank ? 'Réservoir rempli : sert au calcul de la consommation.' : 'Simple complément.'}
-                    </span>
-                  </span>
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    className="switch"
-                    checked={fullTank}
-                    onChange={(e) => setFullTank(e.target.checked)}
-                  />
-                </label>
-                <div className="row">
-                  <label>
-                    Gasoil (L)
-                    <input type="text" inputMode="decimal" value={diesel} onChange={(e) => setDiesel(e.target.value)} />
-                  </label>
-                  <label>
-                    AdBlue (L)
-                    <input type="text" inputMode="decimal" value={adblue} onChange={(e) => setAdblue(e.target.value)} />
-                  </label>
-                </div>
-              </>
-            )}
-
-            <label>
-              Remarques
-              <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
-            </label>
-
-            {error && <p className="form-message">{error}</p>}
-
-            <button className="btn-primary btn-block">Enregistrer</button>
-            {!isNew && (
-              <button type="button" className="btn-danger btn-block" onClick={remove}>
-                Supprimer
+            {!isNew || notes || showNotes ? (
+              <label className="big-field notes-field">
+                Remarques
+                <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+              </label>
+            ) : (
+              <button type="button" className="btn-link lv-manual" onClick={() => setShowNotes(true)}>
+                <Plus size={16} aria-hidden />
+                Ajouter une remarque
               </button>
             )}
+
+            {error && <p className="form-message">{error}</p>}
+          </div>
+
+          {/* Toujours visible en bas du panneau, même dans un long formulaire. */}
+          <div className="form-footer">
+            {!isNew && (
+              <button
+                type="button"
+                className="btn-danger footer-delete"
+                onClick={remove}
+                aria-label="Supprimer cette étape"
+              >
+                <Trash2 size={22} />
+              </button>
+            )}
+            {type === 'chargement' && (
+              <button
+                type="button"
+                className="btn-secondary footer-delete"
+                onClick={() => scanInput.current?.click()}
+                aria-label="Photographier la lettre de voiture"
+                title="Photographier la lettre de voiture"
+              >
+                <Camera size={24} />
+              </button>
+            )}
+            <button className="btn-primary">Enregistrer</button>
           </div>
         </form>
       </div>
@@ -670,7 +754,6 @@ export default function EventForm({ event, onClose }: Props) {
           waybill={editing.waybill}
           isNew={editing.isNew}
           initialPhoto={editing.photo}
-          context={editingContext()}
           steps={editingSteps()?.steps}
           onSave={(w, changes) => {
             saveEditing(w);

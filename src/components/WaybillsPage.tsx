@@ -1,11 +1,12 @@
+import { parseISO } from 'date-fns';
 import { Search, X } from 'lucide-react';
 import { useState } from 'react';
+import { weekLabel, weekStart } from '../lib/dates';
 import { applyStepChanges, placeOf } from '../lib/places';
 import { normalize } from '../lib/search';
 import { useSheet } from '../lib/useSheet';
 import { swipeStep, useSwipe } from '../lib/useSwipe';
 import { useEvents } from '../lib/useEvents';
-import { stopOf, waybillContext } from '../lib/waybills';
 import { isInTruck, waybillStatus, type Waybill } from '../types';
 import WaybillForm from './WaybillForm';
 import WaybillLine from './WaybillLine';
@@ -58,15 +59,23 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
     })
     .sort((a, b) => dateOf(b).localeCompare(dateOf(a)));
 
+  // Regroupées par semaine (celle de leur chargement), la plus récente en premier comme la liste.
+  const thisWeek = weekStart(new Date()).getTime();
+  const weeks: [string, Waybill[]][] = [];
+  for (const w of list) {
+    const start = weekStart(parseISO(dateOf(w)));
+    const label = start.getTime() === thisWeek ? 'Cette semaine' : weekLabel(start);
+    const last = weeks[weeks.length - 1];
+    if (last?.[0] === label) last[1].push(w);
+    else weeks.push([label, [w]]);
+  }
+
   const count = (f: WaybillFilter) =>
     f === 'a_completer'
       ? waybills.filter((w) => waybillStatus(w) === 'a_completer').length
       : f === 'dans_camion'
         ? waybills.filter(isInTruck).length
         : waybills.length;
-
-  const context = (w: Waybill) =>
-    waybillContext(stopOf(store.event(w.loading_event_id)), stopOf(store.event(w.delivery_event_id)));
 
   const editingLoading = editing ? store.event(editing.loading_event_id) : null;
   const editingDelivery = editing ? store.event(editing.delivery_event_id) : null;
@@ -116,8 +125,13 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
               </p>
             ) : (
               <div className={`lv-list slide-${slide}`} key={filter}>
-                {list.map((w) => (
-                  <WaybillLine key={w.id} waybill={w} onClick={() => setEditing(w)} showStatus />
+                {weeks.map(([label, items]) => (
+                  <section key={label} className="lv-week">
+                    <h3 className="lv-week-title">{label}</h3>
+                    {items.map((w) => (
+                      <WaybillLine key={w.id} waybill={w} onClick={() => setEditing(w)} showStatus />
+                    ))}
+                  </section>
                 ))}
               </div>
             )}
@@ -129,7 +143,6 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
         <WaybillForm
           waybill={editing}
           isNew={false}
-          context={context(editing)}
           steps={{
             loading: editingLoading ? { place: placeOf(editingLoading), at: editingLoading.occurred_at } : undefined,
             delivery: editingDelivery ? { at: editingDelivery.occurred_at } : undefined,

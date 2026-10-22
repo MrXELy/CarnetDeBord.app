@@ -6,7 +6,7 @@ import { dayLabel, workDay } from '../lib/dates';
 import { searchEvents, type SearchResult } from '../lib/search';
 import { useEvents } from '../lib/useEvents';
 import { useSheet } from '../lib/useSheet';
-import type { TripEvent } from '../types';
+import { EVENT_TYPES, type EventType, type TripEvent } from '../types';
 import EventCard from './EventCard';
 
 // Au-delà, la liste deviendrait lourde à afficher : on invite à préciser.
@@ -21,13 +21,23 @@ interface Props {
   onClose: () => void;
 }
 
+// Filtres : chargements, livraisons et carburant (les débuts et fins de journée restent dans « Tout »).
+const KINDS = EVENT_TYPES.filter((t) => ['chargement', 'livraison', 'carburant'].includes(t.value)).map((t) => ({
+  value: t.value,
+  label: t.value === 'carburant' ? t.label : `${t.label}s`,
+}));
+
 export default function SearchPage({ onShowWeek, onClose }: Props) {
   const { events, waybills } = useEvents();
   const [query, setQuery] = useState(lastQuery);
   // La frappe reste fluide : la liste se met à jour juste après.
   const deferred = useDeferredValue(query);
-  const results = useMemo(() => searchEvents(events, waybills, deferred), [events, waybills, deferred]);
+  const found = useMemo(() => searchEvents(events, waybills, deferred), [events, waybills, deferred]);
+  // Filtre par type d'étape (cases colorées sous le champ), « Tout » par défaut.
+  const [kind, setKind] = useState<EventType | null>(null);
+  const results = kind ? found.filter((r) => r.event.type === kind) : found;
   const days = useMemo(() => groupByDay(results.slice(0, MAX_RESULTS)), [results]);
+  const count = (type: EventType) => found.filter((r) => r.event.type === type).length;
 
   const sheet = useSheet(onClose);
 
@@ -55,6 +65,30 @@ export default function SearchPage({ onShowWeek, onClose }: Props) {
               autoFocus
             />
           </label>
+
+          {deferred.trim() && found.length > 0 && (
+            <div className="search-kinds" role="group" aria-label="Type d’étape">
+              <button
+                type="button"
+                className={kind ? '' : 'selected'}
+                aria-pressed={!kind}
+                onClick={() => setKind(null)}
+              >
+                Tout · {found.length}
+              </button>
+              {KINDS.filter((t) => count(t.value)).map((t) => (
+                <button
+                  type="button"
+                  key={t.value}
+                  className={`tone-${t.value}${kind === t.value ? ' selected' : ''}`}
+                  aria-pressed={kind === t.value}
+                  onClick={() => setKind(kind === t.value ? null : t.value)}
+                >
+                  {t.label} · {count(t.value)}
+                </button>
+              ))}
+            </div>
+          )}
 
           {!deferred.trim() ? (
             <p className="empty muted">

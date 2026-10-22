@@ -97,6 +97,16 @@ export function daysLeft(due: Date, now: Date): string {
   return days === -1 ? 'depuis hier' : `depuis ${-days} jours`;
 }
 
+/** Délai court pour une tuile : « 18 j », « 5 mois », « 2 ans », « aujourd’hui » ou « dépassée ». */
+export function shortDelay(due: Date, now: Date): string {
+  const days = differenceInCalendarDays(due, now);
+  if (days < 0) return 'dépassée';
+  if (days === 0) return 'aujourd’hui';
+  if (days <= 60) return `${days} j`;
+  if (days < 730) return `${Math.round(days / 30.4)} mois`;
+  return `${Math.round(days / 365)} ans`;
+}
+
 const dateText = (date: Date) => format(date, 'd MMM yyyy', { locale: fr });
 
 /** Échéance proche (orange) ou dépassée (rouge), même repoussée ; null si encore loin ou sans date. */

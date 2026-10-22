@@ -1,5 +1,8 @@
-import { addDays, addWeeks, format, isSameDay, parseISO } from 'date-fns';
+import { addHours, addWeeks, format, getISOWeek, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
 import {
+  ArrowUpRight,
+  CalendarDays,
   ChartColumn,
   ChevronDown,
   ChevronLeft,
@@ -7,26 +10,38 @@ import {
   FileDown,
   FileText,
   LoaderCircle,
-  Map as MapIcon,
+  MapPin,
   Plus,
   ReceiptEuro,
   Search,
   Settings as SettingsIcon,
 } from 'lucide-react';
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
-import { euros, summarizeAllowances } from '../lib/allowances';
-import { durationLabel, groupWeek, summarizeDay, summarizeWeek, weekLabel, weekStart } from '../lib/dates';
-import { shareFile } from '../lib/share';
+import {
+  currentDay,
+  dayLabel,
+  durationLabel,
+  groupWeek,
+  summarizeDay,
+  summarizeWeek,
+  weekLabel,
+  weekStart,
+} from '../lib/dates';
+import { formatPlace } from '../lib/geo';
+import { unfinishedStep } from '../lib/onSite';
+import { dayLimit } from '../lib/rest';
 import { useEvents } from '../lib/useEvents';
-import { useSwipe } from '../lib/useSwipe';
-import { buildWeekSheet } from '../lib/weekSheet';
-import { isDayBoundary, waybillStatus, type TripEvent } from '../types';
+import { useNow } from '../lib/useNow';
+import { useWide } from '../lib/useWide';
+import { waybillStatus, type TripEvent } from '../types';
 import AllowancesSheet from './AllowancesSheet';
 import DaySection from './DaySection';
 import EventForm from './EventForm';
 import FinishStepButton from './FinishStepButton';
 import HomeNotices from './HomeNotices';
 import type { WaybillFilter } from './WaybillsPage';
+import WeekMapPreview from './WeekMapPreview';
+import WeekPage, { useWeekSheet } from './WeekPage';
 import WeekPicker from './WeekPicker';
 
 // Carte chargée seulement à son ouverture : ses contours de la France pèsent une centaine de Ko.
@@ -39,10 +54,13 @@ const WaybillsPage = lazy(() => import('./WaybillsPage'));
 
 type Editing = { event: TripEvent | null } | null;
 
+/** Accueil : la journée en cours (ou les LV du camion avant de commencer), la semaine s'ouvre depuis sa tuile. */
 export default function WeekView() {
-  const { events, waybills, pending, syncing, online, error, demo, store, allowanceSettings, sheetSettings } =
-    useEvents();
+  const { events, waybills, pending, syncing, online, error, demo, store } = useEvents();
+  const now = useNow();
+  // Semaine ouverte dans la page « Semaine » (et utilisée par les cartes, frais et statistiques).
   const [start, setStart] = useState(() => weekStart(new Date()));
+  const [showWeek, setShowWeek] = useState(false);
   // Sens de l'animation au changement de semaine : glisse depuis la droite (suivante) ou la gauche (précédente).
   const [slide, setSlide] = useState<'next' | 'prev' | 'fade'>('fade');
   const [editing, setEditing] = useState<Editing>(null);
@@ -58,35 +76,34 @@ export default function WeekView() {
   // Carte de la semaine (true) ou d'une de ses journées (« 2026-10-20 »).
   const [showMap, setShowMap] = useState<boolean | string>(false);
   const [monthMap, setMonthMap] = useState<string | null>(null);
-  // Feuille de semaine en cours de fabrication : bouton occupé, pas de double fabrication.
-  const [makingSheet, setMakingSheet] = useState(false);
-  const days = useMemo(() => groupWeek(events, start), [events, start]);
-  const week = useMemo(() => summarizeWeek(days.flatMap((d) => d.events)), [days]);
-  // Amplitude totale des journées complètes, et nombre d'opérations (sans les débuts et fins de journée).
-  const amplitude = days.reduce((sum, d) => sum + (summarizeDay(d.events).amplitude ?? 0), 0);
-  const steps = days.reduce((n, d) => n + d.events.filter((e) => !isDayBoundary(e.type)).length, 0);
-  const isCurrentWeek = isSameDay(start, weekStart(new Date()));
-  const toComplete = waybills.filter((w) => waybillStatus(w) === 'a_completer').length;
-  const inTruck = store.inTruck(new Date()).length;
-  const showInTruck = isCurrentWeek && inTruck > 0;
-  // Frais de la semaine : dès qu'elle a des étapes.
-  const allowances = useMemo(
-    () => summarizeAllowances(store.allowances(), { start, end: addDays(start, 7) }),
-    // store.allowances() ne change qu'avec les étapes ou les réglages.
+
+  // Heure réelle (et pas `now`, rafraîchi chaque minute) : une étape notée à l'instant compte tout de suite.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const today = useMemo(() => currentDay(events, new Date()), [events, now]);
+  const thisWeek = weekStart(now);
+  const weekKm = useMemo(
+    () => summarizeWeek(groupWeek(events, thisWeek).flatMap((d) => d.events)).km,
+    // thisWeek ne change qu'avec le jour.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [events, allowanceSettings, start],
+    [events, thisWeek.getTime()],
   );
-  const showAllowancePill = days.length > 0;
+  const todaySummary = summarizeDay(today.events);
+  // Journée en cours : heure limite de fin (RSE), en tuile à côté des km du jour.
+  const limit = useMemo(() => (today.inProgress ? dayLimit(events, now) : null), [today.inProgress, events, now]);
+  const toComplete = waybills.filter((w) => waybillStatus(w) === 'a_completer').length;
+  // Seulement avant le début de journée (aucune étape aujourd'hui) : rappel des livraisons à faire.
+  const inTruck = today.events.length > 0 ? [] : store.inTruck(now);
+  const finishing = unfinishedStep(events) != null;
+  // PC : 3 colonnes (menu, semaine, carte) au lieu de l'accueil du téléphone.
+  const wide = useWide();
+  const weekDays = useMemo(() => groupWeek(events, start), [events, start]);
+  const shownKm = summarizeWeek(weekDays.flatMap((d) => d.events)).km;
+  const isThisWeek = start.getTime() === thisWeek.getTime();
+  const weekSheet = useWeekSheet(start);
 
-  // Nouvelle semaine : la page repart du haut (l'étape trouvée par la recherche est rejointe juste après).
+  // PC, recherche : la semaine de l'étape trouvée s'affiche au centre, défilement jusqu'à elle.
   useEffect(() => {
-    window.scrollTo({ top: 0 });
-  }, [start]);
-
-  // Recherche : fait défiler jusqu'à l'étape choisie. On attend que la fenêtre fermée ait rendu
-  // son entrée d'historique (le retour arrière replacerait la page en haut) et que la semaine ait glissé.
-  useEffect(() => {
-    if (!found) return;
+    if (!wide || !found) return;
     const timer = setTimeout(() => {
       const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
       document
@@ -94,7 +111,41 @@ export default function WeekView() {
         ?.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
     }, 350);
     return () => clearTimeout(timer);
-  }, [found]);
+  }, [wide, found]);
+
+  const inTruckSection = (
+    <section className="in-truck">
+      <h2 className="home-h2">
+        Dans le camion <span>{inTruck.length} LV</span>
+      </h2>
+      {inTruck.map((w) => {
+        const loading = store.event(w.loading_event_id);
+        const from = loading && formatPlace(loading);
+        return (
+          <button key={w.id} className="in-truck-lv" onClick={() => setWaybillFilter('dans_camion')}>
+            <span className="in-truck-top">
+              <span className="card-icon">
+                <MapPin size={22} aria-hidden />
+              </span>
+              <span className="in-truck-where">
+                <span className="in-truck-label">Livraison prévue à</span>
+                <span className="in-truck-city">{w.planned_city || 'Ville non renseignée'}</span>
+              </span>
+            </span>
+            <span className="in-truck-sub">
+              {[
+                w.goods,
+                loading &&
+                  `chargée ${format(parseISO(loading.occurred_at), 'EEEE', { locale: fr })}${from ? ` à ${from}` : ''}`,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </span>
+          </button>
+        );
+      })}
+    </section>
+  );
 
   function goWeek(delta: number) {
     setFound(null);
@@ -108,175 +159,265 @@ export default function WeekView() {
     setStart(week);
   }
 
-  /** Feuille de semaine en PDF : partagée sur téléphone, téléchargée sur ordinateur. */
-  async function weekSheet() {
-    if (makingSheet) return;
-    setMakingSheet(true);
-    try {
-      // Le dessin du PDF (et sa bibliothèque) n'est chargé qu'ici.
-      const { weekSheetPdf } = await import('../lib/weekSheetPdf');
-      const sheet = buildWeekSheet(events, waybills, start, sheetSettings, store.allowances());
-      const name = `feuille-semaine-${sheet.week}-${sheet.monday.getFullYear()}.pdf`;
-      await shareFile(weekSheetPdf(sheet), name, `Feuille de semaine ${sheet.week}`);
-    } catch (err) {
-      if (!(err instanceof Error && err.name === 'AbortError')) {
-        alert(`Feuille de semaine impossible : ${err instanceof Error ? err.message : String(err)}`);
-      }
-    } finally {
-      setMakingSheet(false);
-    }
+  function openWeek() {
+    setFound(null);
+    setSlide('fade');
+    setStart(thisWeek);
+    if (!wide) setShowWeek(true); // PC : la semaine est déjà au centre
   }
 
-  // Glisser du doigt n'importe où sur la page : vers la droite → semaine précédente, vers la gauche → suivante.
-  useSwipe(goWeek, { global: true });
-
-  return (
-    <div className="app">
-      <div className="halos" aria-hidden>
-        <i />
-        <i />
-        <i />
+  const todayTiles = today.events.length > 0 && (
+    <div className="today-tiles">
+      <div className="today-tile">
+        <span>{today.inProgress ? 'Journée en cours' : 'Aujourd’hui'}</span>
+        <b>{todaySummary.km != null ? `${todaySummary.km.toLocaleString('fr-FR')} km` : '—'}</b>
       </div>
-      <header className="topbar">
-        <div className="topbar-row">
-          <span className="brand-wrap">
-            <span className="brand">CarnetDeBord</span>
-            {demo ? (
-              <span className="sync-demo" title="Données de test dans ce navigateur, jamais envoyées en ligne">
-                Démo
-              </span>
-            ) : (
-              <SyncBadge
-                pending={pending}
-                syncing={syncing}
-                online={online}
-                error={error}
-                onRetry={() => store.sync()}
-              />
-            )}
-          </span>
-          <button className="icon-btn" title="Rechercher" aria-label="Rechercher" onClick={() => setSearching(true)}>
-            <Search size={20} />
-          </button>
-          <button
-            className="icon-btn has-badge"
-            title="Lettres de voiture"
-            aria-label={toComplete ? `Lettres de voiture, ${toComplete} à compléter` : 'Lettres de voiture'}
-            onClick={() => setWaybillFilter(toComplete ? 'a_completer' : 'dans_camion')}
-          >
-            <FileText size={20} />
-            {toComplete > 0 && <span className="icon-badge">{toComplete}</span>}
-          </button>
-          <button
-            className="icon-btn"
-            title="Statistiques"
-            aria-label="Statistiques"
-            onClick={() => setShowStats(true)}
-          >
-            <ChartColumn size={20} />
-          </button>
-          <button className="icon-btn" title="Options" aria-label="Options" onClick={() => setShowSettings(true)}>
-            <SettingsIcon size={20} />
-          </button>
+      {limit ? (
+        <div className={`today-tile rest-${limit.level}`} title={limit.lines[0]?.text}>
+          <span>{limit.level === 'error' ? 'Limite dépassée' : 'Fin de journée avant'}</span>
+          <b>{format(limit.until, 'HH:mm')}</b>
+          <small>
+            {limit.level === 'error'
+              ? `depuis ${format(limit.last, 'HH:mm')}`
+              : limit.until < limit.last
+                ? `${format(limit.last, 'HH:mm')} au plus tard`
+                : 'au plus tard'}
+          </small>
         </div>
-        <nav className="week-nav">
+      ) : (
+        todaySummary.amplitude != null && (
+          <div className="today-tile">
+            <span>Amplitude</span>
+            <b>{durationLabel(todaySummary.amplitude)}</b>
+          </div>
+        )
+      )}
+    </div>
+  );
+
+  const sync = demo ? (
+    <span className="sync-demo" title="Données de test dans ce navigateur, jamais envoyées en ligne">
+      Démo
+    </span>
+  ) : (
+    <SyncBadge pending={pending} syncing={syncing} online={online} error={error} onRetry={() => store.sync()} />
+  );
+
+  const lvButton = (
+    <button
+      className="has-badge"
+      aria-label={toComplete ? `Lettres de voiture, ${toComplete} à compléter` : 'Lettres de voiture'}
+      onClick={() => setWaybillFilter(toComplete ? 'a_completer' : 'dans_camion')}
+    >
+      <FileText size={22} />
+      {toComplete > 0 && <span className="icon-badge">{toComplete}</span>}
+    </button>
+  );
+
+  const pc = (
+    <>
+      <nav className="side-rail" aria-label="Navigation">
+        <button className="side-add" aria-label="Nouvelle étape" onClick={() => setEditing({ event: null })}>
+          <Plus size={28} strokeWidth={2.6} />
+        </button>
+        <button
+          aria-label="Semaine en cours"
+          aria-current={isThisWeek ? 'page' : undefined}
+          onClick={() => pickWeek(thisWeek)}
+        >
+          <CalendarDays size={22} />
+        </button>
+        {lvButton}
+        <button aria-label="Statistiques" onClick={() => setShowStats(true)}>
+          <ChartColumn size={22} />
+        </button>
+        <button aria-label="Rechercher" onClick={() => setSearching(true)}>
+          <Search size={22} />
+        </button>
+        <span className="side-spacer" />
+        {sync}
+        <button aria-label="Options" onClick={() => setShowSettings(true)}>
+          <SettingsIcon size={22} />
+        </button>
+      </nav>
+
+      <main className="pc-main">
+        <header className="pc-head">
+          <div className="home-title">
+            <span className="home-date">{dayLabel(now)}</span>
+            <h1>{weekLabel(start).split(' · ')[0]}</h1>
+          </div>
           <button className="round-btn" aria-label="Semaine précédente" onClick={() => goWeek(-1)}>
             <ChevronLeft size={22} />
           </button>
-          <div className={`week-center slide-${slide}`} key={start.getTime()}>
-            <button className="week-title" onClick={() => setPickingWeek(true)} aria-label="Choisir une semaine">
-              {weekLabel(start)}
-              {week.inProgress && isCurrentWeek && ' · en cours'}
-              <ChevronDown size={16} className="week-title-chevron" aria-hidden />
-            </button>
-            <span className={`week-km${week.km == null ? ' empty-km' : ''}`}>
-              {week.km != null ? `${week.km.toLocaleString('fr-FR')} km` : 'Aucun km'}
-            </span>
-            <span className="week-sub">
-              {amplitude > 0 && `${durationLabel(amplitude)} d’amplitude · `}
-              {steps} étape{steps > 1 ? 's' : ''}
-            </span>
-          </div>
+          <button className="week-title" onClick={() => setPickingWeek(true)}>
+            {weekLabel(start).split(' · ')[1]}
+            <ChevronDown size={16} className="week-title-chevron" aria-hidden />
+          </button>
           <button className="round-btn" aria-label="Semaine suivante" onClick={() => goWeek(1)}>
             <ChevronRight size={22} />
           </button>
-        </nav>
-      </header>
+        </header>
 
-      {/* Raccourcis de la semaine : hors de la barre fixe, ils défilent avec les jours. */}
-      {(showInTruck || showAllowancePill) && (
-        <div className="week-links">
-          {showInTruck && (
-            <button className="pill" onClick={() => setWaybillFilter('dans_camion')}>
-              <FileText size={14} aria-hidden />
-              {inTruck} LV<span className="pill-long"> dans le camion</span>
-            </button>
-          )}
-          {showAllowancePill && (
-            // Icône et montant seulement, pour que les pastilles tiennent sur une ligne.
-            <button
-              className="pill"
-              onClick={() => setShowAllowances(true)}
-              title="Frais de route"
-              aria-label={
-                allowanceSettings.bases.length ? `Frais de route, ${euros(allowances.total)}` : 'Frais de route'
-              }
-            >
-              <ReceiptEuro size={14} aria-hidden />
-              {allowanceSettings.bases.length > 0 && euros(allowances.total)}
-            </button>
-          )}
-          {showAllowancePill && (
-            <button className="pill" onClick={() => setShowMap(true)} title="Carte" aria-label="Carte de la semaine">
-              <MapIcon size={14} aria-hidden />
-            </button>
-          )}
-          {showAllowancePill && (
-            <button
-              className="pill"
-              onClick={weekSheet}
-              disabled={makingSheet}
-              aria-busy={makingSheet}
-              title="Feuille de semaine (PDF)"
-              aria-label="Feuille de semaine en PDF"
-            >
-              {makingSheet ? (
-                <LoaderCircle size={14} className="spin" aria-hidden />
-              ) : (
-                <FileDown size={14} aria-hidden />
-              )}
-            </button>
-          )}
-        </div>
-      )}
+        <HomeNotices onOpenReminders={() => setShowSettings('reminders')} />
 
-      {isCurrentWeek && <HomeNotices onOpenReminders={() => setShowSettings('reminders')} />}
-
-      <main className={`days slide-${slide}`} key={start.getTime()}>
-        {days.length === 0 ? (
-          <div className="empty">
-            <p>Aucune étape cette semaine.</p>
-            {isCurrentWeek && <p className="muted">Appuie sur « + » pour commencer ta journée.</p>}
+        <div className="pc-tiles">
+          <div className="week-tile pc-week-tile">
+            <span className="week-tile-text">
+              <span className="week-tile-label">Km de la semaine</span>
+              <span className="week-tile-km">
+                {shownKm != null ? `${shownKm.toLocaleString('fr-FR')} km` : 'Aucun km'}
+              </span>
+            </span>
           </div>
-        ) : (
-          days.map((day, i) => (
-            <DaySection
-              key={day.date.getTime()}
-              day={day}
-              index={i}
-              found={found}
-              onOpen={(event) => setEditing({ event })}
-              onMap={() => setShowMap(format(day.date, 'yyyy-MM-dd'))}
-            />
-          ))
-        )}
+          {isThisWeek && todayTiles}
+        </div>
+
+        <div className="pc-columns">
+          <section className={`pc-days days slide-${slide}`} key={start.getTime()}>
+            {weekDays.length === 0 ? (
+              <div className="empty">
+                <p>Aucune étape cette semaine.</p>
+              </div>
+            ) : (
+              weekDays.map((day, i) => (
+                <DaySection
+                  key={day.date.getTime()}
+                  day={day}
+                  index={i}
+                  found={found}
+                  onOpen={(event) => setEditing({ event })}
+                  onMap={() => setShowMap(format(day.date, 'yyyy-MM-dd'))}
+                />
+              ))
+            )}
+          </section>
+          <aside className="pc-side">
+            <WeekMapPreview
+              key={start.getTime()}
+              start={start}
+              events={weekDays.flatMap((d) => d.events)}
+              onOpen={() => setShowMap(true)}
+            >
+              <button
+                type="button"
+                className="btn-secondary btn-icon map-action"
+                onClick={() => setShowAllowances(true)}
+              >
+                <ReceiptEuro size={20} />
+                Frais
+              </button>
+              <button
+                type="button"
+                className="btn-secondary btn-icon map-action"
+                onClick={weekSheet.make}
+                disabled={weekSheet.making}
+                aria-busy={weekSheet.making}
+              >
+                {weekSheet.making ? <LoaderCircle size={20} className="spin" /> : <FileDown size={20} />}
+                Feuille
+              </button>
+            </WeekMapPreview>
+            {isThisWeek && inTruck.length > 0 && inTruckSection}
+          </aside>
+        </div>
       </main>
 
       <FinishStepButton />
-      <button className="fab" aria-label="Nouvelle étape" onClick={() => setEditing({ event: null })}>
-        <Plus size={32} strokeWidth={2.5} />
-      </button>
+    </>
+  );
 
+  return (
+    <div className={`app${wide ? ' pc' : ''}${finishing ? ' finishing' : ''}`}>
+      {wide ? (
+        pc
+      ) : (
+        <>
+          <header className="home-head">
+            <div className="home-title">
+              <span className="home-date">{dayLabel(now)}</span>
+              <h1>{today.inProgress ? 'Bonne route' : 'Bonjour'}</h1>
+            </div>
+            {sync}
+            <button className="tile-btn" aria-label="Options" onClick={() => setShowSettings(true)}>
+              <SettingsIcon size={22} />
+            </button>
+          </header>
+
+          <main className="home">
+            <HomeNotices onOpenReminders={() => setShowSettings('reminders')} />
+
+            <button className="week-tile" onClick={openWeek} aria-label="Ouvrir la semaine">
+              <span className="week-tile-text">
+                <span className="week-tile-label">Semaine {getISOWeek(addHours(thisWeek, 2))}</span>
+                <span className="week-tile-km">
+                  {weekKm != null ? `${weekKm.toLocaleString('fr-FR')} km` : 'Aucun km'}
+                </span>
+              </span>
+              <ArrowUpRight size={28} strokeWidth={2.2} aria-hidden />
+            </button>
+
+            {todayTiles}
+
+            {inTruck.length > 0 && inTruckSection}
+
+            {today.events.length > 0 ? (
+              <div className="days">
+                <DaySection
+                  day={today}
+                  title="Étapes du jour"
+                  noLimit
+                  index={0}
+                  onOpen={(event) => setEditing({ event })}
+                  onMap={() => {
+                    setStart(weekStart(today.date));
+                    setShowMap(format(today.date, 'yyyy-MM-dd'));
+                  }}
+                />
+              </div>
+            ) : (
+              inTruck.length === 0 && (
+                <div className="empty">
+                  <p>Aucune étape aujourd’hui.</p>
+                  <p className="muted">Appuie sur « + » pour commencer ta journée.</p>
+                </div>
+              )
+            )}
+          </main>
+
+          <FinishStepButton />
+          <nav className="bottom-nav" aria-label="Navigation">
+            <button aria-label="Semaine" onClick={openWeek}>
+              <CalendarDays size={22} />
+            </button>
+            {lvButton}
+            <button aria-label="Statistiques" onClick={() => setShowStats(true)}>
+              <ChartColumn size={22} />
+            </button>
+            <button aria-label="Rechercher" onClick={() => setSearching(true)}>
+              <Search size={22} />
+            </button>
+          </nav>
+          <button className="fab" aria-label="Nouvelle étape" onClick={() => setEditing({ event: null })}>
+            <Plus size={30} strokeWidth={2.6} />
+          </button>
+        </>
+      )}
+
+      {showWeek && (
+        <WeekPage
+          start={start}
+          slide={slide}
+          found={found}
+          onWeek={goWeek}
+          onPickWeek={() => setPickingWeek(true)}
+          onOpen={(event) => setEditing({ event })}
+          onMap={(day) => setShowMap(day ?? true)}
+          onAllowances={() => setShowAllowances(true)}
+          onInTruck={() => setWaybillFilter('dans_camion')}
+          onClose={() => setShowWeek(false)}
+        />
+      )}
       {editing && <EventForm event={editing.event} onClose={() => setEditing(null)} />}
       {searching && (
         <Suspense fallback={null}>
@@ -285,6 +426,7 @@ export default function WeekView() {
               setSearching(false);
               pickWeek(weekStart(parseISO(event.occurred_at)));
               setFound(event.id);
+              if (!wide) setShowWeek(true); // PC : la semaine est déjà au centre
             }}
             onClose={() => setSearching(false)}
           />
@@ -348,6 +490,7 @@ export default function WeekView() {
             onPickWeek={(week) => {
               setMonthMap(null);
               pickWeek(week);
+              if (!wide) setShowWeek(true); // PC : la semaine est déjà au centre
             }}
             onEdit={(event) => {
               setMonthMap(null);
@@ -361,7 +504,7 @@ export default function WeekView() {
         <Suspense fallback={null}>
           <WeekMap
             start={start}
-            events={days.flatMap((d) => d.events)}
+            events={groupWeek(events, start).flatMap((d) => d.events)}
             day={typeof showMap === 'string' ? showMap : undefined}
             onEdit={(event) => {
               setShowMap(false);

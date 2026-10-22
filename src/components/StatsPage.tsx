@@ -288,21 +288,21 @@ export default function StatsPage({ week, onEdit, onClose }: Props) {
                         {compared} ({num(before.km)} km)
                       </span>
                     )}
+                    {period.kind !== 'jour' && (
+                      <KmChart
+                        bare
+                        period={period}
+                        events={events}
+                        timeline={timeline}
+                        now={now}
+                        onPick={(p) => go(p, 'fade')}
+                      />
+                    )}
                   </section>
 
                   <Tiles period={period} stats={stats} before={before} fees={fees} />
 
-                  {period.kind === 'jour' ? (
-                    <DayDetail events={events} range={range} stats={stats} />
-                  ) : (
-                    <KmChart
-                      period={period}
-                      events={events}
-                      timeline={timeline}
-                      now={now}
-                      onPick={(p) => go(p, 'fade')}
-                    />
-                  )}
+                  {period.kind === 'jour' && <DayDetail events={events} range={range} stats={stats} />}
 
                   {period.kind !== 'jour' && (
                     <EmptySection

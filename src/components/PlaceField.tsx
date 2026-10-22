@@ -6,17 +6,26 @@ import type { Place } from '../types';
 
 const countryNames = new Intl.DisplayNames(['fr'], { type: 'region' });
 
-export const EMPTY_PLACE: Place = { city: '', postcode: null, department: null, country_code: null, lat: null, lon: null };
+export const EMPTY_PLACE: Place = {
+  city: '',
+  postcode: null,
+  department: null,
+  country_code: null,
+  lat: null,
+  lon: null,
+};
 
 interface Props {
   value: Place;
   onChange: (place: Place) => void;
   autoLocate?: boolean;
+  /** Sur une ligne de formulaire : sans le détail (département, code postal, pays) dessous. */
+  compact?: boolean;
   /** Bouton « Me localiser » (GPS) : affiché sauf demande contraire. */
   locate?: boolean;
 }
 
-export default function PlaceField({ value, onChange, autoLocate, locate: withLocate = true }: Props) {
+export default function PlaceField({ value, onChange, autoLocate, compact, locate: withLocate = true }: Props) {
   const [query, setQuery] = useState(value.city);
   const [suggestions, setSuggestions] = useState<Place[]>([]);
   const [locating, setLocating] = useState(false);
@@ -121,7 +130,7 @@ export default function PlaceField({ value, onChange, autoLocate, locate: withLo
           ))}
         </ul>
       )}
-      <PlaceInfo place={value} />
+      {!compact && <PlaceInfo place={value} />}
       {locating && <p className="hint">Recherche de ta position…</p>}
       {error && <p className="hint hint-err">{error}</p>}
     </div>
@@ -130,8 +139,10 @@ export default function PlaceField({ value, onChange, autoLocate, locate: withLo
 
 function PlaceInfo({ place }: { place: Place }) {
   if (!place.country_code) return null;
-  const parts = [place.department && `Dép. ${place.department}`, place.postcode, countryNames.of(place.country_code)].filter(
-    Boolean,
-  );
+  const parts = [
+    place.department && `Dép. ${place.department}`,
+    place.postcode,
+    countryNames.of(place.country_code),
+  ].filter(Boolean);
   return <p className="hint">{parts.join(' · ')}</p>;
 }

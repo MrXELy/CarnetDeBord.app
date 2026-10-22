@@ -299,7 +299,13 @@ function walk(events: readonly RestEvent[]) {
 export type RestAdvice = Pick<RestCheck, 'level' | 'lines'>;
 
 /** Heure limite de la journée en cours, avec son début de journée (pour l'afficher sous son jour). */
-export type DayLimit = RestAdvice & { startId: string };
+export type DayLimit = RestAdvice & {
+  startId: string;
+  /** Prochaine heure limite : pour 11 h de repos tant qu'elle n'est pas passée, sinon la dernière. */
+  until: Date;
+  /** Dernière heure possible (repos réduit s'il en reste, sinon 11 h). */
+  last: Date;
+};
 
 const worst = (lines: RestLine[]): RestLevel =>
   lines.reduce<RestLevel>((w, l) => (RANK[l.level] > RANK[w] ? l.level : w), 'ok');
@@ -427,7 +433,8 @@ export function dayLimit(events: readonly RestEvent[], now: Date): DayLimit | nu
     }
     lines.push({ level, text });
   }
-  return { level: worst(lines), lines, startId: state.dayStart.id };
+  const until = remaining > 0 && now <= normal ? normal : last;
+  return { level: worst(lines), lines, startId: state.dayStart.id, until, last };
 }
 
 export interface RestDebt {

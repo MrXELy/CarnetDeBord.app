@@ -12,7 +12,7 @@ Conditions des services utilisés : `services-publics.md`.
 
 ## Cartes de la semaine, du mois et d'une journée
 
-- Accès au mois par « Carte du mois » dans la liste des semaines ; à une journée par la petite pastille carte à côté du nom du jour dans la semaine, ou en touchant un jour dans la légende de la carte de la semaine ; depuis les Statistiques, pastille sous le titre de la période (pas pour l'année).
+- Accès au mois par « Carte du mois » dans la liste des semaines ; à une journée par la petite pastille carte à côté du nom du jour (page Semaine et accueil), ou en touchant un jour dans les cases sous la carte de la semaine (« Tout » puis un jour par case, à sa couleur ; sous elles, grands boutons « Image » et « Revoir en vidéo » / « Revoir la journée ») ; depuis les Statistiques, pastille sous le titre de la période (pas pour l'année).
 - Carte d'une journée : ses lieux renumérotés, départ du dernier lieu de la veille, chaque lieu avec seulement les étapes du jour ; itinéraires de la carte de la semaine (sinon lignes droites, bouton « Générer la semaine ») ; même ▶ pour la rejouer.
 - Réglages retenus sur l'appareil : itinéraires ou lignes droites, « France entière » (sinon cadrée sur les trajets), villes, départements, et numéros des étapes (carte de la semaine).
 - **Carte du mois** : un mois = les semaines rangées sous ce mois dans la liste (mois de leur **lundi**), entières ; elle réutilise les cartes des semaines. Une couleur par semaine, points sans numéro, pas de flèches.

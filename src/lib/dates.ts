@@ -75,6 +75,29 @@ export function groupWeek(events: TripEvent[], start: Date): Day[] {
     }));
 }
 
+/**
+ * Journée affichée sur l'accueil. Commencée et pas encore finie : ses étapes depuis le début de journée, même
+ * passé minuit (`inProgress`). Sinon, les étapes du jour (journée finie, ou pas encore commencée).
+ * `events` : le plus récent en premier.
+ */
+export function currentDay(events: TripEvent[], now: Date): Day & { inProgress: boolean } {
+  const alive = events.filter((e) => !e.deleted_at && Date.parse(e.occurred_at) <= now.getTime());
+  const lastBoundary = alive.find((e) => e.type === 'debut_journee' || e.type === 'fin_journee');
+  if (lastBoundary?.type === 'debut_journee') {
+    return {
+      date: workDay(parseISO(lastBoundary.occurred_at)),
+      events: alive.filter((e) => e.occurred_at >= lastBoundary.occurred_at),
+      inProgress: true,
+    };
+  }
+  const today = workDay(now).getTime();
+  return {
+    date: new Date(today),
+    events: alive.filter((e) => workDay(parseISO(e.occurred_at)).getTime() === today),
+    inProgress: false,
+  };
+}
+
 export interface DaySummary {
   km: number | null;
   /** Amplitude en minutes entre « début » et « fin de journée ». */

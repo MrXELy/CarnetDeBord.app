@@ -253,6 +253,8 @@ describe('heure limite de la journée en cours', () => {
   it('11 h ou repos réduit', () => {
     expect(dayLimit(events, new Date('2026-10-14T10:00'))).toEqual({
       startId: events[2].id,
+      until: new Date('2026-10-14T18:00'),
+      last: new Date('2026-10-14T20:00'),
       level: 'ok',
       lines: [
         {
@@ -268,6 +270,7 @@ describe('heure limite de la journée en cours', () => {
     expect(dayLimit(events, new Date('2026-10-14T19:15'))!.lines[0].text).toBe(
       'Fin de journée avant 20:00 au plus tard (repos réduit, 3 restants sur 3).',
     );
+    expect(dayLimit(events, new Date('2026-10-14T19:15'))!.until).toEqual(new Date('2026-10-14T20:00'));
     const late = dayLimit(events, new Date('2026-10-14T20:30'))!;
     expect(late.level).toBe('error');
     expect(late.lines[0].text).toBe(
