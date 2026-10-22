@@ -20,7 +20,7 @@ import {
 } from '../lib/places';
 import { useSheet } from '../lib/useSheet';
 import { useEvents } from '../lib/useEvents';
-import { isBlankWaybill, stopOf, waybillContext } from '../lib/waybills';
+import { isBlankWaybill } from '../lib/waybills';
 import {
   EVENT_TYPES,
   STATIONS,
@@ -369,24 +369,6 @@ export default function EventForm({ event, onClose }: Props) {
     return { 'aria-label': label, title: label };
   };
 
-  // Pastille de la fiche LV : chargement et livraison, celui de cette fiche pris tel qu'il est saisi.
-  function editingContext(): string | undefined {
-    if (!editing) return;
-    const w = editing.waybill;
-    const here = { place, at: whenIso };
-    if (editing.side === 'load') return waybillContext(here, stopOf(store.event(w.delivery_event_id)));
-    const pending = newLoadings.get(w.id);
-    const loading = pending ? { place: pending.place, at: pending.at } : stopOf(store.event(w.loading_event_id));
-    // Cochée (ou saisie ici) : livrée à cette étape ; décochée : pas livrée ici, peut-être ailleurs.
-    const delivery =
-      checked.has(w.id) || editing.isNew
-        ? here
-        : w.delivery_event_id !== event?.id
-          ? stopOf(store.event(w.delivery_event_id))
-          : null;
-    return waybillContext(loading, delivery);
-  }
-
   return (
     <>
       <div className="modal-backdrop" ref={sheet.ref} onClick={sheet.close}>
@@ -734,7 +716,6 @@ export default function EventForm({ event, onClose }: Props) {
           waybill={editing.waybill}
           isNew={editing.isNew}
           initialPhoto={editing.photo}
-          context={editingContext()}
           steps={editingSteps()?.steps}
           onSave={(w, changes) => {
             saveEditing(w);

@@ -2459,3 +2459,22 @@ button.st-kv-item:active { transform: scale(0.97); }
 
 /* Bouton « Fin » : en bas de la colonne du centre */
 .app.pc .finish-btn { left: 128px; right: auto; width: min(560px, calc(50vw - 100px)); bottom: 24px; }
+
+/* ---------- Fiche LV (maquette « Lettre de voiture ») ---------- */
+.modal-header .lv-state { margin-left: 0; }
+.lv-remarks { display: grid; gap: 4px; padding: 12px 16px; border-radius: 20px; background: #4a3613; color: #ffe2ad; font-size: 0.92rem; }
+.lv-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.lv-step { display: grid; align-content: start; gap: 2px; padding: 12px 14px; border-radius: 22px; background: var(--tone-bg); color: var(--tone); }
+.lv-step-label { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 600; color: var(--tone-sub); }
+.lv-step-city { font-size: 1.1rem; font-weight: 800; overflow-wrap: anywhere; }
+.lv-step-when { font-size: 0.85rem; color: var(--tone-sub); }
+.lv-step-edit { gap: 8px; padding: 14px 16px; }
+.lv-step-edit input { background: rgba(0, 0, 0, 0.22); color: var(--tone); }
+.lv-fields { margin: 0; }
+.lv-fields dt { color: var(--muted); font-size: 0.9rem; font-weight: 600; }
+.lv-fields dd { margin: 0; flex: 1; min-width: 0; text-align: right; font-weight: 700; white-space: pre-line; overflow-wrap: anywhere; }
+.field-row.field-missing > :first-child,
+.field-row.field-missing dd { color: #ffe2ad; }
+.field-row .label-line { flex: none; }
+.form-footer .footer-secondary { flex: 1; justify-content: center; min-height: 64px; font-size: 0.92rem; }
+.form-footer > .btn-primary.btn-icon { justify-content: center; }

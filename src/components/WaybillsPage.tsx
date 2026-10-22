@@ -7,7 +7,6 @@ import { normalize } from '../lib/search';
 import { useSheet } from '../lib/useSheet';
 import { swipeStep, useSwipe } from '../lib/useSwipe';
 import { useEvents } from '../lib/useEvents';
-import { stopOf, waybillContext } from '../lib/waybills';
 import { isInTruck, waybillStatus, type Waybill } from '../types';
 import WaybillForm from './WaybillForm';
 import WaybillLine from './WaybillLine';
@@ -78,9 +77,6 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
         ? waybills.filter(isInTruck).length
         : waybills.length;
 
-  const context = (w: Waybill) =>
-    waybillContext(stopOf(store.event(w.loading_event_id)), stopOf(store.event(w.delivery_event_id)));
-
   const editingLoading = editing ? store.event(editing.loading_event_id) : null;
   const editingDelivery = editing ? store.event(editing.delivery_event_id) : null;
 
@@ -147,7 +143,6 @@ export default function WaybillsPage({ initialFilter, onClose }: Props) {
         <WaybillForm
           waybill={editing}
           isNew={false}
-          context={context(editing)}
           steps={{
             loading: editingLoading ? { place: placeOf(editingLoading), at: editingLoading.occurred_at } : undefined,
             delivery: editingDelivery ? { at: editingDelivery.occurred_at } : undefined,
