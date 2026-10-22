@@ -1,5 +1,5 @@
 ---
-paths: ["src/styles.css", "src/App.tsx", "src/components/WeekView.tsx", "src/components/WeekPage.tsx", "src/components/WeekPicker.tsx", "src/components/DaySection.tsx", "src/components/EventCard.tsx", "src/components/EventIcon.tsx", "src/components/Settings.tsx", "src/lib/useSheet.ts", "src/lib/useSwipe.ts", "src/lib/useModal.ts", "src/lib/share.ts", "src/lib/csv.ts", "src/main.tsx", "src/components/ErrorBoundary.tsx", "src/lib/dates.ts", "vite.config.ts"]
+paths: ["src/styles.css", "src/App.tsx", "src/components/WeekView.tsx", "src/components/WeekPage.tsx", "src/components/WeekMapPreview.tsx", "src/lib/useWide.ts", "src/components/WeekPicker.tsx", "src/components/DaySection.tsx", "src/components/EventCard.tsx", "src/components/EventIcon.tsx", "src/components/Settings.tsx", "src/lib/useSheet.ts", "src/lib/useSwipe.ts", "src/lib/useModal.ts", "src/lib/share.ts", "src/lib/csv.ts", "src/main.tsx", "src/components/ErrorBoundary.tsx", "src/lib/dates.ts", "vite.config.ts"]
 ---
 
 # Interface
@@ -10,7 +10,8 @@ paths: ["src/styles.css", "src/App.tsx", "src/components/WeekView.tsx", "src/com
 - **Thème sombre** : fond `#1a1c22`, tuiles pleines `#262932` (variables `--glass*`, nom hérité), coins 16 à 26 px, boutons d'au moins 48 px (faciles à toucher avec des gants), accent `#b9c8ff` (tuile de la semaine, « + », boutons principaux), police **Figtree** (paquet npm, gardée hors ligne), pas de dégradés ni de flou.
 - **Une couleur par type d'étape** (`.tone-*` : `--tone` texte clair, `--tone-bg` fond de tuile, `--tone-sub` texte secondaire) : chargement bleu, livraison vert, carburant ambre ; débuts et fins de journée gris, en simples lignes avec un rond creux. Étapes en tuiles avec l'icône du type dans un carré. **Ordre inchangé : le plus récent en premier.**
 - Animations douces (fenêtres qui montent du bas, étapes en fondu, glissement de semaine), coupées si le téléphone demande de réduire les animations. Sur téléphone, ce qui est sous la fenêtre du dessus est masqué une fois qu'elle a fini de monter (sinon Chrome Android saturait : zones de carte non dessinées).
-- Écarts voulus avec les maquettes : **sur PC, l'appli reste centrée en largeur téléphone** (pas de 3 colonnes) ; **feuille de semaine partagée directement** (pas d'écran de choix des pages) ; page des LV sans vignettes photo ni bouton « Photographier une LV ».
+- **Version PC** (à partir de 1024 px, `useWide.ts`), comme la maquette : menu en colonne à gauche (« + », semaine en cours, LV, Statistiques, Rechercher, synchro, Options), au centre la semaine affichée (flèches, « Choisir une semaine », km de la semaine, tuiles du jour si c'est la semaine en cours, tous les jours), à droite la carte de la semaine (`WeekMapPreview.tsx`, à toucher pour l'ouvrir en grand) avec Frais, Feuille et « Revoir en vidéo », puis les LV du camion. Pas de page Semaine sur PC.
+- Écarts voulus avec les maquettes : **feuille de semaine partagée directement** (pas d'écran de choix des pages) ; page des LV sans vignettes photo ni bouton « Photographier une LV ».
 - Fenêtres en panneaux qui montent du bas, redescendent à la fermeture et se ferment en tirant leur haut vers le bas ; types d'étape en cases à la couleur du type (bordure quand choisi) ; carburant : « Plein complet » / « Complément » en deux cases, à part du choix de la station.
 
 ## Comportements communs

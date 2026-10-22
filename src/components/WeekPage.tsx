@@ -41,11 +41,10 @@ interface Props {
 /** Page d'une semaine : ses km, ses raccourcis (frais, carte, feuille) et tous ses jours. */
 export default function WeekPage(props: Props) {
   const { start, slide, found } = props;
-  const { events, waybills, store, allowanceSettings, sheetSettings } = useEvents();
+  const { events, store, allowanceSettings } = useEvents();
   const sheet = useSheet(props.onClose);
   const panel = useRef<HTMLDivElement>(null);
-  // Feuille de semaine en cours de fabrication : bouton occupé, pas de double fabrication.
-  const [makingSheet, setMakingSheet] = useState(false);
+  const { make: weekSheet, making: makingSheet } = useWeekSheet(start);
   const days = useMemo(() => groupWeek(events, start), [events, start]);
   const week = useMemo(() => summarizeWeek(days.flatMap((d) => d.events)), [days]);
   // Amplitude totale des journées complètes, et nombre d'opérations (sans les débuts et fins de journée).
@@ -80,25 +79,6 @@ export default function WeekPage(props: Props) {
     }, 450);
     return () => clearTimeout(timer);
   }, [found]);
-
-  /** Feuille de semaine en PDF : partagée sur téléphone, téléchargée sur ordinateur. */
-  async function weekSheet() {
-    if (makingSheet) return;
-    setMakingSheet(true);
-    try {
-      // Le dessin du PDF (et sa bibliothèque) n'est chargé qu'ici.
-      const { weekSheetPdf } = await import('../lib/weekSheetPdf');
-      const built = buildWeekSheet(events, waybills, start, sheetSettings, store.allowances());
-      const name = `feuille-semaine-${built.week}-${built.monday.getFullYear()}.pdf`;
-      await shareFile(weekSheetPdf(built), name, `Feuille de semaine ${built.week}`);
-    } catch (err) {
-      if (!(err instanceof Error && err.name === 'AbortError')) {
-        alert(`Feuille de semaine impossible : ${err instanceof Error ? err.message : String(err)}`);
-      }
-    } finally {
-      setMakingSheet(false);
-    }
-  }
 
   return (
     <div className="modal-backdrop" ref={sheet.ref} onClick={sheet.close}>
@@ -202,4 +182,31 @@ export default function WeekPage(props: Props) {
       </div>
     </div>
   );
+}
+
+/** Feuille de semaine en PDF : partagée sur téléphone, téléchargée sur ordinateur ; `making` pendant la fabrication. */
+export function useWeekSheet(start: Date) {
+  const { events, waybills, store, sheetSettings } = useEvents();
+  // En cours de fabrication : bouton occupé, pas de double fabrication.
+  const [making, setMaking] = useState(false);
+
+  async function make() {
+    if (making) return;
+    setMaking(true);
+    try {
+      // Le dessin du PDF (et sa bibliothèque) n'est chargé qu'ici.
+      const { weekSheetPdf } = await import('../lib/weekSheetPdf');
+      const built = buildWeekSheet(events, waybills, start, sheetSettings, store.allowances());
+      const name = `feuille-semaine-${built.week}-${built.monday.getFullYear()}.pdf`;
+      await shareFile(weekSheetPdf(built), name, `Feuille de semaine ${built.week}`);
+    } catch (err) {
+      if (!(err instanceof Error && err.name === 'AbortError')) {
+        alert(`Feuille de semaine impossible : ${err instanceof Error ? err.message : String(err)}`);
+      }
+    } finally {
+      setMaking(false);
+    }
+  }
+
+  return { make, making };
 }

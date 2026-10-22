@@ -2391,3 +2391,71 @@ button.st-kv-item:active { transform: scale(0.97); }
 .today-tile.rest-warn small,
 .today-tile.rest-error span,
 .today-tile.rest-error small { color: inherit; }
+
+/* ---------- Version PC (≥ 1024 px, useWide) : menu à gauche, semaine au centre, carte à droite ---------- */
+.app.pc {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  max-width: 1600px;
+  padding: 20px;
+}
+.app.pc.finishing { padding-bottom: 110px; }
+
+.side-rail {
+  position: sticky;
+  top: 20px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 88px;
+  height: calc(100dvh - 40px);
+  padding: 16px 0;
+  border-radius: 28px;
+  background: var(--glass);
+}
+.side-rail button {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: none;
+  border-radius: 18px;
+  background: none;
+  color: var(--muted);
+}
+.side-rail button:hover,
+.side-rail button[aria-current='page'] { background: #3a3e4a; color: var(--text); }
+.side-rail .side-add { width: 60px; height: 60px; margin-bottom: 12px; border-radius: 22px; background: var(--accent); color: var(--accent-text); }
+.side-rail .side-add:hover { background: var(--accent); color: var(--accent-text); }
+.side-spacer { flex: 1; }
+
+.pc-main { flex: 1; min-width: 0; display: grid; gap: 14px; align-content: start; }
+.pc-head { display: flex; align-items: center; gap: 10px; }
+.pc-head .week-title { flex: 0 1 auto; padding: 4px 16px; }
+.pc-main .home-notices { padding: 0; }
+.pc-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.pc-week-tile { cursor: default; }
+.pc-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.pc-days { padding: 0; }
+.pc-days .day:first-child { margin-top: 0; }
+.pc-side { position: sticky; top: 20px; display: grid; gap: 12px; }
+.pc-map { display: grid; gap: 12px; }
+.pc-map-frame {
+  display: block;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: none;
+  border-radius: 26px;
+  background: #0b0d11;
+  cursor: zoom-in;
+}
+.pc-map-frame .week-map { border-radius: 0; }
+.pc-map-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+
+/* Bouton « Fin » : en bas de la colonne du centre */
+.app.pc .finish-btn { left: 128px; right: auto; width: min(560px, calc(50vw - 100px)); bottom: 24px; }
