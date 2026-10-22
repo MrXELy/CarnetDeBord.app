@@ -64,6 +64,14 @@ describe('buildReplay', () => {
     expect(replay.total).toBeCloseTo(10);
   });
 
+  it('part à la fin du chargement quand elle est notée', () => {
+    const events = week.map((e) => (e.id === 'cha3' ? { ...e, finished_at: new Date('2026-02-03T09:30').toISOString() } : e));
+    const phases = buildReplay(buildStops(events).stops).phases;
+    const [stop, drive] = phases.slice(2, 4);
+    expect(new Date(stop.realTo).toISOString()).toBe(new Date('2026-02-03T09:30').toISOString());
+    expect(new Date(drive.realFrom).toISOString()).toBe(new Date('2026-02-03T09:30').toISOString());
+  });
+
   it('met un repos avant un trajet qui part après une fin de journée', () => {
     // Fin de journée à Carcassonne, reprise le lendemain à Toulouse (repos ailleurs, non noté).
     const events = [

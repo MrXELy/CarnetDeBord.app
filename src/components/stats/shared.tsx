@@ -79,7 +79,17 @@ export function KV({
   );
 }
 
-export function RankList({ items, unit = '', tone }: { items: Ranked[]; unit?: string; tone?: string }) {
+export function RankList({
+  items,
+  unit = '',
+  tone,
+  format = num,
+}: {
+  items: Ranked[];
+  unit?: string;
+  tone?: string;
+  format?: (n: number) => string;
+}) {
   const max = Math.max(1, ...items.map((i) => i.count));
   return (
     <ul className={`st-rank${tone ? ` tone-${tone}` : ''}`}>
@@ -90,7 +100,7 @@ export function RankList({ items, unit = '', tone }: { items: Ranked[]; unit?: s
             {i.detail && <span> {i.detail}</span>}
           </span>
           <span className="st-rank-count">
-            {num(i.count)}
+            {format(i.count)}
             {unit}
           </span>
           <span className="st-rank-bar">

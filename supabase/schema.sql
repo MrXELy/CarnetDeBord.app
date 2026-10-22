@@ -19,6 +19,7 @@ create table if not exists public.events (
   diesel_l      numeric(7, 2),
   adblue_l      numeric(7, 2),
   full_tank     boolean,
+  finished_at   timestamptz,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now(),
   deleted_at    timestamptz

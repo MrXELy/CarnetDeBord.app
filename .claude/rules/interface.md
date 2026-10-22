@@ -21,6 +21,7 @@ paths: ["src/styles.css", "src/App.tsx", "src/components/WeekView.tsx", "src/com
 ## Accueil et semaine
 
 - **Vue semaine** avec récap des km (km de la semaine, de chaque jour, de la liste des semaines et des cartes : `periodKm` dans `src/lib/dates.ts`, même calcul par tronçons que les Statistiques), navigation par glissement, liste « Choisir une semaine » groupée par mois et saut à une date. Sous la semaine, pastilles des frais, de la carte et de la feuille de semaine sur une ligne.
+- Bouton flottant « Fin du chargement / de la livraison » à gauche du « + » (voir `lv.md`).
 - Haut de l'accueil : échéances (`HomeNotices.tsx`) ; heure limite sous le jour en cours (`DayLimitNotice.tsx`).
 
 ## Options

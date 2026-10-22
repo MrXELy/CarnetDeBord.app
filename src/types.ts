@@ -33,6 +33,8 @@ export interface TripEvent extends Place {
   adblue_l: number | null;
   /** Plein complet (réservoir rempli) ou simple complément ; absent sur les anciennes étapes. */
   full_tank?: boolean | null;
+  /** Fin d'un chargement ou d'une livraison (bouton « Fin du chargement ») ; l'heure de l'étape est l'arrivée. */
+  finished_at?: string | null;
   updated_at: string;
   deleted_at: string | null;
 }

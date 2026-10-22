@@ -24,6 +24,7 @@ import { isDayBoundary, waybillStatus, type TripEvent } from '../types';
 import AllowancesSheet from './AllowancesSheet';
 import DaySection from './DaySection';
 import EventForm from './EventForm';
+import FinishStepButton from './FinishStepButton';
 import HomeNotices from './HomeNotices';
 import type { WaybillFilter } from './WaybillsPage';
 import WeekPicker from './WeekPicker';
@@ -271,6 +272,7 @@ export default function WeekView() {
         )}
       </main>
 
+      <FinishStepButton />
       <button className="fab" aria-label="Nouvelle étape" onClick={() => setEditing({ event: null })}>
         <Plus size={32} strokeWidth={2.5} />
       </button>

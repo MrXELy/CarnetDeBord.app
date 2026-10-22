@@ -380,6 +380,14 @@ export class EventStore {
     this.commit();
   }
 
+  /** Valide la fin d'un chargement ou d'une livraison (ISO). */
+  finishStep(eventId: string, finishedAt: string) {
+    const event = this.event(eventId);
+    if (!event) return;
+    this.events.save({ ...event, finished_at: finishedAt });
+    this.commit();
+  }
+
   saveWaybill(waybill: Waybill) {
     this.putWaybill(waybill);
     this.commit();
@@ -754,7 +762,13 @@ function normalizeEvent({
   cmr_number: _cmr,
   ...e
 }: TripEvent & { client?: unknown; cmr_number?: unknown }): TripEvent {
-  return { ...e, diesel_l: num(e.diesel_l), adblue_l: num(e.adblue_l), full_tank: e.full_tank ?? null };
+  return {
+    ...e,
+    diesel_l: num(e.diesel_l),
+    adblue_l: num(e.adblue_l),
+    full_tank: e.full_tank ?? null,
+    finished_at: e.finished_at ?? null,
+  };
 }
 
 function normalizeWaybill(w: Waybill): Waybill {

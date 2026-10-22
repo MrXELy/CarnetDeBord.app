@@ -8,6 +8,8 @@ paths: ["src/lib/waybills.ts", "src/lib/places.ts", "src/lib/ocr.ts", "src/lib/o
 
 Début et fin de journée, chargement, livraison, carburant (Doumen, AS24, DKV ; gasoil, AdBlue). Immatriculations reprises automatiquement ; le début de journée reprend le km de la fin de journée précédente. Lieu par GPS ou autocomplétion (Photon, geo.api.gouv.fr).
 
+**Fin d'un chargement ou d'une livraison** (`finished_at`, migration 012 ; calculs dans `src/lib/onSite.ts`) : le chauffeur note l'étape **en arrivant** (heure de l'étape = arrivée), puis un bouton flottant à gauche du « + » (`FinishStepButton.tsx`, « Fin du chargement · lieu · arrivé à … ») enregistre l'heure de fin d'un appui. Il reste tant que la fin n'est pas validée et **disparaît si une autre étape est notée après** (fin laissée vide). Champ « Fin » facultatif dans la fiche (corrigeable, refusé avant l'arrivée), **prérempli avec l'heure d'arrivée** tant qu'il n'est pas saisi (rien n'est alors enregistré) ; la carte de l'étape montre « 08:12 → 09:40 » (pas de durée sur place). Fin égale à l'arrivée : pas comptée dans les calculs. Colonne « Heure de fin » dans l'export CSV.
+
 ## LV
 
 - Plusieurs par chargement, à compléter plus tard, choix des LV « dans le camion » à la livraison, page LV (glisser à gauche ou à droite change d'onglet : À compléter, Dans le camion, Toutes ; sans boucler). Un nouveau chargement reçoit d'office une LV vide (Scanner/Saisir la remplissent).

@@ -1,10 +1,11 @@
 import { parseISO } from 'date-fns';
 import { AlarmClock, Camera, Eye, LoaderCircle, Pencil, Plus, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { toLocalInput } from '../lib/dates';
+import { durationLabel, toLocalInput } from '../lib/dates';
 import { isDoumenCity, isFullTank } from '../lib/fuel';
 import { formatPlace } from '../lib/geo';
 import { numText, parseNum } from '../lib/numbers';
+import { hasEnd } from '../lib/onSite';
 import { odometerMessage, readOdometerPhoto } from '../lib/odometer';
 import { restartAdvice, restChecks } from '../lib/rest';
 import {
@@ -60,6 +61,7 @@ export default function EventForm({ event, onClose }: Props) {
   const [km, setKm] = useState(event?.odometer_km?.toString() ?? '');
   const [place, setPlace] = useState<Place>(event ?? EMPTY_PLACE);
   const [when, setWhen] = useState(toLocalInput(event ? parseISO(event.occurred_at) : new Date()));
+  const [finished, setFinished] = useState(event?.finished_at ? toLocalInput(parseISO(event.finished_at)) : '');
   const [station, setStation] = useState<Station | null>(event?.station ?? null);
   const [diesel, setDiesel] = useState(numText(event?.diesel_l ?? null));
   const [adblue, setAdblue] = useState(numText(event?.adblue_l ?? null));
@@ -91,6 +93,12 @@ export default function EventForm({ event, onClose }: Props) {
   const lastKm = whenIso ? store.lastOdometer(tractor.trim(), at, event?.id) : null;
   const kmValue = parseNum(km);
   const isFuel = type === 'carburant';
+  // Fin d'un chargement ou d'une livraison : facultative. Pas encore saisie : le champ montre l'heure d'arrivée,
+  // mais rien n'est enregistré (le bouton « Fin » de l'accueil reste proposé).
+  const withEnd = type != null && hasEnd(type);
+  const end = new Date(finished);
+  const finishedIso = withEnd && finished && !Number.isNaN(end.getTime()) ? end.toISOString() : null;
+  const onSite = finishedIso && whenIso ? Math.round((end.getTime() - at.getTime()) / 60000) : null;
 
   // LV livrables ici : celles du camion à cette heure, celles déjà livrées ici, et celles créées ici.
   const pool = new Map<string, Waybill>();
@@ -144,6 +152,7 @@ export default function EventForm({ event, onClose }: Props) {
     if (kmValue == null) return setError('Indique le kilométrage.');
     if (!place.city.trim()) return setError('Indique le lieu.');
     if (isFuel && !station) return setError('Choisis la station.');
+    if (onSite != null && onSite < 0) return setError('La fin est avant l’arrivée.');
 
     const now = new Date().toISOString();
     const changes = waybillChanges(now);
@@ -169,6 +178,7 @@ export default function EventForm({ event, onClose }: Props) {
         diesel_l: isFuel ? parseNum(diesel) : null,
         adblue_l: isFuel ? parseNum(adblue) : null,
         full_tank: isFuel ? fullTank : null,
+        finished_at: finishedIso,
         updated_at: '',
         deleted_at: null,
       },
@@ -473,9 +483,22 @@ export default function EventForm({ event, onClose }: Props) {
             </div>
 
             <label>
-              Date et heure
+              {withEnd ? 'Arrivée' : 'Date et heure'}
               <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} required />
             </label>
+            {withEnd && (
+              <label>
+                {type === 'chargement' ? 'Fin du chargement' : 'Fin de la livraison'}
+                <input type="datetime-local" value={finished || when} onChange={(e) => setFinished(e.target.value)} />
+                <span className="hint">
+                  {!onSite
+                    ? 'Facultatif : le bouton « Fin » de l’accueil la remplit.'
+                    : onSite < 0
+                      ? 'Avant l’arrivée'
+                      : `${durationLabel(onSite)} sur place`}
+                </span>
+              </label>
+            )}
             {restCheck && <RestNotice check={restCheck} icon={type === 'fin_journee' ? AlarmClock : undefined} />}
 
             {type === 'chargement' && (

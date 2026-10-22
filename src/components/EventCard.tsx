@@ -44,6 +44,7 @@ export default function EventCard({ event: e, onOpen }: { event: TripEvent; onOp
 
   const consumption = e.type === 'carburant' && isFullTank(e) ? consumptionLabel(store.fuelIntervals(), e.id) : null;
 
+  const end = e.finished_at && timeLabel(e.finished_at);
   const details: string[] = [];
   if (waybills.length > 0) {
     // Chargement : le client chargeur ; livraison : le client destinataire.
@@ -61,7 +62,10 @@ export default function EventCard({ event: e, onOpen }: { event: TripEvent; onOp
       <span className="card-body">
         <span className="card-top">
           <span className="card-type">{info.label}</span>
-          <span className="card-time">{timeLabel(e.occurred_at)}</span>
+          <span className="card-time">
+            {timeLabel(e.occurred_at)}
+            {end && end !== timeLabel(e.occurred_at) && ` → ${end}`}
+          </span>
         </span>
         <span className="card-place">
           {formatPlace(e) || 'Lieu non renseigné'}

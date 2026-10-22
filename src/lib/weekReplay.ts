@@ -77,6 +77,8 @@ const MAX_PAUSE_SHARE = 0.6;
 const ASSUMED_KMH = 70;
 
 const time = (e: TripEvent) => parseISO(e.occurred_at).getTime();
+/** Heure de départ d'une étape : la fin du chargement ou de la livraison si elle est notée, sinon son heure. */
+const leaveTime = (e: TripEvent) => Math.max(time(e), e.finished_at ? parseISO(e.finished_at).getTime() : 0);
 const placeOf = (stop: Stop) => formatPlace(stop.events[0]) || stop.events[0].city;
 const hours = (ms: number) => ms / 3_600_000;
 
@@ -127,7 +129,7 @@ export function buildReplay(stops: Stop[], legs: MapLeg[] = [], duration = 30): 
         stop: index,
         caption: stopCaption(group, placeOf(stop)),
         realFrom: time(group[0]),
-        realTo: time(group.at(-1)!),
+        realTo: leaveTime(group.at(-1)!),
         day: dayKey(group[0].occurred_at),
         stopsReached: index + 1,
       });
@@ -165,8 +167,9 @@ export function buildReplay(stops: Stop[], legs: MapLeg[] = [], duration = 30): 
     const driveKm = segment.odometerKm ?? leg?.km ?? cum.at(-1)!;
     const departure = segment.from.events.at(-1)!;
     const arrival = segment.to.events[0];
-    let realFrom = time(departure);
     const realTo = time(arrival);
+    // Fin saisie après l'arrivée suivante (erreur) : départ ramené à cette arrivée.
+    let realFrom = Math.min(leaveTime(departure), realTo);
     // Départ après une fin de journée (lieu de repos différent du lieu de reprise) ou trajet de plus de 12 h :
     // repos d'abord, puis trajet à vitesse supposée.
     const estimated = (driveKm / ASSUMED_KMH) * 3_600_000;
