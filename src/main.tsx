@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
-import '@fontsource-variable/manrope/wght.css';
+import '@fontsource-variable/figtree/wght.css';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
 import './styles.css';

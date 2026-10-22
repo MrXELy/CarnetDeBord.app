@@ -1,24 +1,23 @@
 :root {
-  --bg: #07080c;
-  --surface: #171a21;
-  --surface-2: #1f232c;
-  --border: #2a2f3a;
-  --text: #e8eaed;
-  --muted: #8b93a1;
-  --accent: #f59e0b;
-  --accent-text: #1a1206;
-  --danger: #f87171;
-  --ok: #34d399;
-  --radius: 14px;
-  /* Cartes translucides (« verre ») de l'écran semaine */
-  --glass: rgba(255, 255, 255, 0.055);
-  --glass-hover: rgba(255, 255, 255, 0.085);
-  --glass-border: rgba(255, 255, 255, 0.1);
+  --bg: #1a1c22;
+  --surface: #262932;
+  --surface-2: #2c2f39;
+  --border: #343845;
+  --text: #eef0f5;
+  --muted: #a3a8b5;
+  --accent: #b9c8ff;
+  --accent-text: #1a1c22;
+  --danger: #ffb3b8;
+  --ok: #8ee0b0;
+  --radius: 20px;
+  /* Tuiles pleines (style « grandes tuiles ») ; les noms --glass viennent de l'ancien style en verre. */
+  --glass: #262932;
+  --glass-hover: #2c2f39;
+  --glass-border: transparent;
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --topbar-h: calc(156px + env(safe-area-inset-top, 0px));
 
   color-scheme: dark;
-  font-family: 'Manrope Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Figtree Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 16px;
   line-height: 1.4;
   color: var(--text);
@@ -26,12 +25,12 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Couleur propre à chaque type d'opération */
-.tone-debut_journee { --tone: #34d399; }
-.tone-chargement { --tone: #60a5fa; }
-.tone-livraison { --tone: #a78bfa; }
-.tone-carburant { --tone: #fbbf24; }
-.tone-fin_journee { --tone: #f472b6; }
+/* Couleur propre à chaque type d'opération : texte clair (--tone), fond de tuile (--tone-bg), texte secondaire (--tone-sub) */
+.tone-debut_journee,
+.tone-fin_journee { --tone: #d5d8e0; --tone-bg: #2c2f39; --tone-sub: #a3a8b5; }
+.tone-chargement { --tone: #cfe0ff; --tone-bg: #233a5c; --tone-sub: #9fb6da; }
+.tone-livraison { --tone: #c6f0da; --tone-bg: #22432f; --tone-sub: #9cc9b0; }
+.tone-carburant { --tone: #ffe2ad; --tone-bg: #4a3613; --tone-sub: #d4b886; }
 
 * { box-sizing: border-box; }
 
@@ -63,8 +62,8 @@ textarea {
   width: 100%;
   padding: 13px 14px;
   background: var(--glass);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
+  border: 2px solid transparent;
+  border-radius: 16px;
   outline: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
@@ -95,7 +94,8 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
 .btn-secondary,
 .btn-danger {
   border: none;
-  border-radius: 16px;
+  border-radius: 20px;
+  min-height: 52px;
   padding: 14px 18px;
   font-weight: 700;
   transition: transform 0.12s ease, background-color 0.2s ease;
@@ -105,11 +105,11 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
 .btn-secondary:active,
 .btn-danger:active { transform: scale(0.97); }
 
-.btn-primary { background: linear-gradient(140deg, #fde68a, var(--accent)); color: var(--accent-text); font-weight: 800; }
+.btn-primary { background: var(--accent); color: var(--accent-text); font-weight: 800; }
 .btn-primary:disabled { opacity: 0.6; }
-.btn-secondary { background: var(--glass); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; }
-.btn-danger { background: transparent; color: var(--danger); border: 1px solid rgba(248, 113, 113, 0.35); }
-.btn-small { padding: 9px 16px; border-radius: 999px; font-size: 0.88rem; }
+.btn-secondary { background: var(--glass); }
+.btn-danger { background: transparent; color: var(--danger); border: 2px solid #5a3036; }
+.btn-small { min-height: 44px; padding: 9px 16px; border-radius: 16px; font-size: 0.88rem; }
 .btn-block { display: block; width: 100%; margin-top: 4px; }
 
 .btn-link {
@@ -123,10 +123,10 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
 .icon-btn {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   border: none;
-  border-radius: 10px;
+  border-radius: 16px;
   background: transparent;
   font-size: 1.4rem;
   color: var(--muted);
@@ -163,81 +163,31 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
   touch-action: pan-y pinch-zoom;
 }
 
-/* Halos de couleur qui dérivent lentement derrière l'écran semaine */
-.halos {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.halos i {
-  position: absolute;
-  width: 420px;
-  height: 420px;
-  border-radius: 50%;
-  animation: drift 16s ease-in-out infinite;
-}
-
-.halos i:nth-child(1) {
-  left: -160px;
-  top: -120px;
-  background: radial-gradient(circle, rgba(96, 165, 250, 0.32), transparent 65%);
-}
-
-.halos i:nth-child(2) {
-  right: -180px;
-  top: 30%;
-  background: radial-gradient(circle, rgba(167, 139, 250, 0.26), transparent 65%);
-  animation-duration: 20s;
-  animation-direction: reverse;
-}
-
-.halos i:nth-child(3) {
-  left: -100px;
-  bottom: -140px;
-  background: radial-gradient(circle, rgba(245, 158, 11, 0.2), transparent 65%);
-  animation-duration: 18s;
-}
-
-@keyframes drift {
-  0%, 100% { transform: translate(0, 0); }
-  50% { transform: translate(40px, 30px); }
-}
-
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  height: var(--topbar-h);
-  padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px;
-  background: rgba(7, 8, 12, 0.72);
-  backdrop-filter: blur(16px) saturate(140%);
-  -webkit-backdrop-filter: blur(16px) saturate(140%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.topbar .icon-btn {
-  flex: none;
-  width: 38px;
-  height: 38px;
-  border: 1px solid var(--glass-border);
-  border-radius: 14px;
-  background: var(--glass);
-}
-
-.topbar-row {
+/* En-tête de l'accueil : date, salutation, synchro et Options */
+.home-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  padding: calc(20px + env(safe-area-inset-top, 0px)) 20px 8px;
 }
 
-/* Nom et pastille de synchro : se raccourcissent plutôt que de pousser les boutons hors de l'écran. */
-.brand-wrap { display: flex; align-items: center; min-width: 0; margin-right: auto; }
-.brand { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; font-size: 1.05rem; }
+.home-title { flex: 1; min-width: 0; display: grid; }
+.home-date { font-size: 0.9rem; color: var(--muted); }
+.home-title h1 { margin: 0; font-size: 1.65rem; font-weight: 800; letter-spacing: -0.01em; }
+
+/* Bouton carré en tuile (Options…) */
+.tile-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  border-radius: 16px;
+  background: var(--glass);
+  color: var(--text);
+}
 
 /* État de la synchro : pastille de couleur (vert à jour, orange en attente ou hors ligne, rouge erreur), avec le nombre en attente. */
 .sync {
@@ -283,52 +233,51 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
   color: var(--accent);
 }
 
+/* ---------- Page Semaine ---------- */
 .week-nav {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-top: 6px;
+  gap: 8px;
 }
 
-/* Flèches de semaine : boutons ronds en verre */
+/* Flèches de semaine : tuiles carrées */
 .round-btn {
   flex: none;
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   padding: 0;
-  border: 1px solid var(--glass-border);
-  border-radius: 50%;
+  border: none;
+  border-radius: 16px;
   background: var(--glass);
   color: var(--text);
 }
 
+.week-hero {
+  display: grid;
+  gap: 2px;
+  padding: 18px 20px;
+  border-radius: 26px;
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
 .week-km {
-  font-size: 2.5rem;
+  font-size: 2.6rem;
   font-weight: 800;
   line-height: 1.05;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
-  background: linear-gradient(90deg, #fde68a, #fbbf24 60%, #f472b6);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
 }
 
 .week-km.empty-km { font-size: 1.8rem; }
-.week-sub { font-size: 0.78rem; color: var(--muted); }
-
-/* En-tête plus haut quand il affiche « LV dans le camion » */
+.week-sub { font-size: 0.85rem; font-weight: 600; }
 
 .week-links {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   gap: 8px;
-  padding: 12px 12px 0;
 }
 
 /* Sur téléphone étroit, « 3 LV dans le camion » devient « 3 LV » pour laisser la place aux frais et à la carte. */
@@ -337,40 +286,128 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
   .pill-long { display: none; }
 }
 
+.week-links .pill {
+  justify-content: center;
+  min-height: 56px;
+  border-radius: 18px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
 .pill {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
+  min-height: 36px;
   padding: 5px 12px;
-  border: 1px solid var(--glass-border);
-  border-radius: 999px;
+  border: none;
+  border-radius: 14px;
   background: var(--glass);
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 600;
   color: var(--text);
 }
 
+/* ---------- Accueil ---------- */
+.home { display: grid; gap: 12px; padding: 4px 16px 0; }
+.home .days { padding: 0; }
+.home .home-notices { padding: 0; }
+
+/* Tuile de la semaine : ouvre la page Semaine */
+.week-tile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 18px 20px;
+  border: none;
+  border-radius: 26px;
+  background: var(--accent);
+  color: var(--accent-text);
+  text-align: left;
+}
+
+.week-tile-text { display: grid; }
+.week-tile-label { font-size: 0.9rem; font-weight: 600; }
+.week-tile-km { font-size: 2.4rem; font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+
+.home-h2 {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 8px 4px 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+.home-h2 span { font-size: 0.9rem; font-weight: 500; color: var(--muted); }
+
+/* Avant le début de journée : LV dans le camion, une tuile verte par livraison à faire */
+.in-truck { display: grid; gap: 10px; }
+.in-truck-lv {
+  --tone: #c6f0da;
+  --tone-bg: #22432f;
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  padding: 16px;
+  border: none;
+  border-radius: 24px;
+  background: var(--tone-bg);
+  color: var(--tone);
+  text-align: left;
+}
+.in-truck-top { display: flex; align-items: center; gap: 12px; }
+.in-truck-where { display: grid; min-width: 0; }
+.in-truck-label { font-size: 0.82rem; color: #9cc9b0; }
+.in-truck-city { font-size: 1.4rem; font-weight: 800; overflow-wrap: anywhere; }
+.in-truck-sub { font-size: 0.9rem; color: #9cc9b0; }
+.in-truck-sub:empty { display: none; }
+
+/* Barre du bas : Semaine, LV, Statistiques, Rechercher ; le « + » est à sa droite */
+.bottom-nav {
+  position: fixed;
+  left: max(16px, calc(50% - 304px));
+  right: calc(max(16px, calc(50% - 304px)) + 72px);
+  bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: 20;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  height: 64px;
+  border-radius: 28px;
+  background: var(--glass);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.bottom-nav button {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  border-radius: 16px;
+  background: none;
+  color: var(--muted);
+}
+
+.bottom-nav button:active { background: var(--surface-2); color: var(--text); }
 
 /* ---------- Jours ---------- */
-.days { position: relative; z-index: 1; padding: 0 12px; }
+.days { display: grid; gap: 8px; }
 
 .day { margin-top: 8px; }
 
 .day-header {
-  position: sticky;
-  top: var(--topbar-h);
-  z-index: 5;
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin: 0 -12px;
-  padding: 14px 16px 8px;
-  font-size: 1rem;
+  margin: 0 0 8px;
+  padding: 0 4px;
+  font-size: 1.15rem;
   font-weight: 800;
   letter-spacing: -0.01em;
-  background: rgba(7, 8, 12, 0.78);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
 }
 
 .day-title { display: inline-flex; align-items: center; gap: 8px; }
@@ -385,64 +422,52 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
   color: var(--muted);
 }
 
+/* Étapes de la journée : une tuile colorée par étape, débuts et fins de journée en simples lignes. */
 .timeline {
-  position: relative;
   list-style: none;
   margin: 0;
-  padding: 0 0 0 26px;
+  padding: 0;
   display: grid;
   /* Une colonne à la largeur de l'écran : un nom de lieu très long se coupe au lieu d'élargir la page. */
   grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 
-/* Ligne verticale qui relie les étapes de la journée */
-.timeline::before {
-  content: '';
-  position: absolute;
-  left: 8px;
-  top: 14px;
-  bottom: 14px;
-  width: 2px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.1);
-}
-
 .card {
   position: relative;
   display: flex;
+  align-items: center;
+  gap: 14px;
   width: 100%;
-  padding: 13px 14px;
+  min-height: 72px;
+  padding: 14px 16px;
   text-align: left;
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
+  background: var(--tone-bg);
+  border: none;
   border-radius: 20px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: var(--tone);
 }
 
-/* Point de couleur de l'étape, posé sur la ligne de la frise */
+/* Icône du type dans un carré un peu plus clair que la tuile */
+.card-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--tone) 12%, var(--tone-bg));
+}
+.card-icon .event-icon { color: var(--tone); }
+
+/* Début et fin de journée : rond creux devant la ligne */
 .dot {
-  position: absolute;
-  left: -25px;
-  top: 17px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--tone);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--tone) 18%, transparent), 0 0 14px var(--tone);
-}
-
-/* Début et fin de journée : rond creux, plus discret */
-.marker .dot {
-  left: -23px;
-  top: calc(50% - 5px);
+  flex: none;
   width: 10px;
   height: 10px;
-  border: 2px solid var(--tone);
-  background: var(--bg);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--tone) 30%, transparent);
+  border-radius: 50%;
+  border: 2px solid #6b707c;
 }
-
 
 /* Icônes sobres, toutes de la même couleur */
 .event-icon { flex: none; color: var(--muted); }
@@ -455,16 +480,17 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 6px 2px;
+  min-height: 40px;
+  padding: 4px 18px;
   background: none;
   border: none;
-  border-radius: 10px;
-  font-size: 0.85rem;
+  border-radius: 14px;
+  font-size: 0.9rem;
   color: var(--muted);
   text-align: left;
 }
 
-.marker-type { font-weight: 700; color: var(--tone); }
+.marker-type { font-weight: 700; color: var(--text); }
 .marker-time { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
 
 .marker-place {
@@ -491,8 +517,8 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
 }
 
 .card-top { display: flex; justify-content: space-between; gap: 8px; }
-.card-type { font-weight: 700; color: var(--tone); }
-.card-time { font-weight: 700; font-variant-numeric: tabular-nums; }
+.card-type { font-size: 1.06rem; font-weight: 700; }
+.card-time { font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .card-place {
   display: flex;
@@ -500,9 +526,10 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
   gap: 8px;
 }
 
-.card-km { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.card-details { font-size: 0.88rem; color: var(--muted); }
-.card-notes { font-size: 0.88rem; font-style: italic; color: var(--muted); white-space: pre-wrap; }
+.card-place { color: var(--tone-sub); font-size: 0.9rem; }
+.card-km { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.card-details { font-size: 0.88rem; color: var(--tone-sub); }
+.card-notes { font-size: 0.88rem; font-style: italic; color: var(--tone-sub); white-space: pre-wrap; }
 
 .card-pending {
   position: absolute;
@@ -522,19 +549,19 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
 /* ---------- Bouton + ---------- */
 .fab {
   position: fixed;
-  right: max(20px, calc(50% - 300px));
-  bottom: max(24px, env(safe-area-inset-bottom));
+  right: max(16px, calc(50% - 304px));
+  bottom: max(20px, env(safe-area-inset-bottom));
   z-index: 20;
   width: 64px;
   height: 64px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: 50%;
+  border: none;
+  border-radius: 24px;
   display: grid;
   place-items: center;
   padding: 0;
-  background: linear-gradient(140deg, #fde68a, var(--accent));
+  background: var(--accent);
   color: var(--accent-text);
-  animation: pulse 2.6s ease-in-out infinite;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   transition: transform 0.12s ease;
 }
 
@@ -544,37 +571,32 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
 .finish-btn {
   position: fixed;
   left: max(16px, calc(50% - 304px));
-  right: calc(max(20px, calc(50% - 300px)) + 76px);
-  bottom: calc(max(24px, env(safe-area-inset-bottom)) + 4px);
+  right: calc(max(16px, calc(50% - 304px)) + 72px);
+  bottom: max(20px, env(safe-area-inset-bottom));
   z-index: 20;
-  min-height: 56px;
+  min-height: 64px;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 14px;
-  border: 1px solid color-mix(in srgb, var(--tone) 55%, transparent);
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--tone) 22%, var(--surface));
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
-  color: var(--text);
+  padding: 8px 18px;
+  border: none;
+  border-radius: 24px;
+  background: var(--tone);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  color: var(--tone-bg);
   text-align: left;
   transition: transform 0.12s ease;
 }
 .finish-btn:active { transform: scale(0.97); }
-.finish-icon { flex: none; color: var(--tone); }
+.finish-icon { flex: none; color: inherit; }
 .finish-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.finish-title { font-weight: 700; }
+.finish-title { font-size: 1.05rem; font-weight: 800; }
 .finish-sub {
   font-size: 0.8rem;
-  color: var(--muted);
+  font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-}
-
-@keyframes pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.45), 0 12px 30px rgba(251, 191, 36, 0.3); }
-  50% { box-shadow: 0 0 0 10px rgba(251, 191, 36, 0), 0 12px 30px rgba(251, 191, 36, 0.3); }
 }
 
 /* ---------- Formulaire ---------- */
@@ -613,9 +635,6 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
   }
 }
 
-/* Halos immobiles tant qu'une fenêtre est ouverte : ils sont cachés, et l'écran n'a plus à être recalculé. */
-body:has(.modal-backdrop) .halos i { animation-play-state: paused; }
-
 /*
  * Sur téléphone, tout ce qui est sous la fenêtre du dessus (page, fenêtre ouverte avant) est masqué une fois
  * qu'elle a fini de monter : Chrome Android n'a plus à le garder en mémoire, sinon il en manquait pour la carte
@@ -630,7 +649,7 @@ body:has(.modal-backdrop) .halos i { animation-play-state: paused; }
 
 /* Sur téléphone : panneau en verre qui monte du bas, coins arrondis en haut. */
 .modal {
-  --sheet: rgba(16, 18, 25, 0.94);
+  --sheet: #1f2129;
   width: 100%;
   max-width: 560px;
   margin-top: calc(10px + env(safe-area-inset-top, 0px));
@@ -638,7 +657,7 @@ body:has(.modal-backdrop) .halos i { animation-play-state: paused; }
   overflow-y: auto;
   background: var(--sheet);
   border-top: 1px solid var(--glass-border);
-  border-radius: 28px 28px 0 0;
+  border-radius: 32px 32px 0 0;
   animation: sheet-up 0.38s cubic-bezier(0.2, 0.9, 0.2, 1) both;
 }
 
@@ -919,11 +938,11 @@ legend { margin-bottom: 6px; }
 /* Survol uniquement avec une souris : sur écran tactile, l'effet resterait collé après un appui. */
 @media (hover: hover) {
   .icon-btn:hover { background: var(--surface-2); color: var(--text); }
-  .card:hover { background: var(--glass-hover); }
+  .card:hover { background: color-mix(in srgb, var(--tone) 8%, var(--tone-bg)); }
   .marker:hover { background: var(--glass); }
   .round-btn:hover,
   .pill:hover,
-  .topbar .icon-btn:hover { background: var(--glass-hover); }
+  .tile-btn:hover { background: var(--glass-hover); }
   .suggestions button:hover { background: var(--surface); }
 }
 
@@ -961,7 +980,7 @@ legend { margin-bottom: 6px; }
 .usage-count { font-size: 0.85rem; color: var(--muted); }
 .usage-count strong { margin-right: 4px; font-size: 1.75rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text); font-variant-numeric: tabular-nums; }
 .usage-bar { height: 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
-.usage-bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #fde68a, var(--accent)); }
+.usage-bar i { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
 
 .btn-icon {
   display: inline-flex;
@@ -1365,14 +1384,18 @@ legend { margin-bottom: 6px; }
 .week-title {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 4px;
-  padding: 2px 8px;
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 4px 10px;
   border: none;
-  border-radius: 10px;
-  background: none;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--muted);
+  border-radius: 16px;
+  background: var(--glass);
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text);
 }
 
 .week-title-chevron { color: var(--muted); flex: none; }
@@ -1430,7 +1453,7 @@ legend { margin-bottom: 6px; }
 }
 
 @media (hover: hover) {
-  .week-title:hover { background: var(--surface-2); }
+  .week-title:hover { background: var(--glass-hover); }
   .week-row:hover { background: var(--glass-hover); }
 }
 
@@ -1701,13 +1724,17 @@ legend { margin-bottom: 6px; }
 .marker,
 .round-btn,
 .pill,
-.topbar .icon-btn { transition: transform 0.12s ease, background-color 0.2s ease; }
+.tile-btn,
+.week-tile,
+.in-truck-lv { transition: transform 0.12s ease, background-color 0.2s ease; }
 
 .card:active,
 .marker:active,
 .round-btn:active,
 .pill:active,
-.topbar .icon-btn:active { transform: scale(0.97); }
+.tile-btn:active,
+.week-tile:active,
+.in-truck-lv:active { transform: scale(0.97); }
 
 /* Réglage « réduire les animations » du téléphone : tout reste immobile. */
 @media (prefers-reduced-motion: reduce) {
@@ -1763,10 +1790,7 @@ legend { margin-bottom: 6px; }
   line-height: 1.05;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
-  background: linear-gradient(120deg, #fde68a, var(--accent) 55%, #f472b6);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--text);
 }
 .st-big small { font-size: 1.15rem; letter-spacing: 0; }
 .st-compare { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--muted); }

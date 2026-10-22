@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TripEvent } from '../types';
 import {
+  currentDay,
   durationLabel,
   groupWeek,
   listWeeks,
@@ -14,10 +15,25 @@ import {
 
 function ev(id: string, occurred: string, extra: Partial<TripEvent> = {}): TripEvent {
   return {
-    id, type: 'chargement', occurred_at: new Date(occurred).toISOString(),
-    tractor_plate: '', trailer_plate: '', odometer_km: null, notes: null,
-    station: null, diesel_l: null, adblue_l: null, city: '', postcode: null, department: null,
-    country_code: null, lat: null, lon: null, updated_at: '', deleted_at: null, ...extra,
+    id,
+    type: 'chargement',
+    occurred_at: new Date(occurred).toISOString(),
+    tractor_plate: '',
+    trailer_plate: '',
+    odometer_km: null,
+    notes: null,
+    station: null,
+    diesel_l: null,
+    adblue_l: null,
+    city: '',
+    postcode: null,
+    department: null,
+    country_code: null,
+    lat: null,
+    lon: null,
+    updated_at: '',
+    deleted_at: null,
+    ...extra,
   };
 }
 
@@ -181,5 +197,46 @@ describe('monthWeeks', () => {
     expect(monthWeeks(events, 'Février 2026').map((w) => w.events.map((e) => e.id))).toEqual([['a']]);
     expect(monthWeeks(events, 'Décembre 2025').map((w) => w.start)).toEqual([new Date(2025, 11, 28, 22)]);
     expect(monthWeeks(events, 'Mars 2026')).toEqual([]);
+  });
+});
+
+describe('currentDay', () => {
+  // Le plus récent en premier, comme dans l'appli.
+  const list = (...events: TripEvent[]) => events.sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
+
+  it('journée commencée hier soir et pas finie : ses étapes depuis le début, même après minuit', () => {
+    const events = list(
+      ev('fin-avant', '2026-10-21T18:00', { type: 'fin_journee' }),
+      ev('debut', '2026-10-21T22:30', { type: 'debut_journee' }),
+      ev('charge', '2026-10-21T23:10'),
+      ev('livre', '2026-10-22T02:00', { type: 'livraison' }),
+    );
+    const day = currentDay(events, new Date(2026, 9, 22, 3));
+    expect(day.inProgress).toBe(true);
+    expect(day.events.map((e) => e.id)).toEqual(['livre', 'charge', 'debut']);
+    expect(day.date).toEqual(new Date(2026, 9, 21));
+  });
+
+  it('journée finie ou pas commencée : les étapes du jour seulement', () => {
+    const events = list(
+      ev('hier', '2026-10-21T10:00'),
+      ev('debut', '2026-10-22T06:00', { type: 'debut_journee' }),
+      ev('fin', '2026-10-22T18:00', { type: 'fin_journee' }),
+    );
+    const day = currentDay(events, new Date(2026, 9, 22, 20));
+    expect(day.inProgress).toBe(false);
+    expect(day.events.map((e) => e.id)).toEqual(['fin', 'debut']);
+    expect(currentDay(events, new Date(2026, 9, 23, 5)).events).toEqual([]);
+  });
+
+  it('ignore les étapes supprimées et celles notées dans le futur', () => {
+    const events = list(
+      ev('debut', '2026-10-22T06:00', { type: 'debut_journee' }),
+      ev('fin-supprimee', '2026-10-22T07:00', { type: 'fin_journee', deleted_at: '2026-10-22T07:05' }),
+      ev('demain', '2026-10-23T08:00'),
+    );
+    const day = currentDay(events, new Date(2026, 9, 22, 9));
+    expect(day.inProgress).toBe(true);
+    expect(day.events.map((e) => e.id)).toEqual(['debut']);
   });
 });
