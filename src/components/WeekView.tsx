@@ -94,7 +94,7 @@ export default function WeekView() {
   }
 
   return (
-    <div className="app">
+    <div className={`app${finishing ? ' finishing' : ''}`}>
       <header className="home-head">
         <div className="home-title">
           <span className="home-date">{dayLabel(now)}</span>
@@ -180,29 +180,26 @@ export default function WeekView() {
         )}
       </main>
 
-      {finishing ? (
-        <FinishStepButton />
-      ) : (
-        <nav className="bottom-nav" aria-label="Navigation">
-          <button aria-label="Semaine" onClick={openWeek}>
-            <CalendarDays size={22} />
-          </button>
-          <button
-            className="has-badge"
-            aria-label={toComplete ? `Lettres de voiture, ${toComplete} à compléter` : 'Lettres de voiture'}
-            onClick={() => setWaybillFilter(toComplete ? 'a_completer' : 'dans_camion')}
-          >
-            <FileText size={22} />
-            {toComplete > 0 && <span className="icon-badge">{toComplete}</span>}
-          </button>
-          <button aria-label="Statistiques" onClick={() => setShowStats(true)}>
-            <ChartColumn size={22} />
-          </button>
-          <button aria-label="Rechercher" onClick={() => setSearching(true)}>
-            <Search size={22} />
-          </button>
-        </nav>
-      )}
+      <FinishStepButton />
+      <nav className="bottom-nav" aria-label="Navigation">
+        <button aria-label="Semaine" onClick={openWeek}>
+          <CalendarDays size={22} />
+        </button>
+        <button
+          className="has-badge"
+          aria-label={toComplete ? `Lettres de voiture, ${toComplete} à compléter` : 'Lettres de voiture'}
+          onClick={() => setWaybillFilter(toComplete ? 'a_completer' : 'dans_camion')}
+        >
+          <FileText size={22} />
+          {toComplete > 0 && <span className="icon-badge">{toComplete}</span>}
+        </button>
+        <button aria-label="Statistiques" onClick={() => setShowStats(true)}>
+          <ChartColumn size={22} />
+        </button>
+        <button aria-label="Rechercher" onClick={() => setSearching(true)}>
+          <Search size={22} />
+        </button>
+      </nav>
       <button className="fab" aria-label="Nouvelle étape" onClick={() => setEditing({ event: null })}>
         <Plus size={30} strokeWidth={2.6} />
       </button>

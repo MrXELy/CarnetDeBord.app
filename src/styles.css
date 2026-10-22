@@ -546,6 +546,9 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
   text-align: center;
 }
 
+/* Bouton « Fin » affiché au-dessus de la barre : la page garde la place pour voir sa dernière étape. */
+.app.finishing { padding-bottom: 190px; }
+
 /* ---------- Bouton + ---------- */
 .fab {
   position: fixed;
@@ -571,8 +574,9 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
 .finish-btn {
   position: fixed;
   left: max(16px, calc(50% - 304px));
-  right: calc(max(16px, calc(50% - 304px)) + 72px);
-  bottom: max(20px, env(safe-area-inset-bottom));
+  right: max(16px, calc(50% - 304px));
+  /* Au-dessus de la barre du bas (64 px) et du « + » */
+  bottom: calc(max(20px, env(safe-area-inset-bottom)) + 76px);
   z-index: 20;
   min-height: 64px;
   display: flex;
