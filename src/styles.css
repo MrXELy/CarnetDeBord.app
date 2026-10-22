@@ -584,6 +584,18 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
 /* Halos immobiles tant qu'une fenêtre est ouverte : ils sont cachés, et l'écran n'a plus à être recalculé. */
 body:has(.modal-backdrop) .halos i { animation-play-state: paused; }
 
+/*
+ * Sur téléphone, tout ce qui est sous la fenêtre du dessus (page, fenêtre ouverte avant) est masqué une fois
+ * qu'elle a fini de monter : Chrome Android n'a plus à le garder en mémoire, sinon il en manquait pour la carte
+ * zoomable (morceaux de carte ou du panneau non dessinés). Réaffiché dès que la fenêtre commence à se fermer.
+ */
+@media (max-width: 639.98px) {
+  .app > :has(~ .modal-backdrop:not(.closing)) {
+    visibility: hidden;
+    transition: visibility 0s 0.4s;
+  }
+}
+
 /* Sur téléphone : panneau en verre qui monte du bas, coins arrondis en haut. */
 .modal {
   --sheet: rgba(16, 18, 25, 0.94);
