@@ -349,18 +349,6 @@ export default function WaybillForm(props: Props) {
           </div>
         )
       )}
-      <input
-        ref={camera}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        hidden
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          e.target.value = '';
-          if (file) void addPhoto(file);
-        }}
-      />
     </div>
   );
 
@@ -457,6 +445,19 @@ export default function WaybillForm(props: Props) {
           )}
 
           <div className="modal-body" hidden={!editing}>
+            {/* Hors de photoStrip (affichée deux fois en lecture) : sinon la ref se vide en passant en saisie. */}
+            <input
+              ref={camera}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (file) void addPhoto(file);
+              }}
+            />
             {photoStrip}
             {readingBlock}
 
