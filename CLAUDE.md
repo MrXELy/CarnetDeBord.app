@@ -21,6 +21,7 @@ React 19, Vite, TypeScript, vite-plugin-pwa, date-fns (locale fr), lucide-react,
 
 - `npm install` ; `npm test` (vitest) ; `npm run build` (vérification TypeScript et build).
 - `npx vite --host` : serveur de test **en https** (certificat fait maison, accepter l'avertissement la première fois), accessible depuis le téléphone sur le même Wi-Fi (adresse en `/CarnetDeBord.app/`). Le https est nécessaire sur le téléphone (`crypto.randomUUID` et GPS).
+- `HTTP=1 npx vite` : serveur de test en http, pour tester les notifications (service worker refusé avec le certificat fait maison) : http://localhost:5173/CarnetDeBord.app/ sur PC, téléphone relié en USB (`chrome://inspect`, redirection de port). Détails : `.claude/rules/notifications.md`.
 - Mode démo local : `?demo` dans l'adresse (développement seulement, lit `data/demo-events.json`, ne contacte pas Supabase) ; `?demo=reset` recharge. Détails : `.claude/rules/demo.md`.
 - Fonction Edge : `npx --yes supabase@2.121.0 functions deploy read-waybill --project-ref bjtqghlacclhbjjyarxj --use-api`.
 - Migrations SQL (`supabase/migrations/`, 002 à 012) : lancées à la main par l'utilisateur dans l'éditeur SQL de Supabase. Détails : `.claude/rules/supabase.md`.
@@ -35,7 +36,7 @@ React 19, Vite, TypeScript, vite-plugin-pwa, date-fns (locale fr), lucide-react,
 - Fenêtres en panneau : `src/lib/useSheet.ts` (`ref` sur `.modal-backdrop`, `handle` sur `.modal-header`, `close` à la place de `onClose`). Glissement : `src/lib/useSwipe.ts`.
 - `src/components/stats/` : à n'importer que depuis `StatsPage.tsx`. Options, Recherche, page LV, cartes et Statistiques sont chargées avec `lazy`.
 - `src/lib/share.ts` : partage ou téléchargement forcé d'un fichier (jamais d'ouverture dans un onglet). L'utilisateur installe l'appli avec Chrome (Firefox Android ne partage pas de fichiers).
-- Règles détaillées par thème dans `.claude/rules/` (chargées d'office quand on touche les fichiers concernés) : synchro, LV, repos, échéances, gasoil, statistiques et km à vide, frais, feuille de semaine, cartes et itinéraires, animation, interface.
+- Règles détaillées par thème dans `.claude/rules/` (chargées d'office quand on touche les fichiers concernés) : synchro, LV, repos, échéances, gasoil, statistiques et km à vide, frais, feuille de semaine, cartes et itinéraires, animation, interface, notifications.
 
 ## Choix déjà faits (ne pas reproposer sans raison nouvelle)
 

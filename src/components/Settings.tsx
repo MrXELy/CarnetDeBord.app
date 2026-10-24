@@ -13,6 +13,7 @@ import { useEvents, useStore } from '../lib/useEvents';
 import { useSheet } from '../lib/useSheet';
 import AllowanceSettingsSection from './AllowanceSettings';
 import ReminderSettingsSection from './ReminderSettings';
+import StepNotificationSetting from './StepNotificationSetting';
 import WeekSheetSettingsSection from './WeekSheetSettings';
 
 /** Lectures automatiques permises par mois (limite imposée par la fonction read-waybill). */
@@ -206,6 +207,7 @@ export default function Settings({ onClose, section }: { onClose: () => void; se
                     onChange={(e) => updateSettings({ europe: e.target.checked })}
                   />
                 </label>
+                <StepNotificationSetting />
                 <button type="button" className="field-row options-link" onClick={() => setPage('reminders')}>
                   Échéances et ensemble routier
                   <ChevronRight size={20} aria-hidden />

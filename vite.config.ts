@@ -25,14 +25,21 @@ export default defineConfig({
   plugins: [
     // Serveur de test en https (certificat fait maison) : sur le téléphone, l'adresse en 192.168…
     // n'est sinon pas une connexion sécurisée, et le navigateur bloque crypto.randomUUID et le GPS.
-    // Sans effet sur la version en ligne (build).
-    basicSsl(),
+    // Sans effet sur la version en ligne (build). « HTTP=1 » : serveur en http, pour tester les notifications
+    // (Chrome refuse le service worker avec ce certificat ; http://localhost, lui, est accepté).
+    ...(process.env.HTTP ? [] : [basicSsl()]),
     react(),
     VitePWA({
+      // Service worker écrit à la main (src/sw.ts) : hors ligne, plus le bouton de fin d'étape des notifications.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
       includeAssets: ['icons/icon.svg'],
       // Police Figtree gardée hors ligne : seulement les caractères latins, utiles en français.
-      workbox: { globPatterns: ['**/*.{js,css,html}', '**/figtree-latin-*.woff2'] },
+      injectManifest: { globPatterns: ['**/*.{js,css,html}', '**/figtree-latin-*.woff2'] },
+      // Service worker aussi sur le serveur de test (notifications), sans rien garder hors ligne.
+      devOptions: { enabled: true, type: 'module' },
       manifest: {
         name: 'CarnetDeBord.app',
         short_name: 'CarnetDeBord',

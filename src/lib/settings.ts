@@ -20,6 +20,8 @@ export interface Settings {
   replayViewKm: number;
   /** Cartes de la semaine et du mois : cadrées sur les trajets, ou sur toute la France. */
   mapFrame: 'trips' | 'france';
+  /** Notification de l'étape en cours, avec le bouton de fin (permission de Chrome donnée sur cet appareil). */
+  stepNotifications: boolean;
 }
 
 const KEY = 'cdb.settings';
@@ -34,6 +36,7 @@ const DEFAULTS: Settings = {
   replayDuration: 30,
   replayViewKm: 280,
   mapFrame: 'trips',
+  stepNotifications: false,
 };
 const listeners = new Set<() => void>();
 

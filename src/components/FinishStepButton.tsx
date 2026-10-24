@@ -2,13 +2,18 @@ import { Check } from 'lucide-react';
 import { timeLabel } from '../lib/dates';
 import { formatPlace } from '../lib/geo';
 import { unfinishedStep } from '../lib/onSite';
+import { useStepNotification } from '../lib/stepNotification';
 import { useEvents } from '../lib/useEvents';
 import EventIcon from './EventIcon';
 
-/** Bouton flottant « Fin du chargement / de la livraison » : reste tant que la fin n'est pas validée. */
+/**
+ * Bouton flottant « Fin du chargement / de la livraison » : reste tant que la fin n'est pas validée.
+ * Le même bouton est dans une notification si elle est activée (Options).
+ */
 export default function FinishStepButton() {
   const { events, store } = useEvents();
   const step = unfinishedStep(events);
+  useStepNotification(store, step);
   if (!step) return null;
   const label = step.type === 'chargement' ? 'Fin du chargement' : 'Fin de la livraison';
   return (

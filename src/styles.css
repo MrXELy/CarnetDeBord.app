@@ -1131,7 +1131,10 @@ legend { margin-bottom: 6px; }
   transition: transform 0.15s, background 0.15s;
 }
 
-.switch:checked { background: var(--accent); border-color: var(--accent); }
+/* Dans une ligne de réglage : garde sa taille (la règle des champs `.field-row > input` l'étirait). */
+.field-row > .switch { flex: none; width: 48px; padding: 0; background: #343845; }
+.switch:checked,
+.field-row > .switch:checked { background: var(--accent); border-color: var(--accent); }
 .switch:checked::after { transform: translateX(20px); background: var(--accent-text); }
 
 
