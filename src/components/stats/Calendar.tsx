@@ -5,7 +5,7 @@ import type { TripEvent } from '../../types';
 import { num } from './format';
 import { Section } from './shared';
 
-/** Calendrier du mois : une case par jour, plus soutenue quand il y a eu plus de km. */
+/** Calendrier du mois : une case par jour, plus claire quand il y a eu plus de km. */
 export default function Calendar(props: {
   period: Period;
   events: TripEvent[];
