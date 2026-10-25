@@ -1,5 +1,5 @@
 import { LoaderCircle, Play, Route, X } from 'lucide-react';
-import { lazy, Suspense, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { monthWeeks, summarizeWeek, timeLabel, weekLabel } from '../lib/dates';
 import { updateSettings, useSettings } from '../lib/settings';
 import { useEvents } from '../lib/useEvents';
@@ -111,13 +111,26 @@ export default function MonthMap({ month, onPickWeek, onEdit, onClose }: Props) 
   const kms = weeks.map((w) => w.km).filter((km): km is number => km != null);
   const monthKm = kms.length ? kms.reduce((a, b) => a + b, 0) : null;
 
+  // Fenêtre fermée pendant le calcul : les demandes d'itinéraires s'arrêtent.
+  const closed = useRef<AbortController>(null);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    closed.current = ctrl;
+    return () => ctrl.abort();
+  }, []);
+
   async function generate() {
     if (!navigator.onLine) return setStatus({ state: 'error', message: 'Pas de réseau : réessaie plus tard.' });
     const resolved = new Map(found);
     try {
       for (const [i, w] of toGenerate.entries()) {
-        await generateWeekMap(store, w.start, w.events, resolved, (message) =>
-          setStatus({ state: 'busy', message: `Semaine ${i + 1}/${toGenerate.length} · ${message}` }),
+        await generateWeekMap(
+          store,
+          w.start,
+          w.events,
+          resolved,
+          (message) => setStatus({ state: 'busy', message: `Semaine ${i + 1}/${toGenerate.length} · ${message}` }),
+          closed.current?.signal,
         );
       }
       setStatus({ state: 'idle' });

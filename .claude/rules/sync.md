@@ -13,6 +13,8 @@ paths: ["src/lib/sync.ts", "src/lib/syncRun.test.ts", "src/lib/sync.test.ts", "s
 - Le curseur de réception est `date|id` (un ancien curseur, la date seule, est encore lu).
 - Suppression : la ligne garde `deleted_at` le temps que les autres appareils l'apprennent, puis l'appli l'efface vraiment du serveur (une fois par jour, celles supprimées depuis plus de 30 jours : `purge`, LV avant les étapes). Chaque appareil relit tout une fois par semaine (`pull(true)`, clé `full_synced`) et oublie ce que le serveur n'a plus, sauf ce qui attend d'être envoyé.
 - Les anciennes colonnes `client` et `cmr_number` des étapes (d'avant les LV) n'existent plus : `normalizeEvent` les retire du cache.
+- `normalizeEvent` remet `occurred_at` et `finished_at` au format de l'appli (`…000Z`) : Supabase renvoie `…+00:00`, et les statistiques comparent les dates comme du texte.
+- Une photo refusée à l'envoi n'arrête pas la synchro (les autres photos, les cartes et les réglages partent quand même) ; l'erreur s'affiche.
 
 ## Déconnexion (`src/lib/signOut.ts`, bouton en bas des Options)
 

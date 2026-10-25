@@ -129,12 +129,10 @@ export interface WeekSummary {
   inProgress: boolean;
 }
 
-/** Km de la semaine (voir periodKm), et si elle est en cours : dernier relevé autre qu'une fin de journée. */
+/** Km de la semaine (voir periodKm), et si elle est en cours : dernière étape autre qu'une fin de journée. */
 export function summarizeWeek(events: TripEvent[]): WeekSummary {
-  const withKm = events
-    .filter((e) => e.odometer_km != null && !e.deleted_at)
-    .sort((a, b) => a.occurred_at.localeCompare(b.occurred_at));
-  const last = withKm[withKm.length - 1];
+  const live = events.filter((e) => !e.deleted_at).sort((a, b) => a.occurred_at.localeCompare(b.occurred_at));
+  const last = live[live.length - 1];
   return { km: periodKm(events), inProgress: !!last && last.type !== 'fin_journee' };
 }
 

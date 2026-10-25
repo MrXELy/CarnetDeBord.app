@@ -3,6 +3,7 @@ import {
   addHours,
   addMonths,
   addYears,
+  differenceInCalendarDays,
   differenceInMinutes,
   format,
   getISOWeek,
@@ -267,10 +268,13 @@ export function periodStats(
   };
 }
 
-/** Heures de la journée en minutes après minuit (une prise de poste le dimanche à 23h donne -60). */
+/**
+ * Heures de la journée en minutes après minuit (une prise de poste le dimanche à 23h donne -60).
+ * Heure affichée, pas minutes écoulées : juste aussi les jours de changement d'heure.
+ */
 const minutesOfDay = (iso: string) => {
   const d = parseISO(iso);
-  return differenceInMinutes(d, workDay(d));
+  return d.getHours() * 60 + d.getMinutes() + differenceInCalendarDays(d, workDay(d)) * 1440;
 };
 
 export interface WorkTimes {

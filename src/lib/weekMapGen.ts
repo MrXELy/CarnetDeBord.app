@@ -22,7 +22,8 @@ export function weekMapId(userId: string, start: Date): string {
  * 2. itinéraires, tronçon par tronçon : parmi ceux proposés, le plus proche des km relevés au compteur
  *    (un itinéraire choisi à la main est gardé, sans nouveau calcul) ;
  * 3. enregistrement : la carte s'affichera ensuite sans aucun calcul, sur tous les appareils.
- * `found` est complétée avec les villes retrouvées. Lève une erreur si un itinéraire est indisponible.
+ * `found` est complétée avec les villes retrouvées. Lève une erreur si un itinéraire est indisponible,
+ * ou si `signal` est annulé (fenêtre fermée : plus de demandes aux serveurs publics).
  */
 export async function generateWeekMap(
   store: EventStore,
@@ -30,10 +31,12 @@ export async function generateWeekMap(
   events: TripEvent[],
   found: Map<string, Place>,
   onProgress: (message: string) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
   const { missing } = buildStops(events, found);
   const toFind = missing.filter((e) => e.city.trim() && !found.has(e.id));
   for (const [i, e] of toFind.entries()) {
+    signal?.throwIfAborted();
     onProgress(`Recherche des villes sans position (${i + 1}/${toFind.length})…`);
     const place = await resolveCity(e.city, e.department);
     if (place?.lat != null && place.lon != null) {
@@ -55,7 +58,7 @@ export async function generateWeekMap(
       continue;
     }
     onProgress(`Calcul des itinéraires (${i + 1}/${segments.length})…`);
-    const options = await routeOptions([segment.from.lat, segment.from.lon], [segment.to.lat, segment.to.lon]);
+    const options = await routeOptions([segment.from.lat, segment.from.lon], [segment.to.lat, segment.to.lon], signal);
     if (!options) throw new Error('Itinéraire indisponible');
     legs.push(routeLegOf(segment.day, key, closestRoute(options, segment.odometerKm)));
   }

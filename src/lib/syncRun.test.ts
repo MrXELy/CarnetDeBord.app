@@ -23,6 +23,8 @@ let refusedIds: Record<string, string> = {};
 let offline = false;
 /** Erreur qui concerne tout l'envoi (code PostgREST ou Postgres), renvoyée à chaque tentative. */
 let batchErrorCode = '';
+/** Photo refusée par le stockage. */
+let uploadError = false;
 /** Filtres reçus par les lectures, pour vérifier le format du curseur. */
 let pullFilters: string[] = [];
 let pageSize = 1000;
@@ -96,6 +98,7 @@ vi.mock('./photos', () => ({
   trashPhotos: () => {},
   uploadPending: async () => {
     calls.uploads++;
+    if (uploadError) throw new Error('Envoi de photo impossible : refusée');
     return 0;
   },
 }));
@@ -143,6 +146,7 @@ beforeEach(async () => {
   server = {};
   refusedIds = {};
   offline = false;
+  uploadError = false;
   batchErrorCode = '';
   pullFilters = [];
   pageSize = 1000;
@@ -484,6 +488,27 @@ describe('envoi : une ligne refusée ne bloque pas le reste de la synchro', () =
     const error = store.getState().error ?? '';
     expect(error).toMatch(/\(waybills\) lv-bad : violates foreign key constraint/);
     expect(error).not.toMatch(/Table des lettres de voiture absente/);
+  });
+
+  it('les dates du serveur (« +00:00 ») sont gardées au format de l’appli (« .000Z »)', async () => {
+    server.events = [{ ...serverEvent('srv-date'), occurred_at: '2026-10-25T21:00:00+00:00' }];
+    const store = new EventStore('dates1');
+    await flush();
+    await flush();
+    expect(store.getState().events.find((e) => e.id === 'srv-date')?.occurred_at).toBe('2026-10-25T21:00:00.000Z');
+  });
+
+  it('une photo refusée n’empêche pas l’envoi des cartes et des réglages', async () => {
+    const store = new EventStore('refus6');
+    await flush();
+    uploadError = true;
+    calls.pulls = [];
+    store.saveWaybill(newWaybill({ id: 'lv-photo' }));
+    await flush();
+    await flush();
+    expect(calls.pulls).toContain('week_maps');
+    expect(calls.pulls).toContain('user_settings');
+    expect(store.getState().error).toMatch(/Envoi de photo impossible/);
   });
 
   it('une panne réseau arrête toujours la synchro : ni réception, ni LV, ni photos', async () => {

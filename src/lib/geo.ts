@@ -25,7 +25,7 @@ interface PhotonFeature {
 
 export function placeFromPhoton(f: PhotonFeature): Place {
   const p = f.properties;
-  const city = (p.type === 'city' ? p.name : p.city ?? p.locality ?? p.name) ?? '';
+  const city = (p.type === 'city' ? p.name : (p.city ?? p.locality ?? p.name)) ?? '';
   const postcode = p.postcode?.split(/[;,]/)[0].trim() || null;
   const country = p.countrycode?.toUpperCase() ?? null;
   return {
@@ -41,7 +41,8 @@ export function placeFromPhoton(f: PhotonFeature): Place {
 /** Texte court du lieu : « Lyon (69) » en France, « Barcelona (ES) » ailleurs. */
 export function formatPlace(place: Pick<Place, 'city' | 'department' | 'country_code'>): string {
   if (!place.city) return '';
-  const suffix = place.country_code === 'FR' ? place.department : place.country_code;
+  // Pays absent (anciennes étapes) : la France, comme sur la feuille de semaine.
+  const suffix = !place.country_code || place.country_code === 'FR' ? place.department : place.country_code;
   return suffix ? `${place.city} (${suffix})` : place.city;
 }
 
@@ -56,7 +57,11 @@ async function completeFrench(place: Place, signal?: AbortSignal): Promise<Place
     const res = await fetch(url, { signal });
     const [commune]: { codeDepartement: string; codesPostaux: string[] }[] = res.ok ? await res.json() : [];
     if (!commune) return place;
-    return { ...place, department: commune.codeDepartement, postcode: place.postcode ?? commune.codesPostaux[0] ?? null };
+    return {
+      ...place,
+      department: commune.codeDepartement,
+      postcode: place.postcode ?? commune.codesPostaux[0] ?? null,
+    };
   } catch {
     return place;
   }
@@ -177,7 +182,11 @@ export function placeFromLabel(label: string): Place {
 function currentPosition(): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error('Géolocalisation non disponible'));
-    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 60000,
+    });
   });
 }
 

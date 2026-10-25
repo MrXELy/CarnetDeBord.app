@@ -84,6 +84,16 @@ describe('groupWeek', () => {
 });
 
 describe('summarizeWeek', () => {
+  it('finie par une fin de journée sans km : pas en cours', () => {
+    expect(
+      summarizeWeek([
+        ev('f1', '2026-10-12T17:00', { type: 'fin_journee' }),
+        ev('l1', '2026-10-12T12:00', { type: 'livraison', odometer_km: 100200 }),
+        ev('d1', '2026-10-12T05:00', { type: 'debut_journee', odometer_km: 100000 }),
+      ]).inProgress,
+    ).toBe(false);
+  });
+
   it('compte du premier début à la dernière fin', () => {
     expect(
       summarizeWeek([

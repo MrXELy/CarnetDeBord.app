@@ -75,7 +75,8 @@ export default function PlaceField({ value, onChange, autoLocate, compact, locat
     const ctrl = new AbortController();
     const timer = setTimeout(() => {
       searchCities(query.trim(), europe, ctrl.signal)
-        .then(setSuggestions)
+        // Annulée entre-temps (saisie effacée ou changée) : pas d'anciennes suggestions.
+        .then((list) => !ctrl.signal.aborted && setSuggestions(list))
         .catch(() => {});
     }, 300);
     return () => {

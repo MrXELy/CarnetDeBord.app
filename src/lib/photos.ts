@@ -56,17 +56,23 @@ export const pendingPaths = async () => (await withStore('readonly', (s) => s.ge
 export async function uploadPending(userId: string): Promise<number> {
   const paths = (await pendingPaths()).filter((p) => p.startsWith(`${userId}/`));
   let left = paths.length;
+  let failure: Error | null = null;
   for (const path of paths) {
     const blob = await pendingBlob(path);
     if (blob) {
       const { error } = await supabase.storage
         .from(BUCKET)
         .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
-      if (error) throw new Error(`Envoi de photo impossible : ${error.message}`);
+      // Photo refusée : les suivantes partent quand même, l'erreur est signalée à la fin.
+      if (error) {
+        failure ??= new Error(`Envoi de photo impossible : ${error.message}`);
+        continue;
+      }
     }
     await unqueue(path);
     left--;
   }
+  if (failure) throw failure;
   return left;
 }
 
@@ -97,17 +103,20 @@ export async function clearUserPhotos(userId: string) {
 // ---------- Affichage ----------
 
 const urls = new Map<string, string>();
+/** Fin de validité des liens temporaires (signés pour 1 h, gardés 50 min : l'appli reste ouverte des heures). */
+const signedUntil = new Map<string, number>();
 
 /** Adresse affichable : la copie locale si la photo n'est pas encore envoyée, sinon un lien temporaire. */
 export async function photoUrl(path: string): Promise<string | null> {
   const cached = urls.get(path);
-  if (cached) return cached;
+  if (cached && (cached.startsWith('blob:') || Date.now() < (signedUntil.get(path) ?? 0))) return cached;
   const blob = await pendingBlob(path);
   let url: string | null = null;
   if (blob) url = URL.createObjectURL(blob);
   else {
     const { data } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600);
     url = data?.signedUrl ?? null;
+    signedUntil.set(path, Date.now() + 50 * 60_000);
   }
   if (url) urls.set(path, url);
   return url;
@@ -139,6 +148,7 @@ export function trashPhotos(paths: string[]) {
   if (!paths.length) return;
   for (const path of paths) {
     void unqueue(path).catch(() => {});
+    URL.revokeObjectURL(urls.get(path) ?? '');
     urls.delete(path);
   }
   writeTrash([...new Set([...readTrash(), ...paths])]);

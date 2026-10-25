@@ -229,3 +229,11 @@ describe('nowIsStale', () => {
     expect(nowIsStale(new Date('2026-10-14T23:58:00'), new Date('2026-10-15T00:01:00'), day)).toBe(true);
   });
 });
+
+describe('workTimes au changement d’heure', () => {
+  it('donne l’heure affichée le jour de 25 h (25 oct. 2026)', () => {
+    const day = [ev('debut_journee', '2026-10-25T05:00'), ev('fin_journee', '2026-10-25T15:00')];
+    const t = workTimes(day, { start: new Date('2026-10-25T00:00'), end: new Date('2026-10-26T00:00') });
+    expect([t.avgStart, t.avgEnd]).toEqual([5 * 60, 15 * 60]);
+  });
+});

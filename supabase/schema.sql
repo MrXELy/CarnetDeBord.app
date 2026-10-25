@@ -39,7 +39,7 @@ create policy "Chaque utilisateur gère ses événements" on public.events
 -- La date de modification est toujours fixée par le serveur : la synchro
 -- s'appuie dessus pour ne récupérer que ce qui a changé.
 create or replace function public.events_touch_updated_at() returns trigger
-language plpgsql as $$
+language plpgsql set search_path = '' as $$
 begin
   new.updated_at := now();
   return new;

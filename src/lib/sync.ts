@@ -573,9 +573,9 @@ export class EventStore {
           /waybills/.test(String(err)) ? 'Table des lettres de voiture absente dans Supabase' : String(err),
         );
       }
-      // Photos prises sans réseau : envoyées dès que possible.
-      await uploadPending(this.userId);
       this.error = null;
+      // Photos prises sans réseau : envoyées dès que possible. Une photo refusée ne bloque ni les cartes ni les réglages.
+      await uploadPending(this.userId).catch((err) => (this.error = err instanceof Error ? err.message : String(err)));
       // Photos à effacer, puis ménage une fois par jour : un échec est simplement retenté plus tard.
       try {
         await flushTrash(this.userId);
@@ -755,6 +755,11 @@ export class EventStore {
 
 /** Supabase renvoie les colonnes « numeric » sous forme de texte. */
 const num = (v: unknown) => (v == null ? null : Number(v));
+/**
+ * Supabase renvoie les dates en « …T21:00:00+00:00 », l'appli en « …T21:00:00.000Z » : un seul format,
+ * sinon les comparaisons de texte (statistiques, tris) se trompent à la seconde près (« + » avant « . »).
+ */
+const iso = (v: string) => (Number.isNaN(Date.parse(v)) ? v : new Date(v).toISOString());
 
 /** Étape lue du cache ou du serveur, sans les anciennes colonnes `client` et `cmr_number` (remplacées par les LV). */
 function normalizeEvent({
@@ -764,10 +769,11 @@ function normalizeEvent({
 }: TripEvent & { client?: unknown; cmr_number?: unknown }): TripEvent {
   return {
     ...e,
+    occurred_at: iso(e.occurred_at),
     diesel_l: num(e.diesel_l),
     adblue_l: num(e.adblue_l),
     full_tank: e.full_tank ?? null,
-    finished_at: e.finished_at ?? null,
+    finished_at: e.finished_at ? iso(e.finished_at) : null,
   };
 }
 

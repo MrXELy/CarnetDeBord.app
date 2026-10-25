@@ -1,7 +1,7 @@
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { LoaderCircle, Play, Route, X } from 'lucide-react';
-import { Fragment, lazy, Suspense, useMemo, useRef, useState } from 'react';
+import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { dayLabel, summarizeDay, summarizeWeek, timeLabel, weekLabel } from '../lib/dates';
 import { formatPlace } from '../lib/geo';
 import { updateSettings, useSettings } from '../lib/settings';
@@ -105,11 +105,26 @@ export default function WeekMap({ start, events, day, onEdit, onClose }: Props) 
   const title = day ? dayLabel(parseISO(day)) : weekLabel(start);
   const weekNumber = weekLabel(start).match(/\d+/)?.[0];
 
+  // Fenêtre fermée pendant le calcul : les demandes d'itinéraires s'arrêtent.
+  const closed = useRef<AbortController>(null);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    closed.current = ctrl;
+    return () => ctrl.abort();
+  }, []);
+
   async function generate() {
     if (!navigator.onLine) return setStatus({ state: 'error', message: 'Pas de réseau : réessaie plus tard.' });
     const resolved = new Map(found);
     try {
-      await generateWeekMap(store, start, events, resolved, (message) => setStatus({ state: 'busy', message }));
+      await generateWeekMap(
+        store,
+        start,
+        events,
+        resolved,
+        (message) => setStatus({ state: 'busy', message }),
+        closed.current?.signal,
+      );
       setStatus({ state: 'idle' });
     } catch {
       setStatus({ state: 'error', message: 'Itinéraire indisponible : réessaie plus tard.' });

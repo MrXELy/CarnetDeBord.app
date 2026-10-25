@@ -226,11 +226,16 @@ export default function WaybillForm(props: Props) {
     }
   }
 
+  // Deux touchers sur « Enregistrer » pendant la fermeture : un seul enregistrement (sinon deux chargements créés).
+  const saved = useRef(false);
+
   function submit(e: FormEvent) {
     e.preventDefault();
     e.stopPropagation(); // ne pas valider le formulaire d'étape situé derrière
+    if (saved.current) return;
     const newLoading = noLoading ? loadingToCreate() : undefined;
     if (newLoading === null) return;
+    saved.current = true;
     // Photos déjà enregistrées puis retirées : effacées à l'enregistrement de la LV (voir EventStore) ;
     // photos prises puis retirées pendant cette saisie : effacées tout de suite.
     trashPhotos(added.current.filter((p) => !photos.includes(p)));

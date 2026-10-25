@@ -14,14 +14,14 @@ Application web pour noter et suivre mes trajets de chauffeur routier (France et
 
 ## Fonctionnalités
 
-### La semaine
+### L'accueil et la semaine
 
-- **Vue par semaine** : les jours séparés, le plus récent en premier, avec une frise verticale et un point de couleur par type d'étape. La semaine commence le dimanche à 22h.
-- En haut : **km de la semaine**, amplitude totale et nombre d'étapes. Les km sont la somme des trajets entre deux relevés du même tracteur, comme dans les Statistiques.
-- Sous le titre, des pastilles : **LV encore dans le camion**, **frais de la semaine**, **carte** et **feuille de semaine en PDF**.
-- **Heure limite** sous la journée en cours : « Fin de journée avant 17:20 pour 11 h de repos, avant 19:20 au plus tard », en orange dans la dernière heure, en rouge après.
+- Style **« grandes tuiles »** sur fond sombre : une couleur par type d'étape (chargement bleu, livraison vert, carburant ambre), gros boutons faciles à toucher, le plus récent en premier.
+- **Accueil = la journée en cours** : km du jour, **heure limite** de fin de journée (« avant 17:20 » pour 11 h de repos, en orange dans la dernière heure, en rouge après) ou amplitude une fois la journée finie, puis les étapes du jour. Avant la première étape, les **LV encore dans le camion** (« Livraison prévue à … »).
 - **Rappels des échéances** en haut de l'accueil (carte conducteur, FCO, visite médicale, contrôles techniques, chrono), à repousser d'une semaine d'un toucher.
-- **Glisser du doigt** n'importe où pour changer de semaine, ou toucher le titre pour **choisir une semaine** (liste groupée par mois, avec la carte de chaque semaine et du mois) ou aller à une date.
+- **Tuile de la semaine** (km) : elle ouvre la page Semaine avec tous les jours, les **LV dans le camion**, les **frais**, la **carte** et la **feuille de semaine en PDF**. La semaine commence le dimanche à 22h ; ses km sont la somme des trajets entre deux relevés du même tracteur, comme dans les Statistiques.
+- **Glisser du doigt** pour changer de semaine, ou toucher le titre pour **choisir une semaine** (liste groupée par mois, avec la carte de chaque semaine et du mois) ou aller à une date.
+- **Sur PC** (écran large) : menu à gauche, la semaine au centre, sa carte et les LV du camion à droite.
 
 <p align="center">
   <img src="docs/screenshots/semaines.png" width="260" alt="Choisir une semaine">
@@ -37,7 +37,8 @@ Application web pour noter et suivre mes trajets de chauffeur routier (France et
   <img src="docs/screenshots/debut-repos.png" width="260" alt="Début de journée et contrôle du repos">
 </p>
 
-- **Bouton « + »** : début de journée, chargement, livraison, carburant ou fin de journée.
+- **Bouton « + »** : début de journée, chargement, livraison, carburant ou fin de journée. Le type le plus probable est déjà choisi d'après la dernière étape (livraison après un chargement, début de journée après une fin…).
+- **Fin du chargement ou de la livraison** : l'étape se note en arrivant ; un bouton au-dessus de la barre du bas enregistre l'heure de fin d'un seul appui (la carte de l'étape montre « 08:12 → 09:40 »). Le même bouton peut s'afficher dans une **notification**, sans ouvrir l'appli (réglage des Options, avec Chrome).
 - **Immatriculations** du tracteur et de la remorque reprises de la saisie précédente ; le **début de journée** reprend le lieu et le km de la fin de journée précédente.
 - **Lieu** par GPS ou par recherche avec suggestions (département et pays ajoutés automatiquement). Mode Europe dans les Options.
 - **Kilométrage en photo** : une photo de l'écran du chrono (ou du compteur) remplit le km. Alerte si le km est plus petit que le dernier relevé ou s'il y a plus de 2000 km d'écart.
@@ -47,7 +48,7 @@ Application web pour noter et suivre mes trajets de chauffeur routier (France et
 
 - Au **début de journée**, un bandeau vérifie le repos depuis la fin de journée précédente : gris si tout va bien, orange à surveiller, rouge en cas d'infraction. Il suit les règles du règlement européen : repos journalier de 11 h (ou 9 h réduit, 3 fois au plus), repos hebdomadaire de 45 h (ou 24 h réduit), repos pris dans les 24 h, rattrapage des repos hebdomadaires réduits.
 - À la **fin de journée** : l'heure de reprise au plus tôt, et une alerte si la journée dépasse 13 h ou 15 h.
-- Un petit triangle sur la frise signale un repos à revoir. C'est un repère : le chrono fait foi (les pauses ne sont pas notées, donc le repos fractionné n'est pas pris en compte).
+- Un petit triangle signale un repos à revoir. C'est un repère : le chrono fait foi (les pauses ne sont pas notées, donc le repos fractionné n'est pas pris en compte).
 
 ### Les lettres de voiture (LV)
 
@@ -133,7 +134,7 @@ React 19, Vite, TypeScript, PWA. Données dans [Supabase](https://supabase.com) 
 ## Mise en place (une seule fois)
 
 1. Créer un projet gratuit sur [supabase.com](https://supabase.com).
-2. Dans **SQL Editor**, coller et lancer (**Run**) dans l'ordre : [supabase/schema.sql](supabase/schema.sql), puis les fichiers de [supabase/migrations/](supabase/migrations/) (`002` à `011`).
+2. Dans **SQL Editor**, coller et lancer (**Run**) dans l'ordre : [supabase/schema.sql](supabase/schema.sql), puis les fichiers de [supabase/migrations/](supabase/migrations/) (`002` à `013`).
 3. Copier l'URL du projet (bouton **Connect**) et la clé **publishable** (**Settings → API Keys**) dans [src/config.ts](src/config.ts).
 4. Dans **Authentication → Sign In / Providers → Email**, désactiver **Confirm email** (et les inscriptions une fois son compte créé).
 5. Pour la lecture automatique : ajouter le secret `ANTHROPIC_API_KEY` dans **Edge Functions → Secrets**, puis déployer la fonction :
@@ -156,6 +157,8 @@ npm run build       # vérifier TypeScript et compiler la version de production
 ```
 
 Le serveur local utilise un certificat fait maison : accepter l'avertissement du navigateur la première fois. Le https est nécessaire sur le téléphone (GPS).
+
+Pour tester les notifications (Chrome refuse le service worker avec ce certificat) : `HTTP=1 npx vite`, puis http://localhost:5173/CarnetDeBord.app/ sur le PC, ou le téléphone relié en USB avec la redirection de port de `chrome://inspect`.
 
 ## Mode démo (tests en local)
 

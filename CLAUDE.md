@@ -24,7 +24,7 @@ React 19, Vite, TypeScript, vite-plugin-pwa, date-fns (locale fr), lucide-react,
 - `HTTP=1 npx vite` : serveur de test en http, pour tester les notifications (service worker refusé avec le certificat fait maison) : http://localhost:5173/CarnetDeBord.app/ sur PC, téléphone relié en USB (`chrome://inspect`, redirection de port). Détails : `.claude/rules/notifications.md`.
 - Mode démo local : `?demo` dans l'adresse (développement seulement, lit `data/demo-events.json`, ne contacte pas Supabase) ; `?demo=reset` recharge. Détails : `.claude/rules/demo.md`.
 - Fonction Edge : `npx --yes supabase@2.121.0 functions deploy read-waybill --project-ref bjtqghlacclhbjjyarxj --use-api`.
-- Migrations SQL (`supabase/migrations/`, 002 à 012) : lancées à la main par l'utilisateur dans l'éditeur SQL de Supabase. Détails : `.claude/rules/supabase.md`.
+- Migrations SQL (`supabase/migrations/`, 002 à 013) : lancées à la main par l'utilisateur dans l'éditeur SQL de Supabase. Détails : `.claude/rules/supabase.md`.
 - `gitleaks git -v` : chercher des secrets dans tout l'historique.
 - Mise en ligne : chaque push sur `main` déploie sur GitHub Pages (https://mrxely.github.io/CarnetDeBord.app/).
 

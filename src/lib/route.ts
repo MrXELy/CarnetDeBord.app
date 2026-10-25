@@ -27,6 +27,7 @@ async function politeFetch(server: string, url: string, signal?: AbortSignal): P
   });
   queues.set(server, turn);
   await turn;
+  signal?.throwIfAborted(); // demande annulée pendant l'attente : rien d'envoyé
   return fetch(url, { signal });
 }
 
@@ -119,7 +120,8 @@ async function osrmOptions(points: Point[], signal?: AbortSignal): Promise<Route
         minutes: (route.duration ?? 0) / 60,
       },
     ];
-  } catch {
+  } catch (e) {
+    if (signal?.aborted) throw e;
     return null;
   }
 }
