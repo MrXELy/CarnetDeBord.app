@@ -5,12 +5,12 @@ Application web pour noter et suivre mes trajets de chauffeur routier (France et
 👉 **https://mrxely.github.io/CarnetDeBord.app/**
 
 <p align="center">
-  <img src="docs/screenshots/semaine.png" width="260" alt="Vue de la semaine">
+  <img src="docs/screenshots/accueil.png" width="260" alt="Accueil : la journée en cours">
   <img src="docs/screenshots/stats-semaine.png" width="260" alt="Statistiques de la semaine">
   <img src="docs/screenshots/carte-semaine.png" width="260" alt="Carte de la semaine">
 </p>
 
-> Les captures utilisent des données inventées (villes publiques, « Client A », fausses plaques).
+> Les captures utilisent des données inventées (villes publiques, « Client A », fausses plaques). Elles sont faites au format téléphone, avec le mode démo.
 
 ## Fonctionnalités
 
@@ -24,11 +24,12 @@ Application web pour noter et suivre mes trajets de chauffeur routier (France et
 - **Sur PC** (écran large) : menu à gauche, la semaine au centre, sa carte et les LV du camion à droite.
 
 <p align="center">
+  <img src="docs/screenshots/semaine.png" width="260" alt="Page de la semaine">
   <img src="docs/screenshots/semaines.png" width="260" alt="Choisir une semaine">
   <img src="docs/screenshots/recherche.png" width="260" alt="Recherche">
 </p>
 
-- **Recherche** (loupe en haut) dans toutes les étapes et leurs LV : ville, client, n° de LV, marchandise, plaque, km… Toucher un résultat l'affiche dans sa semaine.
+- **Recherche** (loupe de la barre du bas) dans toutes les étapes et leurs LV : ville, client, n° de LV, marchandise, plaque, km… Toucher un résultat l'affiche dans sa semaine.
 
 ### Les étapes
 
@@ -86,7 +87,7 @@ Application web pour noter et suivre mes trajets de chauffeur routier (France et
 - **Carte de la semaine** : les étapes reliées jour par jour, une couleur par jour, avec les km de chaque journée. Les itinéraires routiers sont calculés une seule fois puis enregistrés, trajet par trajet, en gardant celui dont la longueur est la plus proche des km du compteur. Lignes droites au choix.
 - **Choisir l'itinéraire** d'un trajet sur une carte qu'on peut zoomer (fond Plan IGN) : itinéraires proposés avec leur écart au compteur, passage par une ou plusieurs villes, ou point de passage posé à la main.
 - **Carte d'une journée** (petite pastille à côté du jour) et **carte du mois** (une couleur par semaine).
-- **Semaine rejouée** (bouton ▶ sur la carte) : animation des trajets dans l'ordre, avec le camion, les villes atteintes, les arrêts et les repos. Aussi pour une journée ou un mois. Format vertical ou carré, de 15 à 120 s, et **création d'une vidéo MP4** à partager, fabriquée dans le téléphone (avec Chrome).
+- **Semaine rejouée** (bouton « Revoir en vidéo » sous la carte) : animation des trajets dans l'ordre, avec le camion, les villes atteintes, les arrêts et les repos. Aussi pour une journée ou un mois. Format vertical ou carré, de 15 à 120 s, et **création d'une vidéo MP4** à partager, fabriquée dans le téléphone (avec Chrome).
 - Export de la carte en image.
 
 ### Les statistiques
@@ -97,7 +98,7 @@ Application web pour noter et suivre mes trajets de chauffeur routier (France et
   <img src="docs/screenshots/stats-calendrier.png" width="260" alt="Calendrier du mois et records">
 </p>
 
-- Par **jour, semaine, mois ou année**, avec les flèches ou en glissant du doigt. Toucher le titre pour aller directement à une date ; pastille pour ouvrir la carte de la période.
+- Par **jour, semaine, mois ou année**, avec les flèches ou en glissant du doigt. Toucher le titre pour aller directement à une date ; bouton pour ouvrir la carte de la période.
 - **Km de la période** comparés à la période d'avant (au même moment si la période est en cours).
 - **Tuiles** : heures, moyenne par jour, chargements, livraisons, gasoil consommé et acheté, consommation en L/100 km, frais de route.
 - **Barres des km** par jour, semaine ou mois, avec la part à vide en gris : toucher une barre ouvre la période.

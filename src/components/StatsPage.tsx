@@ -190,7 +190,8 @@ export default function StatsPage({ week, onEdit, onClose }: Props) {
     [events, mapStart],
   );
 
-  const compared = `par rapport à ${PREVIOUS[period.kind]}${previous.partial ? ' au même moment' : ''}`;
+  // « à le mois d'avant » → « au mois d'avant »
+  const compared = `par rapport à ${PREVIOUS[period.kind]}`.replace('à le ', 'au ') + (previous.partial ? ' au même moment' : '');
 
   return (
     <>
