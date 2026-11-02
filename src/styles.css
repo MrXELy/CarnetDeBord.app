@@ -885,6 +885,9 @@ legend { margin-bottom: 6px; }
   font-weight: 700;
 }
 .field-row > input:focus { box-shadow: none; }
+/* Heure et jour : le champ natif ignore text-align sur mobile, on pousse le texte à droite. */
+.field-row > input[type='time'],
+.field-row > input[type='date'] { display: flex; justify-content: flex-end; }
 .field-group .place-field input { background: #343845; }
 .field-name { color: var(--muted); font-size: 0.85rem; font-weight: 600; }
 
