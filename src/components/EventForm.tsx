@@ -1,7 +1,7 @@
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { AlarmClock, Camera, Check, ChevronRight, FileText, LoaderCircle, Pencil, Plus, Trash2, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { durationLabel, toLocalInput } from '../lib/dates';
 import { isDoumenCity, isFullTank } from '../lib/fuel';
 import { numText, parseNum } from '../lib/numbers';
@@ -36,6 +36,9 @@ import EventIcon from './EventIcon';
 import PlaceField, { EMPTY_PLACE } from './PlaceField';
 import RestNotice from './RestNotice';
 import WaybillForm from './WaybillForm';
+
+// Leaflet et la carte : chargés seulement quand on veut replacer le point.
+const PlaceMapSheet = lazy(() => import('./PlaceMapSheet'));
 
 interface Props {
   event: TripEvent | null;
@@ -78,6 +81,7 @@ export default function EventForm({ event, onClose }: Props) {
   // Ligne « Jour » ouverte (sinon « Aujourd'hui »), remarque ouverte sur une nouvelle étape.
   const [showDay, setShowDay] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
+  const [placeOnMap, setPlaceOnMap] = useState(false);
 
   // Lettres de voiture : tout reste en brouillon jusqu'à « Enregistrer ».
   const [originalLoads] = useState(() => (event ? store.loadedAt(event.id) : []));
@@ -535,6 +539,11 @@ export default function EventForm({ event, onClose }: Props) {
                   onChange={setPlace}
                   autoLocate={isNew && placeKey === 0}
                   compact
+                  onMap={() =>
+                    navigator.onLine
+                      ? setPlaceOnMap(true)
+                      : setError('Pas de réseau : la carte ne peut pas s’afficher.')
+                  }
                 />
               </div>
 
@@ -762,6 +771,20 @@ export default function EventForm({ event, onClose }: Props) {
           onDelete={editing.isNew ? undefined : deleteEditing}
           onClose={() => setEditing(null)}
         />
+      )}
+
+      {placeOnMap && (
+        <Suspense fallback={null}>
+          <PlaceMapSheet
+            place={place}
+            onChoose={(p) => {
+              setPlace(p);
+              // Le champ « Lieu » se réaffiche avec la ville choisie.
+              setPlaceKey((k) => k + 1);
+            }}
+            onClose={() => setPlaceOnMap(false)}
+          />
+        </Suspense>
       )}
     </>
   );

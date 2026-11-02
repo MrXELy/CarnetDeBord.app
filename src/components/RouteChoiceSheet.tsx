@@ -212,8 +212,8 @@ export default function RouteChoiceSheet({ segment, current, onChoose, onClose }
 
   /** Nom de la commune d'un point placé, demandé après coup (le calcul de l'itinéraire n'attend pas). */
   function nameLater(id: string, at: Point) {
-    void communeAt(at[0], at[1]).then((name) =>
-      setVias((list) => list.map((v) => (v.id === id && v.at === at ? { ...v, name } : v))),
+    void communeAt(at[0], at[1]).then((c) =>
+      setVias((list) => list.map((v) => (v.id === id && v.at === at ? { ...v, name: c?.nom ?? null } : v))),
     );
   }
 

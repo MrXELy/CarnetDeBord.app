@@ -129,7 +129,10 @@ export default function RouteMap({
   useEffect(() => {
     const m = map.current;
     const points = [...lines.flatMap((l) => l.coords), ...markers.map((p) => p.at)];
-    if (!m || !points.length) return;
+    if (!m) return;
+    // Rien à montrer : la France entière. Un seul point (lieu d'une étape) : assez près pour viser la bonne rue.
+    if (!points.length) return void m.setView([46.6, 2.4], 5.5);
+    if (points.length === 1) return void m.setView(points[0], 16);
     // Marge du bas plus grande : la mention des sources ne cache pas une étape.
     m.fitBounds(L.latLngBounds(points), { paddingTopLeft: [24, 24], paddingBottomRight: [24, 44] });
     // eslint-disable-next-line react-hooks/exhaustive-deps
