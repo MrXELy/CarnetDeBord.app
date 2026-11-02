@@ -1769,6 +1769,10 @@ legend { margin-bottom: 6px; }
 }
 /* Bouton rond « placer un point » posé en bas à droite de la carte, au-dessus de la mention des sources */
 .route-map-frame { position: relative; }
+/* Replacer le lieu d'une étape : changer de ville ? */
+.place-map-question { margin: 0; text-align: center; }
+.place-map-actions { display: flex; gap: 10px; }
+.place-map-actions > button { flex: 1; min-height: 56px; }
 .route-place-btn { bottom: 26px; z-index: 1; }
 .route-place-btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 .route-via-field { display: grid; gap: 4px; }

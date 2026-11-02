@@ -1,4 +1,4 @@
-import { LoaderCircle, LocateFixed } from 'lucide-react';
+import { LoaderCircle, LocateFixed, MapPinned } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { formatPlace, locateMe, searchCities } from '../lib/geo';
 import { useSettings } from '../lib/settings';
@@ -23,9 +23,11 @@ interface Props {
   compact?: boolean;
   /** Bouton « Me localiser » (GPS) : affiché sauf demande contraire. */
   locate?: boolean;
+  /** Bouton « Placer sur la carte », à côté du GPS (formulaire d'étape). */
+  onMap?: () => void;
 }
 
-export default function PlaceField({ value, onChange, autoLocate, compact, locate: withLocate = true }: Props) {
+export default function PlaceField({ value, onChange, autoLocate, compact, locate: withLocate = true, onMap }: Props) {
   const [query, setQuery] = useState(value.city);
   const [suggestions, setSuggestions] = useState<Place[]>([]);
   const [locating, setLocating] = useState(false);
@@ -114,6 +116,12 @@ export default function PlaceField({ value, onChange, autoLocate, compact, locat
           <button type="button" className="btn-secondary" onClick={locate} disabled={locating} title="Me localiser">
             {locating ? <LoaderCircle size={20} className="spin" /> : <LocateFixed size={20} />}
             <span className="sr-only">Me localiser</span>
+          </button>
+        )}
+        {onMap && (
+          <button type="button" className="btn-secondary" onClick={onMap} title="Placer sur la carte">
+            <MapPinned size={20} />
+            <span className="sr-only">Placer sur la carte</span>
           </button>
         )}
       </div>

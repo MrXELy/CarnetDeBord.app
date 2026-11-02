@@ -67,14 +67,15 @@ async function completeFrench(place: Place, signal?: AbortSignal): Promise<Place
   }
 }
 
-/** Nom de la commune où se trouve un point (France seulement, sinon null) : nomme un point placé sur la carte. */
-export async function communeAt(lat: number, lon: number, signal?: AbortSignal): Promise<string | null> {
+/** Commune où se trouve un point (France seulement, sinon null) : nomme un point placé sur la carte. */
+export async function communeAt(lat: number, lon: number, signal?: AbortSignal): Promise<Commune | null> {
   try {
-    const res = await fetch(`https://geo.api.gouv.fr/communes?lat=${lat.toFixed(5)}&lon=${lon.toFixed(5)}&fields=nom`, {
-      signal,
-    });
-    const [commune]: { nom?: string }[] = res.ok ? await res.json() : [];
-    return commune?.nom ?? null;
+    const res = await fetch(
+      `https://geo.api.gouv.fr/communes?lat=${lat.toFixed(5)}&lon=${lon.toFixed(5)}&fields=nom,codeDepartement,codesPostaux`,
+      { signal },
+    );
+    const [commune]: Commune[] = res.ok ? await res.json() : [];
+    return commune ?? null;
   } catch {
     return null;
   }
@@ -107,6 +108,9 @@ const normalize = (s: string) =>
     .toLowerCase()
     .replace(/[-'’\s]+/g, ' ')
     .trim();
+
+/** Même ville, aux accents, tirets et majuscules près. */
+export const sameCity = (a: string, b: string) => normalize(a) === normalize(b);
 
 /**
  * Classe les communes : nom exact d'abord, puis celles dont le nom commence par la saisie,
