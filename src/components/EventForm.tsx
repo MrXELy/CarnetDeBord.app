@@ -92,6 +92,8 @@ export default function EventForm({ event, onClose }: Props) {
   // Chargements à créer pour des LV qui n'en avaient pas, par LV (enregistrés avec la livraison).
   const [newLoadings, setNewLoadings] = useState<Map<string, NewLoading>>(() => new Map());
   const [editing, setEditing] = useState<Editing>(null);
+  // LV de chargement enregistrées depuis leur fiche pendant cette saisie (voir `saveEditing`).
+  const savedLoads = useRef(new Set<string>());
   const scanInput = useRef<HTMLInputElement>(null);
   const kmCamera = useRef<HTMLInputElement>(null);
   const [kmReading, setKmReading] = useState<KmReading>(null);
@@ -132,14 +134,20 @@ export default function EventForm({ event, onClose }: Props) {
 
   function waybillChanges(now: string): Waybill[] {
     const changes: Waybill[] = [];
+    // LV déjà enregistrées : celles de l'étape à l'ouverture, et celles enregistrées depuis leur fiche.
+    const knownLoads = [...originalLoads];
+    for (const id of savedLoads.current) {
+      const w = store.waybill(id);
+      if (w && !w.deleted_at && !knownLoads.some((k) => k.id === id)) knownLoads.push(w);
+    }
     if (type === 'chargement') {
-      for (const w of originalLoads) {
+      for (const w of knownLoads) {
         if (!loads.some((l) => l.id === w.id)) changes.push({ ...w, deleted_at: now });
       }
       for (const w of loads) changes.push({ ...w, loading_event_id: eventId });
     } else {
       // L'étape n'est plus un chargement : ses LV gardent leur trace mais sans lieu de chargement.
-      for (const w of originalLoads) changes.push({ ...w, loading_event_id: null });
+      for (const w of knownLoads) changes.push({ ...w, loading_event_id: null });
     }
 
     if (type === 'livraison') {
@@ -360,6 +368,17 @@ export default function EventForm({ event, onClose }: Props) {
       setDeliveryEdits(new Map(deliveryEdits).set(w.id, w));
       if (editing.isNew) setChecked(new Set(checked).add(w.id));
     }
+    // Enregistrée tout de suite, pour ne pas la perdre si l'étape est fermée sans être enregistrée.
+    // Rattachée seulement à une étape déjà enregistrée ; le reste se fait à l'enregistrement de l'étape.
+    if (isBlankWaybill(w)) return;
+    const before = store.waybill(w.id);
+    const loadingHere = editing.side === 'load' && store.event(eventId)?.type === 'chargement';
+    store.saveWaybill({
+      ...w,
+      loading_event_id: before ? before.loading_event_id : loadingHere ? eventId : null,
+      delivery_event_id: before?.delivery_event_id ?? null,
+    });
+    if (editing.side === 'load') savedLoads.current.add(w.id);
   }
 
   function deleteEditing(w: Waybill) {
