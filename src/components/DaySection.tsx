@@ -1,13 +1,15 @@
 import { Map as MapIcon } from 'lucide-react';
 import type { CSSProperties } from 'react';
-import { dayLabel, durationLabel, summarizeDay, type Day } from '../lib/dates';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
+import { durationLabel, summarizeDay, type Day } from '../lib/dates';
 import type { TripEvent } from '../types';
 import DayLimitNotice from './DayLimitNotice';
 import EventCard from './EventCard';
 
 interface Props {
   day: Day;
-  /** Titre à la place du nom du jour (accueil : « Journée en cours »). */
+  /** Titre à la place du nom du jour (accueil : « Étapes du jour », sans km ni amplitude : ils sont en tuiles). */
   title?: string;
   /** Sans l'heure limite de fin dessous (l'accueil la montre déjà en tuile). */
   noLimit?: boolean;
@@ -30,15 +32,18 @@ export default function DaySection({ day, title, noLimit, index, found, onOpen, 
     <section className="day">
       <h2 className="day-header">
         <span className="day-title">
-          {title ?? dayLabel(day.date)}
+          {title ?? shortDay(day.date)}
           <button type="button" className="pill day-map" onClick={onMap} aria-label="Carte de la journée">
             <MapIcon size={13} aria-hidden />
           </button>
         </span>
-        <span className="day-summary">
-          {km != null && <span>{km.toLocaleString('fr-FR')} km</span>}
-          {amplitude != null && <span>{durationLabel(amplitude)}</span>}
-        </span>
+        {!title && (
+          <span className="day-summary">
+            {[km != null && `${km.toLocaleString('fr-FR')} km`, amplitude != null && durationLabel(amplitude)]
+              .filter(Boolean)
+              .join(' · ')}
+          </span>
+        )}
       </h2>
       {!noLimit && recentStarts.length > 0 && <DayLimitNotice startIds={recentStarts} />}
       <ol className="timeline">
@@ -55,4 +60,10 @@ export default function DaySection({ day, title, noLimit, index, found, onOpen, 
       </ol>
     </section>
   );
+}
+
+/** « Mercredi 4 » : le mois est dans le titre de la semaine. */
+function shortDay(date: Date): string {
+  const s = format(date, 'EEEE d', { locale: fr });
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }

@@ -20,6 +20,7 @@ import { useSwipe } from '../lib/useSwipe';
 import { buildWeekSheet } from '../lib/weekSheet';
 import { isDayBoundary, type TripEvent } from '../types';
 import DaySection from './DaySection';
+import Km from './Km';
 
 interface Props {
   /** Début de la semaine affichée (dimanche 22h). */
@@ -61,6 +62,7 @@ export default function WeekPage(props: Props) {
     [events, allowanceSettings, start],
   );
   const hasDays = days.length > 0;
+  const [weekNumber, weekRange] = weekLabel(start).split(' · ');
   const swipe = useSwipe((direction) => props.onWeek(direction));
 
   // Nouvelle semaine : la page repart du haut (l'étape trouvée par la recherche est rejointe juste après).
@@ -87,32 +89,39 @@ export default function WeekPage(props: Props) {
           <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
             <X size={22} />
           </button>
-          <h2>Semaine</h2>
+          {/* Flèches de semaine dans le haut du panneau : une ligne de gagnée. */}
+          <button className="round-btn" aria-label="Semaine précédente" onClick={() => props.onWeek(-1)}>
+            <ChevronLeft size={22} />
+          </button>
+          <button className="week-title week-head-title" onClick={props.onPickWeek} aria-label="Choisir une semaine">
+            <b>
+              {weekNumber}
+              <ChevronDown size={16} className="week-title-chevron" aria-hidden />
+            </b>
+            <span>
+              {weekRange}
+              {week.inProgress && isCurrentWeek && ' · en cours'}
+            </span>
+          </button>
+          <button className="round-btn" aria-label="Semaine suivante" onClick={() => props.onWeek(1)}>
+            <ChevronRight size={22} />
+          </button>
         </header>
 
         <div className="modal-body">
-          <nav className="week-nav">
-            <button className="round-btn" aria-label="Semaine précédente" onClick={() => props.onWeek(-1)}>
-              <ChevronLeft size={22} />
-            </button>
-            <button className="week-title" onClick={props.onPickWeek} aria-label="Choisir une semaine">
-              {weekLabel(start)}
-              <ChevronDown size={16} className="week-title-chevron" aria-hidden />
-            </button>
-            <button className="round-btn" aria-label="Semaine suivante" onClick={() => props.onWeek(1)}>
-              <ChevronRight size={22} />
-            </button>
-          </nav>
-
-          <div className={`week-hero slide-${slide}`} key={start.getTime()}>
-            <span className={`week-km${week.km == null ? ' empty-km' : ''}`}>
-              {week.km != null ? `${week.km.toLocaleString('fr-FR')} km` : 'Aucun km'}
-            </span>
-            <span className="week-sub">
-              {week.inProgress && isCurrentWeek && 'En cours · '}
-              {amplitude > 0 && `${durationLabel(amplitude)} d’amplitude · `}
-              {steps} étape{steps > 1 ? 's' : ''}
-            </span>
+          <div className={`mini-tiles slide-${slide}`} key={start.getTime()}>
+            <div className="mini-tile mini-week">
+              <span>Km</span>
+              <b>{week.km != null ? <Km km={week.km} /> : '—'}</b>
+            </div>
+            <div className="mini-tile">
+              <span>Amplitude</span>
+              <b>{amplitude > 0 ? durationLabel(amplitude) : '—'}</b>
+            </div>
+            <div className="mini-tile">
+              <span>Étapes</span>
+              <b>{steps}</b>
+            </div>
           </div>
 
           {(showInTruck || hasDays) && (

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TripEvent } from '../types';
-import { dayLimit, hoursLabel, openDebts, restartAdvice, restChecks, restSummary } from './rest';
+import { dayLimit, hoursLabel, openDebts, restartAdvice, restartTimes, restChecks, restSummary } from './rest';
 
 let n = 0;
 type Ev = Pick<TripEvent, 'id' | 'type' | 'occurred_at' | 'country_code'>;
@@ -244,6 +244,29 @@ describe('reprise après la fin de journée', () => {
     expect(lines[2]).toBe(
       'Pour rattraper les 11 h du repos réduit du sam. 10 oct. (avant la fin du dim. 1 nov.) : reprise dim. 18 oct. à 23:00 (45 h + 11 h).',
     );
+  });
+});
+
+describe('heures de reprise (accueil)', () => {
+  it('11 h et 9 h après la fin de journée', () => {
+    const end = ev('fin_journee', '2026-10-14T17:05');
+    const times = restartTimes([ev('debut_journee', '2026-10-14T05:45')], end)!;
+    expect(times.normal).toEqual(new Date('2026-10-15T04:05'));
+    expect(times.reduced).toEqual(new Date('2026-10-15T02:05'));
+  });
+
+  it('plus de repos réduit après 3 réduits : seulement 11 h', () => {
+    const events = [
+      ...day('2026-10-12T05:00', '2026-10-12T19:00'),
+      ...day('2026-10-13T05:00', '2026-10-13T19:00'), // 10 h de repos : réduit
+      ...day('2026-10-14T05:00', '2026-10-14T19:00'),
+      ...day('2026-10-15T05:00', '2026-10-15T19:00'),
+      ev('debut_journee', '2026-10-16T05:00'),
+    ];
+    const end = ev('fin_journee', '2026-10-16T15:00');
+    const times = restartTimes(events, end)!;
+    expect(times.reduced).toBeNull();
+    expect(times.normal).toEqual(new Date('2026-10-17T02:00'));
   });
 });
 

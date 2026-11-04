@@ -1,7 +1,6 @@
 import { addHours, addWeeks, format, getISOWeek, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import {
-  ArrowUpRight,
   CalendarDays,
   ChartColumn,
   ChevronDown,
@@ -29,7 +28,7 @@ import {
 } from '../lib/dates';
 import { formatPlace } from '../lib/geo';
 import { unfinishedStep } from '../lib/onSite';
-import { dayLimit } from '../lib/rest';
+import { dayLimit, restartTimes } from '../lib/rest';
 import { useEvents } from '../lib/useEvents';
 import { useNow } from '../lib/useNow';
 import { useWide } from '../lib/useWide';
@@ -39,6 +38,7 @@ import DaySection from './DaySection';
 import EventForm from './EventForm';
 import FinishStepButton from './FinishStepButton';
 import HomeNotices from './HomeNotices';
+import Km from './Km';
 import type { WaybillFilter } from './WaybillsPage';
 import WeekMapPreview from './WeekMapPreview';
 import WeekPage, { useWeekSheet } from './WeekPage';
@@ -90,6 +90,9 @@ export default function WeekView() {
   const todaySummary = summarizeDay(today.events);
   // Journée en cours : heure limite de fin (RSE), en tuile à côté des km du jour.
   const limit = useMemo(() => (today.inProgress ? dayLimit(events, now) : null), [today.inProgress, events, now]);
+  // Journée finie : reprise au plus tôt (repos réduit et normal) à la place de l'amplitude.
+  const dayEnd = today.inProgress ? undefined : today.events.find((e) => e.type === 'fin_journee');
+  const restart = useMemo(() => (dayEnd ? restartTimes(events, dayEnd) : null), [events, dayEnd]);
   const toComplete = waybills.filter((w) => waybillStatus(w) === 'a_completer').length;
   // Seulement avant le début de journée (aucune étape aujourd'hui) : rappel des livraisons à faire.
   const inTruck = today.events.length > 0 ? [] : store.inTruck(now);
@@ -115,9 +118,7 @@ export default function WeekView() {
 
   const inTruckSection = (
     <section className="in-truck">
-      <h2 className="home-h2">
-        Dans le camion <span>{inTruck.length} LV</span>
-      </h2>
+      <h2 className="home-h2">À livrer</h2>
       {inTruck.map((w) => {
         const loading = store.event(w.loading_event_id);
         const from = loading && formatPlace(loading);
@@ -125,7 +126,7 @@ export default function WeekView() {
           <button key={w.id} className="in-truck-lv" onClick={() => setWaybillFilter('dans_camion')}>
             <span className="in-truck-top">
               <span className="card-icon">
-                <MapPin size={22} aria-hidden />
+                <MapPin size={20} aria-hidden />
               </span>
               <span className="in-truck-where">
                 <span className="in-truck-label">Livraison prévue à</span>
@@ -166,33 +167,44 @@ export default function WeekView() {
     if (!wide) setShowWeek(true); // PC : la semaine est déjà au centre
   }
 
+  // Petites tuiles du jour, à côté de celle de la semaine : km du jour, puis heure limite, reprise ou amplitude.
   const todayTiles = today.events.length > 0 && (
-    <div className="today-tiles">
-      <div className="today-tile">
-        <span>{today.inProgress ? 'Journée en cours' : 'Aujourd’hui'}</span>
-        <b>{todaySummary.km != null ? `${todaySummary.km.toLocaleString('fr-FR')} km` : '—'}</b>
+    <>
+      <div className="mini-tile">
+        <span>Aujourd’hui</span>
+        <b>{todaySummary.km != null ? <Km km={todaySummary.km} /> : '—'}</b>
       </div>
       {limit ? (
-        <div className={`today-tile rest-${limit.level}`} title={limit.lines[0]?.text}>
-          <span>{limit.level === 'error' ? 'Limite dépassée' : 'Fin de journée avant'}</span>
-          <b>{format(limit.until, 'HH:mm')}</b>
-          <small>
-            {limit.level === 'error'
-              ? `depuis ${format(limit.last, 'HH:mm')}`
-              : limit.until < limit.last
-                ? `${format(limit.last, 'HH:mm')} au plus tard`
-                : 'au plus tard'}
-          </small>
+        <div className={`mini-tile rest-${limit.level}`} title={limit.lines[0]?.text}>
+          <span>{limit.level === 'error' ? 'Dépassée depuis' : 'Fin avant'}</span>
+          <b>{format(limit.level === 'error' ? limit.last : limit.until, 'HH:mm')}</b>
+          {limit.level !== 'error' && limit.until < limit.last && (
+            <small>{format(limit.last, 'HH:mm')} au plus tard</small>
+          )}
+        </div>
+      ) : restart ? (
+        <div className="mini-tile">
+          <span>Reprise dès</span>
+          {restart.reduced && (
+            <span className="restart-line">
+              <b>{format(restart.reduced, 'HH:mm')}</b>
+              <small>réduit</small>
+            </span>
+          )}
+          <span className="restart-line">
+            <b>{format(restart.normal, 'HH:mm')}</b>
+            <small>normal</small>
+          </span>
         </div>
       ) : (
         todaySummary.amplitude != null && (
-          <div className="today-tile">
+          <div className="mini-tile">
             <span>Amplitude</span>
             <b>{durationLabel(todaySummary.amplitude)}</b>
           </div>
         )
       )}
-    </div>
+    </>
   );
 
   const sync = demo ? (
@@ -261,14 +273,10 @@ export default function WeekView() {
 
         <HomeNotices onOpenReminders={() => setShowSettings('reminders')} />
 
-        <div className="pc-tiles">
-          <div className="week-tile pc-week-tile">
-            <span className="week-tile-text">
-              <span className="week-tile-label">Km de la semaine</span>
-              <span className="week-tile-km">
-                {shownKm != null ? `${shownKm.toLocaleString('fr-FR')} km` : 'Aucun km'}
-              </span>
-            </span>
+        <div className="mini-tiles pc-tiles">
+          <div className="mini-tile mini-week">
+            <span>Km de la semaine</span>
+            <b>{shownKm != null ? <Km km={shownKm} /> : '—'}</b>
           </div>
           {isThisWeek && todayTiles}
         </div>
@@ -345,19 +353,21 @@ export default function WeekView() {
           </header>
 
           <main className="home">
+            <div className={`mini-tiles${inTruck.length > 0 ? ' two' : ''}`}>
+              <button className="mini-tile mini-week" onClick={openWeek} aria-label="Ouvrir la semaine">
+                <span>Semaine {getISOWeek(addHours(thisWeek, 2))} ›</span>
+                <b>{weekKm != null ? <Km km={weekKm} /> : '—'}</b>
+              </button>
+              {inTruck.length > 0 && (
+                <button className="mini-tile mini-truck" onClick={() => setWaybillFilter('dans_camion')}>
+                  <span>Dans le camion ›</span>
+                  <b>{inTruck.length} LV</b>
+                </button>
+              )}
+              {todayTiles}
+            </div>
+
             <HomeNotices onOpenReminders={() => setShowSettings('reminders')} />
-
-            <button className="week-tile" onClick={openWeek} aria-label="Ouvrir la semaine">
-              <span className="week-tile-text">
-                <span className="week-tile-label">Semaine {getISOWeek(addHours(thisWeek, 2))}</span>
-                <span className="week-tile-km">
-                  {weekKm != null ? `${weekKm.toLocaleString('fr-FR')} km` : 'Aucun km'}
-                </span>
-              </span>
-              <ArrowUpRight size={28} strokeWidth={2.2} aria-hidden />
-            </button>
-
-            {todayTiles}
 
             {inTruck.length > 0 && inTruckSection}
 

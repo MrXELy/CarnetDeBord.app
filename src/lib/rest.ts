@@ -331,6 +331,20 @@ const remainingText = (n: number) => `${n} restant${n > 1 ? 's' : ''} sur 3`;
 const before = (events: readonly RestEvent[], date: Date, excludeId?: string) =>
   events.filter((e) => e.id !== excludeId && Date.parse(e.occurred_at) <= date.getTime());
 
+/** Fin de journée : reprise au plus tôt après 11 h de repos, et après 9 h s'il reste un repos réduit (sinon null). */
+export function restartTimes(
+  events: readonly RestEvent[],
+  end: RestEvent,
+): { normal: Date; reduced: Date | null } | null {
+  const endAt = new Date(end.occurred_at);
+  if (Number.isNaN(endAt.getTime())) return null;
+  const state = walk([...before(events, endAt, end.id), end]);
+  return {
+    normal: addHours(endAt, DAILY / H),
+    reduced: state.reducedDaily < MAX_REDUCED_DAILY ? addHours(endAt, DAILY_REDUCED / H) : null,
+  };
+}
+
 /**
  * Fin de journée : heure de reprise possible (repos normal ou réduit ; hebdomadaire du vendredi au dimanche),
  * et rattrapage d'un repos hebdomadaire réduit à prendre.
