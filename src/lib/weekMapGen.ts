@@ -2,7 +2,7 @@ import type { MapLeg, Place, TripEvent, WeekMap } from '../types';
 import { resolveCity } from './geo';
 import { routeOptions, simplify, type RouteOption } from './route';
 import type { EventStore } from './sync';
-import { buildStops, closestRoute, segmentKey, stopSegments, stopsHash } from './weekStops';
+import { buildStops, closestRoute, segmentKey, stopSegments, stopsHash, type StopSegment } from './weekStops';
 
 /** Identifiant fixe de la carte d'une semaine : une seule carte par semaine, même sur deux appareils. */
 export function weekMapId(userId: string, start: Date): string {
@@ -22,6 +22,7 @@ export function weekMapId(userId: string, start: Date): string {
  * 2. itinéraires, tronçon par tronçon : parmi ceux proposés, le plus proche des km relevés au compteur
  *    (un itinéraire choisi à la main est gardé, sans nouveau calcul) ;
  * 3. enregistrement : la carte s'affichera ensuite sans aucun calcul, sur tous les appareils.
+ * `onlyChanged` : seuls les tronçons nouveaux ou modifiés sont recalculés (voir `keptLeg`).
  * `found` est complétée avec les villes retrouvées. Lève une erreur si un itinéraire est indisponible,
  * ou si `signal` est annulé (fenêtre fermée : plus de demandes aux serveurs publics).
  */
@@ -32,6 +33,7 @@ export async function generateWeekMap(
   found: Map<string, Place>,
   onProgress: (message: string) => void,
   signal?: AbortSignal,
+  onlyChanged = false,
 ): Promise<void> {
   const { missing } = buildStops(events, found);
   const toFind = missing.filter((e) => e.city.trim() && !found.has(e.id));
@@ -48,11 +50,11 @@ export async function generateWeekMap(
   const stops = buildStops(events, found).stops;
   const segments = stopSegments(stops);
   const previous = store.weekMap(start);
-  const chosen = new Map(previous?.legs.filter((l) => l.manual && l.key).map((l) => [l.key!, l]));
+  const byKey = legsByKey(previous);
   const legs: MapLeg[] = [];
   for (const [i, segment] of segments.entries()) {
     const key = segmentKey(segment);
-    const kept = chosen.get(key);
+    const kept = keptLeg(byKey, segment, onlyChanged);
     if (kept) {
       legs.push({ ...kept, day: segment.day });
       continue;
@@ -60,7 +62,7 @@ export async function generateWeekMap(
     onProgress(`Calcul des itinéraires (${i + 1}/${segments.length})…`);
     const options = await routeOptions([segment.from.lat, segment.from.lon], [segment.to.lat, segment.to.lon], signal);
     if (!options) throw new Error('Itinéraire indisponible');
-    legs.push(routeLegOf(segment.day, key, closestRoute(options, segment.odometerKm)));
+    legs.push(routeLegOf(segment.day, key, closestRoute(options, segment.odometerKm), segment.odometerKm));
   }
 
   store.saveWeekMap({
@@ -74,12 +76,29 @@ export async function generateWeekMap(
   });
 }
 
+/** Tronçons enregistrés d'une carte, par clé (anciennes cartes par jour, sans clé : aucun). */
+export function legsByKey(map: WeekMap | null | undefined): Map<string, MapLeg> {
+  return new Map(map?.legs.filter((l) => l.key).map((l) => [l.key!, l]));
+}
+
+/**
+ * Tronçon déjà calculé à garder sans nouveau calcul : choisi à la main, ou (avec `onlyChanged`) aux mêmes lieux
+ * et aux mêmes km au compteur. Anciennes cartes, sans km noté : gardé si les lieux n'ont pas bougé.
+ */
+export function keptLeg(byKey: Map<string, MapLeg>, segment: StopSegment, onlyChanged: boolean): MapLeg | undefined {
+  const leg = byKey.get(segmentKey(segment));
+  if (!leg || leg.manual) return leg;
+  if (!onlyChanged || (leg.odo !== undefined && leg.odo !== segment.odometerKm)) return undefined;
+  return leg;
+}
+
 /** Tronçon enregistré : tracé simplifié et longueur arrondie à 100 m (et villes de passage, s'il y en a). */
-function routeLegOf(day: string, key: string, option: RouteOption, manual = false): MapLeg {
+function routeLegOf(day: string, key: string, option: RouteOption, odo: number | null, manual = false): MapLeg {
   return {
     day,
     key,
     km: Math.round(option.km * 10) / 10,
+    odo,
     coords: simplify(option.coords),
     ...(manual && { manual }),
     ...(manual && option.label && { via: option.label }),
@@ -89,5 +108,8 @@ function routeLegOf(day: string, key: string, option: RouteOption, manual = fals
 
 /** Carte où le tronçon `key` prend l'itinéraire choisi à la main (gardé ensuite à la régénération). */
 export function withChosenRoute(map: WeekMap, key: string, option: RouteOption): WeekMap {
-  return { ...map, legs: map.legs.map((l) => (l.key === key ? routeLegOf(l.day, key, option, true) : l)) };
+  return {
+    ...map,
+    legs: map.legs.map((l) => (l.key === key ? routeLegOf(l.day, key, option, l.odo ?? null, true) : l)),
+  };
 }
