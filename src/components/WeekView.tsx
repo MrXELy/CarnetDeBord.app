@@ -1,4 +1,4 @@
-import { addHours, addWeeks, format, getISOWeek, parseISO } from 'date-fns';
+import { addHours, addWeeks, differenceInCalendarDays, format, getISOWeek, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import {
   CalendarDays,
@@ -53,6 +53,14 @@ const Settings = lazy(() => import('./Settings'));
 const WaybillsPage = lazy(() => import('./WaybillsPage'));
 
 type Editing = { event: TripEvent | null } | null;
+
+const RESTART_KINDS = { reduit: 'réduit', normal: 'normal', hebdo_reduit: 'hebdo réduit', hebdo: 'hebdo' };
+
+/** Heure de reprise : « 04:05 » le lendemain, « dim. 12:00 » plus tard. */
+function restartLabel(at: Date, end: TripEvent): string {
+  const days = differenceInCalendarDays(at, parseISO(end.occurred_at));
+  return format(at, days > 1 ? 'EEE HH:mm' : 'HH:mm', { locale: fr });
+}
 
 /** Accueil : la journée en cours (ou les LV du camion avant de commencer), la semaine s'ouvre depuis sa tuile. */
 export default function WeekView() {
@@ -183,18 +191,14 @@ export default function WeekView() {
           )}
         </div>
       ) : restart ? (
-        <div className="mini-tile">
+        <div className={`mini-tile rest-${restart.level}`}>
           <span>Reprise dès</span>
-          {restart.reduced && (
-            <span className="restart-line">
-              <b>{format(restart.reduced, 'HH:mm')}</b>
-              <small>réduit</small>
+          {restart.times.map((t) => (
+            <span key={t.kind} className="restart-line">
+              <b>{restartLabel(t.at, dayEnd!)}</b>
+              <small>{RESTART_KINDS[t.kind]}</small>
             </span>
-          )}
-          <span className="restart-line">
-            <b>{format(restart.normal, 'HH:mm')}</b>
-            <small>normal</small>
-          </span>
+          ))}
         </div>
       ) : (
         todaySummary.amplitude != null && (

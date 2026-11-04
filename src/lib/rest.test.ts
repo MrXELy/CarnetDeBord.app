@@ -248,11 +248,16 @@ describe('reprise après la fin de journée', () => {
 });
 
 describe('heures de reprise (accueil)', () => {
-  it('11 h et 9 h après la fin de journée', () => {
-    const end = ev('fin_journee', '2026-10-14T17:05');
-    const times = restartTimes([ev('debut_journee', '2026-10-14T05:45')], end)!;
-    expect(times.normal).toEqual(new Date('2026-10-15T04:05'));
-    expect(times.reduced).toEqual(new Date('2026-10-15T02:05'));
+  const times = (events: Ev[], end: Ev) =>
+    restartTimes(events, end)!.times.map((t) => `${t.kind} ${t.at.toISOString()}`);
+  const iso = (local: string) => new Date(local).toISOString();
+
+  it('en semaine : 9 h et 11 h après la fin de journée', () => {
+    const end = ev('fin_journee', '2026-10-14T17:05'); // mercredi
+    expect(times([ev('debut_journee', '2026-10-14T05:45')], end)).toEqual([
+      `reduit ${iso('2026-10-15T02:05')}`,
+      `normal ${iso('2026-10-15T04:05')}`,
+    ]);
   });
 
   it('plus de repos réduit après 3 réduits : seulement 11 h', () => {
@@ -260,13 +265,43 @@ describe('heures de reprise (accueil)', () => {
       ...day('2026-10-12T05:00', '2026-10-12T19:00'),
       ...day('2026-10-13T05:00', '2026-10-13T19:00'), // 10 h de repos : réduit
       ...day('2026-10-14T05:00', '2026-10-14T19:00'),
-      ...day('2026-10-15T05:00', '2026-10-15T19:00'),
-      ev('debut_journee', '2026-10-16T05:00'),
+      ev('debut_journee', '2026-10-15T05:00'), // 3e réduit
     ];
+    const end = ev('fin_journee', '2026-10-15T15:00'); // jeudi
+    expect(times(events, end).map((t) => t.split(' ')[0])).toEqual(['normal']);
+  });
+
+  it('vendredi : 9 h, 11 h et repos hebdomadaire de 45 h', () => {
     const end = ev('fin_journee', '2026-10-16T15:00');
-    const times = restartTimes(events, end)!;
-    expect(times.reduced).toBeNull();
-    expect(times.normal).toEqual(new Date('2026-10-17T02:00'));
+    expect(times([ev('debut_journee', '2026-10-16T05:00')], end)).toEqual([
+      `reduit ${iso('2026-10-17T00:00')}`,
+      `normal ${iso('2026-10-17T02:00')}`,
+      `hebdo ${iso('2026-10-18T12:00')}`,
+    ]);
+  });
+
+  it('samedi : repos hebdomadaire seulement (24 h s’il est permis, 45 h)', () => {
+    const end = ev('fin_journee', '2026-10-17T12:00');
+    expect(times([ev('debut_journee', '2026-10-17T05:00')], end)).toEqual([
+      `hebdo_reduit ${iso('2026-10-18T12:00')}`,
+      `hebdo ${iso('2026-10-19T09:00')}`,
+    ]);
+    // Le repos hebdomadaire d'avant était réduit : 45 h obligatoires.
+    const events = [
+      ...day('2026-10-10T05:00', '2026-10-10T12:00'),
+      ...day('2026-10-11T22:00', '2026-10-12T08:00'), // hebdo réduit de 34 h
+      ...[13, 14, 15, 16].flatMap((d) => day(`2026-10-${d}T05:00`, `2026-10-${d}T16:00`)),
+      ev('debut_journee', '2026-10-17T05:00'),
+    ];
+    expect(times(events, end).map((t) => t.split(' ')[0])).toEqual(['hebdo']);
+  });
+
+  it('journée de plus de 13 h : 9 h seulement, en rouge au-delà de 15 h', () => {
+    const start = ev('debut_journee', '2026-10-14T05:00');
+    const r = restartTimes([start], ev('fin_journee', '2026-10-14T19:00'))!;
+    expect(r.times.map((t) => t.kind)).toEqual(['reduit']);
+    expect(r.level).toBe('ok');
+    expect(restartTimes([start], ev('fin_journee', '2026-10-14T21:00'))!.level).toBe('error');
   });
 });
 

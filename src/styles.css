@@ -324,9 +324,10 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
 .mini-tile.rest-error > span,
 .mini-tile.rest-error > small { color: inherit; }
 /* Journée finie : reprise réduite et normale, une ligne chacune */
-.restart-line { display: flex; align-items: baseline; justify-content: space-between; gap: 4px; }
+.restart-line { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; column-gap: 4px; }
 .restart-line b { font-size: 1.1rem; }
 .restart-line small { font-size: 0.7rem; color: var(--muted); }
+.mini-tile.rest-error .restart-line small { color: inherit; }
 
 .home-h2 {
   display: flex;

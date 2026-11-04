@@ -331,18 +331,52 @@ const remainingText = (n: number) => `${n} restant${n > 1 ? 's' : ''} sur 3`;
 const before = (events: readonly RestEvent[], date: Date, excludeId?: string) =>
   events.filter((e) => e.id !== excludeId && Date.parse(e.occurred_at) <= date.getTime());
 
-/** Fin de journée : reprise au plus tôt après 11 h de repos, et après 9 h s'il reste un repos réduit (sinon null). */
+/** Une heure de reprise de la tuile de l'accueil. */
+export interface Restart {
+  kind: 'reduit' | 'normal' | 'hebdo_reduit' | 'hebdo';
+  at: Date;
+}
+
+/** Repos hebdomadaire réduit interdit : le précédent l'était (sauf deux hors de France), ou 2 sur les 3 derniers. */
+function weeklyRegularOnly(state: ReturnType<typeof walk>, end: RestEvent): boolean {
+  const prev = state.weeklies[state.weeklies.length - 1];
+  const reducedOf3 = state.weeklies.slice(-3).filter((w) => w.reduced).length;
+  return !!(prev?.reduced && !(prev.abroad && abroad(end))) || reducedOf3 >= 2;
+}
+
+/**
+ * Fin de journée : heures de reprise au plus tôt pour la tuile de l'accueil.
+ * Samedi : repos hebdomadaire seulement (24 h s'il est permis, 45 h). Vendredi : 9 h (s'il reste un réduit), 11 h et 45 h.
+ * Journée de plus de 13 h : 9 h seulement (11 h ne tiennent plus dans les 24 h) ; `level` rouge si ce n'est plus permis.
+ */
 export function restartTimes(
   events: readonly RestEvent[],
   end: RestEvent,
-): { normal: Date; reduced: Date | null } | null {
+): { times: Restart[]; level: RestLevel } | null {
   const endAt = new Date(end.occurred_at);
   if (Number.isNaN(endAt.getTime())) return null;
   const state = walk([...before(events, endAt, end.id), end]);
-  return {
-    normal: addHours(endAt, DAILY / H),
-    reduced: state.reducedDaily < MAX_REDUCED_DAILY ? addHours(endAt, DAILY_REDUCED / H) : null,
-  };
+  const after = (kind: Restart['kind'], minutes: number) => ({
+    kind,
+    at: new Date(endAt.getTime() + minutes * 60_000),
+  });
+  const weekly = (reduced: boolean) => [
+    ...(reduced && !weeklyRegularOnly(state, end) ? [after('hebdo_reduit', WEEKLY_REDUCED)] : []),
+    after('hebdo', WEEKLY),
+  ];
+  const day = endAt.getDay();
+  if (day === 6) return { times: weekly(true), level: 'ok' };
+
+  const remaining = MAX_REDUCED_DAILY - state.reducedDaily;
+  const start = state.dayStart ? new Date(state.dayStart.occurred_at) : null;
+  const amplitude = start ? differenceInMinutes(endAt, start) : null;
+  const long = amplitude != null && amplitude >= 0 && amplitude <= 24 * H && amplitude > 24 * H - DAILY;
+  const times = long
+    ? [after('reduit', DAILY_REDUCED)]
+    : [...(remaining > 0 ? [after('reduit', DAILY_REDUCED)] : []), after('normal', DAILY)];
+  if (day === 5) times.push(...weekly(false));
+  const late = long && (remaining <= 0 || amplitude! > 24 * H - DAILY_REDUCED);
+  return { times, level: late ? 'error' : 'ok' };
 }
 
 /**
@@ -392,9 +426,7 @@ export function restartAdvice(events: readonly RestEvent[], end: RestEvent): Res
   // Vendredi, samedi ou dimanche : repos hebdomadaire.
   const weekend = [0, 5, 6].includes(endAt.getDay());
   if (weekend) {
-    const prev = state.weeklies[state.weeklies.length - 1];
-    const reducedOf3 = state.weeklies.slice(-3).filter((w) => w.reduced).length;
-    const regularOnly = (prev?.reduced && !(prev.abroad && abroad(end))) || reducedOf3 >= 2;
+    const regularOnly = weeklyRegularOnly(state, end);
     lines.push({
       level: 'ok',
       text:
