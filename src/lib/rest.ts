@@ -346,7 +346,7 @@ function weeklyRegularOnly(state: ReturnType<typeof walk>, end: RestEvent): bool
 
 /**
  * Fin de journée : heures de reprise au plus tôt pour la tuile de l'accueil.
- * Samedi : repos hebdomadaire seulement (24 h s'il est permis, 45 h). Vendredi : 9 h (s'il reste un réduit), 11 h et 45 h.
+ * Samedi : repos hebdomadaire seulement (24 h s'il est permis, 45 h). Les autres jours : 9 h (s'il reste un réduit) et 11 h.
  * Journée de plus de 13 h : 9 h seulement (11 h ne tiennent plus dans les 24 h) ; `level` rouge si ce n'est plus permis.
  */
 export function restartTimes(
@@ -360,12 +360,11 @@ export function restartTimes(
     kind,
     at: new Date(endAt.getTime() + minutes * 60_000),
   });
-  const weekly = (reduced: boolean) => [
-    ...(reduced && !weeklyRegularOnly(state, end) ? [after('hebdo_reduit', WEEKLY_REDUCED)] : []),
+  const weekly = () => [
+    ...(weeklyRegularOnly(state, end) ? [] : [after('hebdo_reduit', WEEKLY_REDUCED)]),
     after('hebdo', WEEKLY),
   ];
-  const day = endAt.getDay();
-  if (day === 6) return { times: weekly(true), level: 'ok' };
+  if (endAt.getDay() === 6) return { times: weekly(), level: 'ok' };
 
   const remaining = MAX_REDUCED_DAILY - state.reducedDaily;
   const start = state.dayStart ? new Date(state.dayStart.occurred_at) : null;
@@ -374,7 +373,6 @@ export function restartTimes(
   const times = long
     ? [after('reduit', DAILY_REDUCED)]
     : [...(remaining > 0 ? [after('reduit', DAILY_REDUCED)] : []), after('normal', DAILY)];
-  if (day === 5) times.push(...weekly(false));
   const late = long && (remaining <= 0 || amplitude! > 24 * H - DAILY_REDUCED);
   return { times, level: late ? 'error' : 'ok' };
 }

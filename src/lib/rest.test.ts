@@ -271,12 +271,11 @@ describe('heures de reprise (accueil)', () => {
     expect(times(events, end).map((t) => t.split(' ')[0])).toEqual(['normal']);
   });
 
-  it('vendredi : 9 h, 11 h et repos hebdomadaire de 45 h', () => {
+  it('vendredi : 9 h et 11 h, sans le repos hebdomadaire', () => {
     const end = ev('fin_journee', '2026-10-16T15:00');
     expect(times([ev('debut_journee', '2026-10-16T05:00')], end)).toEqual([
       `reduit ${iso('2026-10-17T00:00')}`,
       `normal ${iso('2026-10-17T02:00')}`,
-      `hebdo ${iso('2026-10-18T12:00')}`,
     ]);
   });
 
