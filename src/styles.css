@@ -240,12 +240,6 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
 }
 
 /* ---------- Page Semaine ---------- */
-.week-nav {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 /* Flèches de semaine : tuiles carrées */
 .round-btn {
   flex: none;
@@ -259,26 +253,6 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
   background: var(--glass);
   color: var(--text);
 }
-
-.week-hero {
-  display: grid;
-  gap: 2px;
-  padding: 18px 20px;
-  border-radius: 26px;
-  background: var(--accent);
-  color: var(--accent-text);
-}
-
-.week-km {
-  font-size: 2.6rem;
-  font-weight: 800;
-  line-height: 1.05;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
-.week-km.empty-km { font-size: 1.8rem; }
-.week-sub { font-size: 0.85rem; font-weight: 600; }
 
 .week-links {
   display: grid;
@@ -294,8 +268,8 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
 
 .week-links .pill {
   justify-content: center;
-  min-height: 56px;
-  border-radius: 18px;
+  min-height: 44px;
+  border-radius: 14px;
   font-size: 0.9rem;
   font-weight: 700;
 }
@@ -320,54 +294,72 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
 .home .home-notices { padding: 0; }
 
 /* Tuile de la semaine : ouvre la page Semaine */
-.week-tile {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  padding: 18px 20px;
+/* Petites tuiles côte à côte (accueil, page Semaine, PC) : chiffre moyen, « km » plus petit sur la même ligne. */
+.mini-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.mini-tiles.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.mini-tile {
+  display: grid;
+  align-content: start;
+  min-width: 0;
+  padding: 10px 12px;
   border: none;
-  border-radius: 26px;
-  background: var(--accent);
-  color: var(--accent-text);
+  border-radius: 18px;
+  background: var(--glass);
+  color: var(--text);
   text-align: left;
+  font: inherit;
 }
-
-.week-tile-text { display: grid; }
-.week-tile-label { font-size: 0.9rem; font-weight: 600; }
-.week-tile-km { font-size: 2.4rem; font-weight: 800; line-height: 1.05; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.mini-tile > span { font-size: 0.75rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-tile b { font-size: 1.3rem; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mini-tile b small { font-size: 0.875rem; font-weight: 700; }
+.mini-tile > small { font-size: 0.7rem; color: var(--muted); }
+.mini-week { background: var(--accent); color: var(--accent-text); }
+.mini-week > span { color: #3a3f55; }
+.mini-truck { background: #22432f; color: #c6f0da; }
+.mini-truck > span { color: #9cc9b0; }
+.mini-tile.rest-warn { background: #4a3613; color: #ffe2ad; }
+.mini-tile.rest-error { background: #3a2024; color: #ffc9cd; }
+.mini-tile.rest-warn > span,
+.mini-tile.rest-warn > small,
+.mini-tile.rest-error > span,
+.mini-tile.rest-error > small { color: inherit; }
+/* Journée finie : reprise réduite et normale, une ligne chacune */
+.restart-line { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; column-gap: 4px; }
+.restart-line b { font-size: 1.1rem; }
+.restart-line small { font-size: 0.7rem; color: var(--muted); }
+.mini-tile.rest-error .restart-line small { color: inherit; }
 
 .home-h2 {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin: 8px 4px 0;
-  font-size: 1.1rem;
-  font-weight: 700;
+  margin: 6px 4px 0;
+  font-size: 1.05rem;
+  font-weight: 800;
 }
 .home-h2 span { font-size: 0.9rem; font-weight: 500; color: var(--muted); }
 
 /* Avant le début de journée : LV dans le camion, une tuile verte par livraison à faire */
-.in-truck { display: grid; gap: 10px; }
+.in-truck { display: grid; gap: 6px; }
 .in-truck-lv {
   --tone: #c6f0da;
   --tone-bg: #22432f;
   display: grid;
-  gap: 10px;
+  gap: 0;
   width: 100%;
-  padding: 16px;
+  padding: 8px 14px 8px 8px;
   border: none;
-  border-radius: 24px;
+  border-radius: 18px;
   background: var(--tone-bg);
   color: var(--tone);
   text-align: left;
 }
+
 .in-truck-top { display: flex; align-items: center; gap: 12px; }
 .in-truck-where { display: grid; min-width: 0; }
-.in-truck-label { font-size: 0.82rem; color: #9cc9b0; }
-.in-truck-city { font-size: 1.4rem; font-weight: 800; overflow-wrap: anywhere; }
-.in-truck-sub { font-size: 0.9rem; color: #9cc9b0; }
+.in-truck-label { font-size: 0.8rem; color: #9cc9b0; }
+.in-truck-city { font-size: 1.1rem; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
+.in-truck-sub { padding-left: 52px; font-size: 0.8rem; color: #9cc9b0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .in-truck-sub:empty { display: none; }
 
 /* Barre du bas : Semaine, LV, Statistiques, Rechercher ; le « + » est à sa droite */
@@ -409,9 +401,9 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   padding: 0 4px;
-  font-size: 1.15rem;
+  font-size: 1rem;
   font-weight: 800;
   letter-spacing: -0.01em;
 }
@@ -436,21 +428,21 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
   display: grid;
   /* Une colonne à la largeur de l'écran : un nom de lieu très long se coupe au lieu d'élargir la page. */
   grid-template-columns: minmax(0, 1fr);
-  gap: 8px;
+  gap: 6px;
 }
 
 .card {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   width: 100%;
-  min-height: 72px;
-  padding: 14px 16px;
+  min-height: 56px;
+  padding: 8px 14px 8px 8px;
   text-align: left;
   background: var(--tone-bg);
   border: none;
-  border-radius: 20px;
+  border-radius: 18px;
   color: var(--tone);
 }
 
@@ -459,9 +451,9 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
   flex: none;
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
   background: color-mix(in srgb, var(--tone) 12%, var(--tone-bg));
 }
 .card-icon .event-icon { color: var(--tone); }
@@ -486,8 +478,8 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
   align-items: center;
   gap: 8px;
   width: 100%;
-  min-height: 40px;
-  padding: 4px 18px;
+  min-height: 44px;
+  padding: 4px 14px;
   background: none;
   border: none;
   border-radius: 14px;
@@ -511,7 +503,7 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
 .marker .card-pending { top: 4px; right: 4px; }
 
 /* Repos trop court (RSE) sur un début de journée */
-.marker-alert { flex: none; display: flex; }
+.marker-alert { flex: none; display: flex; align-items: center; gap: 4px; font-size: 0.8rem; font-weight: 600; }
 .marker-alert.rest-warn { color: #ffd28a; }
 .marker-alert.rest-error { color: var(--danger); }
 
@@ -519,28 +511,23 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
   flex: 1;
   min-width: 0;
   display: grid;
-  gap: 2px;
+  gap: 0;
 }
 
 .card-top { display: flex; justify-content: space-between; gap: 8px; }
-.card-type { font-size: 1.06rem; font-weight: 700; }
-.card-time { font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.card-type { font-size: 1rem; font-weight: 700; }
+.card-time { font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-.card-place {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.card-place { color: var(--tone-sub); font-size: 0.9rem; }
-.card-km { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.card-details { font-size: 0.88rem; color: var(--tone-sub); }
-.card-notes { font-size: 0.88rem; font-style: italic; color: var(--tone-sub); white-space: pre-wrap; }
+/* Lignes du dessous sur une seule ligne, coupées par « … » */
+.card-place,
+.card-notes { font-size: 0.82rem; color: var(--tone-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-notes { font-style: italic; }
+.card .badge { margin-top: 3px; padding: 1px 8px; color: #3a2a0c; background: #ffd28a; }
 
 .card-pending {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 7px;
+  right: 7px;
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -1515,6 +1502,12 @@ legend { margin-bottom: 6px; }
 
 .week-title-chevron { color: var(--muted); flex: none; }
 
+/* Page Semaine : titre entre les flèches, dans le haut du panneau (numéro, puis dates en petit) */
+.modal-header { gap: 8px; }
+.week-head-title { display: grid; justify-items: center; gap: 0; background: none; line-height: 1.2; }
+.week-head-title b { display: flex; align-items: center; gap: 4px; font-size: 1.1rem; font-weight: 800; }
+.week-head-title span { font-size: 0.8rem; font-weight: 500; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
 /* Liste des semaines : une ligne par semaine, icône carte posée à droite dans la ligne. */
 .week-line { position: relative; }
 .week-line .week-row { padding-right: 60px; }
@@ -1849,7 +1842,7 @@ legend { margin-bottom: 6px; }
 .round-btn,
 .pill,
 .tile-btn,
-.week-tile,
+.mini-tile,
 .in-truck-lv { transition: transform 0.12s ease, background-color 0.2s ease; }
 
 .card:active,
@@ -1857,7 +1850,7 @@ legend { margin-bottom: 6px; }
 .round-btn:active,
 .pill:active,
 .tile-btn:active,
-.week-tile:active,
+button.mini-tile:active,
 .in-truck-lv:active { transform: scale(0.97); }
 
 /* Réglage « réduire les animations » du téléphone : tout reste immobile. */
@@ -2092,33 +2085,46 @@ button.st-kv-item:active { transform: scale(0.97); }
 .rest-notice:not(.rest-ok) .rest-line-ok { opacity: 0.8; }
 
 /* Haut de l'accueil : échéances proches */
-.home-notices { position: relative; z-index: 1; display: grid; gap: 8px; padding: 12px 12px 0; }
-.rest-notice.reminder { align-items: center; padding: 4px 4px 4px 12px; }
-.reminder-text {
-  flex: 1;
+.home-notices { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 12px 0; }
+.reminder-pill {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 6px 0;
+  align-items: center;
+  min-width: 0;
+  border-radius: 14px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  animation: fade-in 0.3s ease both;
+}
+.reminder-pill.rest-warn { background: #4a3613; color: #ffe2ad; }
+.reminder-pill.rest-error { background: #3a2024; color: #ffc9cd; }
+.reminder-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 4px 6px 12px;
   background: none;
   border: none;
   color: inherit;
   font: inherit;
   text-align: left;
 }
-.reminder-text svg { flex: none; margin-top: 1px; }
+.reminder-text svg { flex: none; }
+.reminder-text span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reminder-snooze {
   flex: none;
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   background: none;
   border: none;
-  border-radius: 12px;
+  border-radius: 14px;
   color: inherit;
+  opacity: 0.75;
 }
-.reminder-snooze:active { background: var(--glass-hover); }
+.reminder-snooze:active { background: rgba(0, 0, 0, 0.2); }
 
 /* Options : échéances */
 .reminder-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
@@ -2346,23 +2352,6 @@ button.st-kv-item:active { transform: scale(0.97); }
 
 /* Échéance sur l'accueil : tuile avec son icône dans un carré, comme les étapes */
 .rest-notice.reminder { padding: 10px 6px 10px 12px; border-radius: 22px; font-size: 0.95rem; font-weight: 600; }
-.reminder-text { align-items: center; gap: 12px; }
-.reminder-text > svg { width: 44px; height: 44px; padding: 11px; border-radius: 14px; background: rgba(0, 0, 0, 0.2); margin-top: 0; }
-.reminder-snooze { width: 48px; height: 48px; border-radius: 16px; }
-
-/* Accueil : km du jour et heure limite de fin, deux tuiles côte à côte */
-.today-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 10px; }
-.today-tile { display: grid; align-content: start; gap: 2px; padding: 14px 16px; border-radius: 22px; background: var(--glass); }
-.today-tile span { font-size: 0.85rem; color: var(--muted); }
-.today-tile b { font-size: 1.8rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.today-tile small { font-size: 0.78rem; color: var(--muted); }
-.today-tile.rest-warn { background: #4a3613; color: #ffe2ad; }
-.today-tile.rest-error { background: #3a2024; color: #ffc9cd; }
-.today-tile.rest-warn span,
-.today-tile.rest-warn small,
-.today-tile.rest-error span,
-.today-tile.rest-error small { color: inherit; }
-
 /* ---------- Version PC (≥ 1024 px, useWide) : menu à gauche, semaine au centre, carte à droite ---------- */
 .app.pc {
   display: flex;
@@ -2408,8 +2397,7 @@ button.st-kv-item:active { transform: scale(0.97); }
 .pc-head { display: flex; align-items: center; gap: 10px; }
 .pc-head .week-title { flex: 0 1 auto; padding: 4px 16px; }
 .pc-main .home-notices { padding: 0; }
-.pc-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.pc-week-tile { cursor: default; }
+.pc-tiles { gap: 12px; }
 .pc-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
 .pc-days { padding: 0; }
 .pc-days .day:first-child { margin-top: 0; }

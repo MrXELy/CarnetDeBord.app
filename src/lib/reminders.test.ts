@@ -25,6 +25,7 @@ describe('échéances', () => {
         kind: 'ct_remorque',
         level: 'warn',
         text: 'Contrôle technique de la remorque XX-000-XX avant le 12 nov. 2026 · dans 24 jours',
+        short: 'Contrôle technique de la remorque XX-000-XX · 24 j',
       },
     ]);
   });
@@ -45,8 +46,18 @@ describe('échéances', () => {
   it('échéance dépassée en rouge, la plus urgente d’abord', () => {
     const s = settings({ chrono: { last: '2024-11-01' }, carte: { last: '2021-10-01' } });
     expect(dueReminders(s, now)).toEqual([
-      { kind: 'carte', level: 'error', text: 'Carte conducteur : échéance dépassée (1 oct. 2026, depuis 18 jours)' },
-      { kind: 'chrono', level: 'warn', text: 'Étalonnage du chronotachygraphe avant le 1 nov. 2026 · dans 13 jours' },
+      {
+        kind: 'carte',
+        level: 'error',
+        text: 'Carte conducteur : échéance dépassée (1 oct. 2026, depuis 18 jours)',
+        short: 'Carte conducteur · dépassée',
+      },
+      {
+        kind: 'chrono',
+        level: 'warn',
+        text: 'Étalonnage du chronotachygraphe avant le 1 nov. 2026 · dans 13 jours',
+        short: 'Étalonnage du chronotachygraphe · 13 j',
+      },
     ]);
   });
 

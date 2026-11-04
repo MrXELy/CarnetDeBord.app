@@ -115,7 +115,7 @@ export default function SearchPage({ onShowWeek, onClose }: Props) {
                     <ol className="timeline">
                       {day.results.map(({ event, waybills }) => (
                         <li key={event.id}>
-                          <EventCard event={event} onOpen={() => onShowWeek(event)} />
+                          <EventCard event={event} clients onOpen={() => onShowWeek(event)} />
                           {waybills.some((w) => w.number || w.goods) && (
                             <span className="search-lv">
                               {waybills

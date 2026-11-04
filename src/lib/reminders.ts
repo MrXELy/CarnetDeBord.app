@@ -80,6 +80,8 @@ export interface DueReminder {
   kind: ReminderKind;
   level: 'warn' | 'error';
   text: string;
+  /** Pastille de l'accueil : « Carte conducteur · dépassée », « FCO · 12 j ». */
+  short: string;
 }
 
 /** Nom affiché : plaque de l'ensemble principal avec les contrôles techniques. */
@@ -141,6 +143,7 @@ export function dueReminders(settings: ReminderSettings, now: Date): DueReminder
         text: past
           ? `${label} : échéance dépassée (${dateText(due)}, ${daysLeft(due, today)})`
           : `${label} avant le ${dateText(due)} · ${daysLeft(due, today)}`,
+        short: `${label} · ${shortDelay(due, today)}`,
       },
     });
   }
