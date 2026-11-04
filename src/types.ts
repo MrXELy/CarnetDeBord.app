@@ -121,6 +121,8 @@ export interface MapLeg {
   via?: string;
   /** Points de passage de cet itinéraire, retrouvés à la réouverture de son choix pour le modifier. */
   waypoints?: MapWaypoint[];
+  /** Km au compteur utilisés pour choisir l'itinéraire (anciennes cartes : absent). */
+  odo?: number | null;
 }
 
 /** Point de passage enregistré avec un tronçon : une ville, ou un point placé sur la carte. */

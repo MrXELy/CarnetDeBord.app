@@ -8,7 +8,7 @@ import { updateSettings, useSettings } from '../lib/settings';
 import { useEvents } from '../lib/useEvents';
 import { shareFile } from '../lib/share';
 import { useSheet } from '../lib/useSheet';
-import { generateWeekMap, withChosenRoute } from '../lib/weekMapGen';
+import { generateWeekMap, keptLeg, legsByKey, withChosenRoute } from '../lib/weekMapGen';
 import {
   buildStops,
   dayColor,
@@ -81,6 +81,12 @@ export default function WeekMap({ start, events, day, onEdit, onClose }: Props) 
   }, [saved, stops]);
   const chosen = [...routeLegs.values()].find((r) => segmentKey(r.segment) === choosing);
   const outdated = !!saved && saved.stops_hash !== hash;
+  // Tronçons de la semaine à recalculer pour la mettre à jour (nouveaux, lieux ou km au compteur changés).
+  const toUpdate = useMemo(() => {
+    if (!outdated) return 0;
+    const byKey = legsByKey(saved);
+    return stopSegments(week.stops).filter((s) => !keptLeg(byKey, s, true)).length;
+  }, [outdated, saved, week]);
 
   // Trajets affichés : les routes enregistrées, sinon des lignes droites en attendant.
   // Itinéraires enregistrés, ou lignes droites entre les étapes (au choix, ou tant que la carte n'est pas générée).
@@ -124,6 +130,7 @@ export default function WeekMap({ start, events, day, onEdit, onClose }: Props) 
         resolved,
         (message) => setStatus({ state: 'busy', message }),
         closed.current?.signal,
+        outdated, // étapes changées : seulement les tronçons concernés ; carte à jour : tout est recalculé
       );
       setStatus({ state: 'idle' });
     } catch {
@@ -303,13 +310,15 @@ export default function WeekMap({ start, events, day, onEdit, onClose }: Props) 
                 >
                   <Route size={18} />
                   {/* Journée : les itinéraires sont calculés pour toute sa semaine. */}
-                  {saved
-                    ? day
-                      ? 'Régénérer la semaine'
-                      : 'Régénérer'
-                    : day
-                      ? 'Générer la semaine'
-                      : 'Générer la carte'}
+                  {saved && outdated
+                    ? `Mettre à jour ${day ? 'la semaine' : 'la carte'}${toUpdate ? ` (${toUpdate} tronçon${toUpdate > 1 ? 's' : ''})` : ''}`
+                    : saved
+                      ? day
+                        ? 'Régénérer la semaine'
+                        : 'Régénérer'
+                      : day
+                        ? 'Générer la semaine'
+                        : 'Générer la carte'}
                 </button>
                 {/* Boutons d'itinéraire entre les lieux de la liste : cachés tant qu'on ne les demande pas. */}
                 {routeLegs.size > 0 && (

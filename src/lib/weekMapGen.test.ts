@@ -103,6 +103,35 @@ describe('generateWeekMap', () => {
     store.saved = withChosenRoute(store.saved!, key, { coords: [NARBONNE, CARCASSONNE], km: 60, minutes: 50 });
     expect(store.saved.legs[0].waypoints).toBeUndefined();
   });
+
+  it('mise à jour : ne recalcule que les tronçons dont les lieux ou les km ont changé', async () => {
+    const calls = stubRoutes();
+    const store = fakeStore();
+    await generateWeekMap(store as unknown as EventStore, start, events, new Map(), () => {});
+    expect(store.saved!.legs[0].odo).toBe(62);
+
+    let before = calls();
+    await generateWeekMap(store as unknown as EventStore, start, events, new Map(), () => {}, undefined, true);
+    expect(calls() - before).toBe(0);
+
+    // Km de la livraison corrigé : seul le second tronçon change.
+    const edited = [events[0], events[1], { ...events[2], odometer_km: 1170 }];
+    before = calls();
+    await generateWeekMap(store as unknown as EventStore, start, edited, new Map(), () => {}, undefined, true);
+    expect(calls() - before).toBe(1);
+    expect(store.saved!.legs[1].odo).toBe(108);
+
+    // Ancienne carte, sans km noté : gardée tant que les lieux n'ont pas bougé.
+    store.saved = { ...store.saved!, legs: store.saved!.legs.map(({ odo: _, ...l }) => l) };
+    before = calls();
+    await generateWeekMap(store as unknown as EventStore, start, events, new Map(), () => {}, undefined, true);
+    expect(calls() - before).toBe(0);
+
+    // Régénérer une carte à jour : tout est recalculé.
+    before = calls();
+    await generateWeekMap(store as unknown as EventStore, start, events, new Map(), () => {});
+    expect(calls() - before).toBe(2);
+  });
 });
 
 describe('joinDayLegs', () => {
