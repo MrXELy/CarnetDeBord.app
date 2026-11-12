@@ -51,7 +51,10 @@ export default function FuelSection(props: {
   );
 }
 
-/** Courbe de la consommation des derniers pleins complets, avec la moyenne en pointillés. */
+/**
+ * Consommation des derniers pleins complets, sur une échelle de temps réelle : chaque intervalle est un palier
+ * du plein de départ au plein d'arrivée (conso moyenne sur ce trajet), avec la moyenne en pointillés.
+ */
 function RateChart({ intervals }: { intervals: FuelInterval[] }) {
   const rates = intervals.map((i) => intervalRate(i)!);
   const avg = averageRate(intervals)!;
@@ -60,10 +63,17 @@ function RateChart({ intervals }: { intervals: FuelInterval[] }) {
   const W = 340;
   const H = 96;
   const pad = 14;
-  const x = (i: number) => pad + ((W - pad * 2) * i) / (rates.length - 1);
+  const base = H - 26;
+  const t0 = Date.parse(intervals[0].start);
+  const t1 = Date.parse(intervals[intervals.length - 1].end);
+  const x = (iso: string) => pad + ((W - pad * 2) * (Date.parse(iso) - t0)) / (t1 - t0 || 1);
   const y = (v: number) => pad + (H - pad * 2 - 12) * (1 - (v - lo) / (hi - lo));
-  const points = rates.map((r, i) => `${x(i)},${y(r)}`).join(' ');
-  const last = rates.length - 1;
+  // Palier d'au moins 3 px : deux pleins le même jour restent visibles.
+  const steps = intervals.map((i, k) => {
+    const x2 = x(i.end);
+    return { x1: Math.min(x(i.start), x2 - 3), x2, y: y(rates[k]) };
+  });
+  const last = steps.length - 1;
   const day = (iso: string) => format(parseISO(iso), 'd MMM', { locale: fr });
   return (
     <div>
@@ -79,16 +89,18 @@ function RateChart({ intervals }: { intervals: FuelInterval[] }) {
         <text x={pad} y={y(avg) - 5}>
           moyenne {formatRate(avg)}
         </text>
-        <polygon points={`${x(0)},${H - 26} ${points} ${x(last)},${H - 26}`} fill="url(#st-area)" />
-        <polyline points={points} fill="none" stroke="#fbbf24" strokeWidth="2.2" strokeLinejoin="round" />
-        {rates.map((r, i) => (
-          <circle key={i} cx={x(i)} cy={y(r)} r={i === last ? 4.5 : 2.5} fill="#fbbf24" className="st-dot" />
+        {steps.map((s, k) => (
+          <g key={k}>
+            <rect x={s.x1} y={s.y} width={s.x2 - s.x1} height={base - s.y} fill="url(#st-area)" />
+            <line x1={s.x1} x2={s.x2} y1={s.y} y2={s.y} stroke="#fbbf24" strokeWidth="2.2" strokeLinecap="round" />
+            <circle cx={s.x2} cy={s.y} r={k === last ? 4.5 : 2.5} fill="#fbbf24" className="st-dot" />
+          </g>
         ))}
-        <text x={x(last)} y={y(rates[last]) - 9} textAnchor="end" className="st-value">
+        <text x={steps[last].x2} y={steps[last].y - 9} textAnchor="end" className="st-value">
           {formatRate(rates[last])}
         </text>
         <text x={pad} y={H - 4}>
-          {day(intervals[0].end)}
+          {day(intervals[0].start)}
         </text>
         <text x={W - pad} y={H - 4} textAnchor="end">
           {day(intervals[last].end)}
