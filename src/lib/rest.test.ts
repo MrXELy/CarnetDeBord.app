@@ -124,6 +124,15 @@ describe('repos journalier', () => {
 });
 
 describe('repos hebdomadaire', () => {
+  it('24 h et plus en semaine (jour férié) : simple repos journalier', () => {
+    const events = [...day('2026-11-10T05:00', '2026-11-10T15:20')]; // mardi, 11 nov. férié
+    const next = ev('debut_journee', '2026-11-12T06:48');
+    const c = checkOf([...events, next], next.id);
+    expect(c.level).toBe('ok');
+    expect(c.kind).toBe('journalier');
+    expect(c.lines.map((l) => l.text)).toEqual(['Repos : 39 h 28 depuis la fin de journée mar. 10 nov. à 15:20.']);
+  });
+
   it('45 h et plus : repos normal', () => {
     const events = [...day('2026-10-16T05:00', '2026-10-16T12:00')];
     const next = ev('debut_journee', '2026-10-19T04:00');

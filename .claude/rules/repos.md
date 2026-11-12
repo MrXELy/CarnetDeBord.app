@@ -10,7 +10,7 @@ paths: ["src/lib/rest.ts", "src/lib/rest.test.ts", "src/components/RestNotice.ts
 
 - Repos = de la fin de journée au début suivant ; les pauses ne sont pas notées, donc **repos fractionné ignoré** (9 à 11 h = réduit).
 - Journalier : 11 h, réduit 9 h, au plus 3 réduits entre deux repos hebdomadaires (le 3e en orange) ; **dans les 24 h** après le début de la journée d'avant (seule la part du repos dans ces 24 h compte : journée de 16 h → repos trop tard).
-- Hebdomadaire = repos de 24 h et plus : 45 h, réduit 24 h ; pas deux réduits de suite, **sauf en international** si les deux sont hors de France (lieux de la fin et du début de journée), et alors pas plus de 2 réduits sur 4 repos ; manque (45 h − repos) à rattraper en une fois avant la fin de la 3e semaine (lundi–dimanche) qui suit, au-delà d'un repos normal (11 h ou 45 h) : rappel gris à chaque début de journée, rouge si en retard.
+- Hebdomadaire = repos de 24 h et plus **touchant le samedi ou le dimanche** (en semaine, jour férié par ex., c’est un simple repos journalier, sans alerte) : 45 h, réduit 24 h ; pas deux réduits de suite, **sauf en international** si les deux sont hors de France (lieux de la fin et du début de journée), et alors pas plus de 2 réduits sur 4 repos ; manque (45 h − repos) à rattraper en une fois avant la fin de la 3e semaine (lundi–dimanche) qui suit, au-delà d'un repos normal (11 h ou 45 h) : rappel gris à chaque début de journée, rouge si en retard.
 - Fin de journée oubliée : avertissement sans calcul ; étape notée pendant le repos ou journée de plus de 24 h : « vérifie ». Pas de règle des 6 jours (pas demandée).
 
 ## Affichage

@@ -1,9 +1,11 @@
 import {
+  addDays,
   addHours,
   addWeeks,
   differenceInCalendarDays,
   differenceInMinutes,
   format,
+  startOfDay,
   startOfISOWeek,
   subDays,
 } from 'date-fns';
@@ -16,7 +18,7 @@ import { eventTypeInfo, isDayBoundary, type TripEvent } from '../types';
  * un repos fractionné 3 h + 9 h compte comme réduit).
  * - Journalier : 11 h, ou 9 h « réduit », au plus 3 fois entre deux repos hebdomadaires ;
  *   pris dans les 24 h qui suivent la fin du repos précédent (le début de la journée d'avant).
- * - Hebdomadaire (24 h et plus) : 45 h, ou 24 h « réduit » ; pas deux réduits de suite, sauf en transport
+ * - Hebdomadaire (24 h et plus, touchant le samedi ou le dimanche) : 45 h, ou 24 h « réduit » ; pas deux réduits de suite, sauf en transport
  *   international si les deux sont pris hors de France (et alors pas plus de 2 réduits sur 4 repos) ;
  *   le manque (45 h − repos) se rattrape en une fois, accolé à un autre repos, avant la fin de la 3e semaine
  *   (lundi 0 h – dimanche 24 h) qui suit.
@@ -49,6 +51,12 @@ const DAILY_REDUCED = 9 * H;
 const WEEKLY = 45 * H;
 const WEEKLY_REDUCED = 24 * H;
 const MAX_REDUCED_DAILY = 3;
+
+/** Le repos couvre au moins une partie du samedi ou du dimanche. */
+function touchesWeekend(from: Date, to: Date): boolean {
+  for (let d = startOfDay(from); d < to; d = addDays(d, 1)) if (d.getDay() === 0 || d.getDay() === 6) return true;
+  return false;
+}
 
 const RANK: Record<RestLevel, number> = { ok: 0, warn: 1, error: 2 };
 
@@ -151,7 +159,9 @@ function walk(events: readonly RestEvent[]) {
           `Il faut 9 h de repos dans les 24 h qui suivent ce début : s’arrêter avant ${format(addHours(prevStart!, 15), 'HH:mm')}.`,
       });
 
-      if (r >= WEEKLY_REDUCED) {
+      // Repos de 24 h et plus en semaine (jour férié…) : pas un repos hebdomadaire, celui-ci se prend le week-end.
+      const weekly = r >= WEEKLY_REDUCED && touchesWeekend(end, start);
+      if (weekly) {
         const reduced = r < WEEKLY;
         kind = reduced ? 'hebdo_reduit' : 'hebdo';
         const here = { reduced, abroad: abroad(lastBoundary) && abroad(e) };
@@ -240,7 +250,7 @@ function walk(events: readonly RestEvent[]) {
       }
 
       // Rattrapage des repos hebdomadaires réduits : en une fois, au-delà d'un repos normal.
-      let surplus = r - (r >= WEEKLY_REDUCED ? WEEKLY : DAILY);
+      let surplus = r - (weekly ? WEEKLY : DAILY);
       const open: Debt[] = [];
       for (const debt of debts) {
         if (debt.from >= end) open.push(debt);
