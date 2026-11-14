@@ -21,7 +21,7 @@ function gap(diff: number): string {
 
 /**
  * Heure de fin de chaque semaine, en écart avec l'heure habituelle du vendredi : à gauche si plus tôt, à droite si
- * plus tard ; semaines finies un autre jour mises en avant. Toucher une ligne ouvre la semaine.
+ * plus tard ; jour écrit devant l'heure si ce n'est pas le vendredi. Toucher une ligne ouvre la semaine.
  */
 export default function WeekEndSection(props: {
   events: TripEvent[];
@@ -32,7 +32,6 @@ export default function WeekEndSection(props: {
   const { events, range, now } = props;
   const data = useMemo(() => weekEnds(events, range, now), [events, range, now]);
   if (!data || data.weeks.length === 0) return null;
-  const others = data.weeks.filter((w) => w.other).length;
 
   return (
     <Section title="Fin de semaine">
@@ -48,18 +47,14 @@ export default function WeekEndSection(props: {
         {data.weeks.map((w) => {
           const pos = 50 + (Math.max(-SCALE, Math.min(SCALE, w.diff)) / SCALE) * 50;
           const tone = w.diff < 0 ? 'early' : 'late';
-          const day = format(w.end, 'EEE', { locale: fr });
           return (
             <li key={w.week.getTime()}>
               <button
                 type="button"
-                className={`st-we-row ${tone}${w.other ? ' other' : ''}`}
+                className={`st-we-row ${tone}`}
                 onClick={() => props.onPick(periodAt('semaine', addHours(w.week, 2)))}
               >
-                <span className="st-we-date">
-                  {w.other && <i>{day}</i>}
-                  {format(w.end, 'd MMM', { locale: fr })}
-                </span>
+                <span className="st-we-date">{format(w.end, 'd MMM', { locale: fr })}</span>
                 <span className="st-we-track" aria-hidden>
                   <span
                     className="st-we-bar"
@@ -69,7 +64,7 @@ export default function WeekEndSection(props: {
                 </span>
                 <span className="st-we-time">
                   <b>
-                    {w.other && `${day} `}
+                    {w.other && format(w.end, 'EEE ', { locale: fr })}
                     {format(w.end, 'HH:mm')}
                   </b>
                   <small>{gap(w.diff)}</small>
@@ -91,7 +86,6 @@ export default function WeekEndSection(props: {
       <p className="hint">
         Dernière fin de journée de chaque semaine, comparée à l’heure habituelle du vendredi ; au-delà de 12 h d’écart,
         le point reste au bord.
-        {others > 0 && ` En bleu : semaine finie un autre jour (${others} sur ${data.weeks.length}).`}
       </p>
     </Section>
   );
