@@ -83,7 +83,11 @@ export default function PlaceMapSheet({ place, onChoose, onClose }: Props) {
             label="Carte du lieu de l’étape"
           />
           <p className="hint route-map-hint">
-            {at ? 'Fais glisser le point, ou touche la carte pour le poser.' : 'Touche la carte pour poser le point.'}
+            {looking
+              ? 'Recherche de la commune…'
+              : at
+                ? 'Fais glisser le point, ou touche la carte pour le poser.'
+                : 'Touche la carte pour poser le point.'}
           </p>
 
           {otherCity ? (
@@ -108,7 +112,8 @@ export default function PlaceMapSheet({ place, onChoose, onClose }: Props) {
               type="button"
               className="btn-primary btn-icon lv-add map-generate"
               onClick={() => choose(false)}
-              disabled={!at || !moved || looking}
+              // Pas d'attente de la commune (geo.api.gouv.fr peut être lent) : valider garde la ville de l'étape.
+              disabled={!at || !moved}
             >
               <Check size={18} />
               Valider ce point
