@@ -10,6 +10,8 @@ import { plateKey, type EventType, type TripEvent, type Waybill } from '../types
  * on ne soustrait jamais les compteurs de deux tracteurs différents. Ne sont pas comptés :
  * le repos (fin de journée → début suivant, le camion ne roule pas avec toi), un changement de tracteur
  * sans relevé entre les deux, et les relevés incohérents (km qui baisse, saut de plus de 2000 km).
+ * Une étape « Changement de camion » donne deux relevés (camion rendu, puis camion pris) : la passation
+ * au dépôt ne compte pas de km, mais le trajet n'est pas incomplet.
  */
 
 /** Au-delà, l'écart entre deux relevés est suspect (chiffre mal saisi ou mal lu ?). */
@@ -49,8 +51,9 @@ const ORDER: Record<EventType, number> = {
   debut_journee: 0,
   livraison: 1,
   carburant: 2,
-  chargement: 3,
-  fin_journee: 4,
+  changement_camion: 3,
+  chargement: 4,
+  fin_journee: 5,
 };
 
 const chronological = (events: TripEvent[]) =>
@@ -58,11 +61,20 @@ const chronological = (events: TripEvent[]) =>
     .filter((e) => !e.deleted_at)
     .sort((a, b) => a.occurred_at.localeCompare(b.occurred_at) || ORDER[a.type] - ORDER[b.type]);
 
+/** Un changement de camion avec le km du camion rendu : ce relevé (même id), puis celui du camion pris. */
+const withHandovers = (list: TripEvent[]) =>
+  list.flatMap((e) =>
+    e.type === 'changement_camion' && e.prev_odometer_km != null
+      ? [{ ...e, tractor_plate: e.prev_tractor_plate ?? '', odometer_km: e.prev_odometer_km }, e]
+      : [e],
+  );
+
 const isOperation = (e: TripEvent) => e.type === 'chargement' || e.type === 'livraison';
 
 /** Pourquoi deux relevés qui se suivent ne donnent pas un tronçon comptable (null s'ils en donnent un). */
-function pairProblem(from: TripEvent, to: TripEvent): 'repos' | 'tracteur' | 'incoherent' | null {
+function pairProblem(from: TripEvent, to: TripEvent): 'repos' | 'passation' | 'tracteur' | 'incoherent' | null {
   if (from.type === 'fin_journee' && to.type === 'debut_journee') return 'repos';
+  if (from.id === to.id) return 'passation';
   if (plateKey(from.tractor_plate) !== plateKey(to.tractor_plate)) return 'tracteur';
   const km = to.odometer_km! - from.odometer_km!;
   return km < 0 || km > MAX_GAP_KM ? 'incoherent' : null;
@@ -95,7 +107,7 @@ function operationStates(ops: TripEvent[], waybills: Waybill[]): Map<string, Loa
 
 /** Tronçons de km et trajets à vide de tout l'historique, du plus ancien au plus récent. */
 export function kmTimeline(events: TripEvent[], waybills: Waybill[] = []): KmTimeline {
-  const list = chronological(events);
+  const list = withHandovers(chronological(events));
   const states = operationStates(list.filter(isOperation), waybills);
   const segments: KmSegment[] = [];
   const legs: EmptyLeg[] = [];
@@ -108,7 +120,7 @@ export function kmTimeline(events: TripEvent[], waybills: Waybill[] = []): KmTim
   for (const e of list) {
     if (e.odometer_km != null && previous) {
       const problem = pairProblem(previous, e);
-      if (problem && problem !== 'repos' && load === 'vide' && leg) leg.complete = false;
+      if ((problem === 'tracteur' || problem === 'incoherent') && load === 'vide' && leg) leg.complete = false;
       if (!problem) {
         const km = e.odometer_km - previous.odometer_km!;
         const segmentLoad = mixed ? 'inconnu' : load;

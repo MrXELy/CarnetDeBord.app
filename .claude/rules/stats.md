@@ -21,3 +21,7 @@ paths: ["src/lib/stats.ts", "src/lib/stats.test.ts", "src/lib/emptyKm.ts", "src/
 ## Recherche globale (loupe de la barre du bas, `SearchPage.tsx`, `src/lib/search.ts`)
 
 Dans toutes les étapes et leurs LV (ville, département, client, chargeur, destinataire, n° de LV, marchandise, notes, station, plaque avec ou sans tirets, km, type d'étape), sans accents ni majuscules, tous les mots doivent se retrouver. Cases de filtre sous le champ (Tout, Chargements, Livraisons, Carburant, avec leur nombre, à la couleur du type ; un type absent des résultats n'a pas de case). Résultats groupés par jour, les plus récents en premier (100 au plus) ; toucher une étape ferme la recherche et ouvre la page Semaine sur elle (défilement jusqu'à elle et brève lueur) ; la dernière recherche est gardée à la réouverture.
+
+## Changement de camion
+
+Un changement de camion donne deux relevés (camion rendu, puis camion pris, même id) : le trajet jusqu'au dépôt compte pour l'ancien tracteur, la suite pour le nouveau, la passation ne compte pas de km et ne rend pas le trajet à vide « incomplet ». Sans km du camion rendu, la partie avant le dépôt reste inconnue (trajet incomplet).

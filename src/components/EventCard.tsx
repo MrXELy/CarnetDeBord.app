@@ -56,6 +56,7 @@ export default function EventCard({
   // Tuile basse : lieu et l'essentiel sur une ligne ; le reste (clients, compteur, station…) dans la fiche.
   const sub = [formatPlace(e) || 'Lieu non renseigné'];
   if (e.type === 'carburant') sub.push(isFullTank(e) ? 'Plein' : 'Complément');
+  if (e.type === 'changement_camion' && e.prev_tractor_plate) sub.push(`${e.prev_tractor_plate} → ${e.tractor_plate}`);
   if (e.diesel_l != null) sub.push(litres(e.diesel_l));
   if (consumption) sub.push(consumption);
   const names = clients && namesOf(waybills, e.type === 'chargement' ? 'shipper' : 'consignee');

@@ -266,3 +266,20 @@ describe('feuille de remboursement de frais', () => {
     expect(sheet.signedOn?.getDate()).toBe(3);
   });
 });
+
+describe('buildWeekSheet avec un changement de camion', () => {
+  it('écrit les deux tracteurs et additionne les km de chacun', () => {
+    const events = [
+      ev('debut_journee', '2026-03-02T06:00', 'Narbonne', '11', 100_000),
+      ev('changement_camion', '2026-03-02T10:00', 'Toulouse', '31', 20_000, {
+        tractor_plate: 'CC-333-CC',
+        prev_tractor_plate: 'AA-111-AA',
+        prev_odometer_km: 100_150,
+      }),
+      ev('fin_journee', '2026-03-02T18:00', 'Toulouse', '31', 20_300, { tractor_plate: 'CC-333-CC' }),
+    ];
+    const sheet = buildWeekSheet(events, [], start, settings);
+    expect(sheet.tractor).toBe('AA 111 AA / CC 333 CC');
+    expect(sheet.totalKm).toBe(450);
+  });
+});

@@ -1,7 +1,8 @@
 import { addDays, addHours, getDay, getISOWeek, parseISO, startOfDay } from 'date-fns';
-import type { TripEvent, Waybill } from '../types';
+import { plateKey, type TripEvent, type Waybill } from '../types';
 import type { Allowance } from './allowances';
 import { workDay } from './dates';
+import { kmSegments } from './emptyKm';
 import { isFullTank, plainCity as plain } from './fuel';
 
 /** Réglages de la feuille de semaine (Options), partagés entre les appareils. */
@@ -253,12 +254,17 @@ function dayRows(events: TripEvent[], loaded: Map<string, Waybill[]>, delivered:
   return rows;
 }
 
-/** Plaque la plus fréquente de la semaine (la feuille est faite pour un tracteur). */
-function mainTractor(events: TripEvent[]): string {
-  const count = new Map<string, number>();
-  for (const e of events) if (e.tractor_plate) count.set(e.tractor_plate, (count.get(e.tractor_plate) ?? 0) + 1);
-  const best = [...count.entries()].sort((a, b) => b[1] - a[1])[0];
-  return sheetPlate(best?.[0]);
+const isTruckChange = (e: TripEvent) => e.type === 'changement_camion';
+
+/** Tracteurs de la semaine, dans l'ordre où ils ont été conduits (« AB 123 CD / EF 456 GH » après un changement). */
+function weekTractors(events: TripEvent[]): string {
+  const plates = new Map<string, string>();
+  for (const e of events) {
+    for (const plate of [e.type === 'changement_camion' ? e.prev_tractor_plate : null, e.tractor_plate]) {
+      if (plate?.trim() && !plates.has(plateKey(plate))) plates.set(plateKey(plate), sheetPlate(plate));
+    }
+  }
+  return [...plates.values()].join(' / ');
 }
 
 /** Feuille de semaine de la semaine qui commence à `start` (dimanche 22h). */
@@ -347,6 +353,14 @@ export function buildWeekSheet(
 
   const startKm = first?.odometer_km ?? null;
   const endKm = last?.odometer_km ?? null;
+  // Plusieurs tracteurs : jamais la différence de deux compteurs, mais la somme des tronçons de chacun.
+  const oneTractor =
+    first && last && plateKey(first.tractor_plate) === plateKey(last.tractor_plate) && !events.some(isTruckChange);
+  const totalKm = oneTractor
+    ? startKm != null && endKm != null && endKm >= startKm
+      ? endKm - startKm
+      : null
+    : kmSegments(events).reduce((sum, s) => sum + s.km, 0) || null;
 
   return {
     week: getISOWeek(monday),
@@ -354,14 +368,14 @@ export function buildWeekSheet(
     saturday: addDays(monday, 5),
     driver: settings.driver.trim(),
     agency: settings.agency.trim(),
-    tractor: mainTractor(events),
+    tractor: weekTractors(events),
     departures,
     operations: byDay.map((list) => dayRows(list, loaded, delivered)),
     startPlace: first ? sheetPlace(first) : '',
     endPlace: last ? sheetPlace(last) : '',
     startKm,
     endKm,
-    totalKm: startKm != null && endKm != null && endKm >= startKm ? endKm - startKm : null,
+    totalKm,
     depotLabels: Array.from({ length: DEPOT_COUNT }, (_, i) => settings.depots[i]?.label.trim() ?? ''),
     fuel,
     totalLitres: fuel.flat().reduce((sum, f) => sum + (f.litres ?? 0), 0),

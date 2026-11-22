@@ -1,4 +1,4 @@
-import { plateKey, type TripEvent } from '../types';
+import { odometerReadings, plateKey, type TripEvent } from '../types';
 
 /**
  * Consommation de gasoil.
@@ -66,6 +66,16 @@ export function fuelIntervals(events: TripEvent[]): FuelInterval[] {
     byTractor.set(tractor, [...(byTractor.get(tractor) ?? []), e]);
   }
 
+  // Camion rendu ou pris entre deux pleins : quelqu'un d'autre a pu rouler avec, la conso serait fausse.
+  const handovers = new Map<string, string[]>();
+  for (const e of events) {
+    if (e.deleted_at || e.type !== 'changement_camion') continue;
+    for (const plate of [e.prev_tractor_plate, e.tractor_plate]) {
+      const key = plateKey(plate);
+      handovers.set(key, [...(handovers.get(key) ?? []), e.occurred_at]);
+    }
+  }
+
   const intervals: FuelInterval[] = [];
   byTractor.forEach((list, tractor) => {
     let from: TripEvent | null = null;
@@ -89,7 +99,8 @@ export function fuelIntervals(events: TripEvent[]): FuelInterval[] {
           liters,
           problem: null,
         };
-        interval.problem = problemOf(interval, missingLiters);
+        const handedOver = (handovers.get(tractor) ?? []).some((at) => at > interval.start && at < interval.end);
+        interval.problem = handedOver ? 'camion changé entre les deux pleins' : problemOf(interval, missingLiters);
         intervals.push(interval);
       }
       from = e;
@@ -175,11 +186,10 @@ export function fuelReport(
 
   // Km de la période, tracteur par tracteur : du plus petit au plus grand relevé.
   const ranges = new Map<string, [number, number]>();
-  for (const e of inPeriod) {
-    if (e.odometer_km == null) continue;
-    const tractor = plateKey(e.tractor_plate);
-    const [lo, hi] = ranges.get(tractor) ?? [e.odometer_km, e.odometer_km];
-    ranges.set(tractor, [Math.min(lo, e.odometer_km), Math.max(hi, e.odometer_km)]);
+  for (const { plate, km } of inPeriod.flatMap(odometerReadings)) {
+    const tractor = plateKey(plate);
+    const [lo, hi] = ranges.get(tractor) ?? [km, km];
+    ranges.set(tractor, [Math.min(lo, km), Math.max(hi, km)]);
   }
 
   ranges.forEach(([lo, hi], tractor) => {

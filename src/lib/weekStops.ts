@@ -1,6 +1,6 @@
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { plateKey, type MapLeg, type Place, type TripEvent } from '../types';
+import { odometerReadings, plateKey, type MapLeg, type Place, type TripEvent } from '../types';
 import { workDay } from './dates';
 import type { RouteOption } from './route';
 
@@ -166,10 +166,11 @@ const MAX_JUMP_KM = 2000;
  * avec le même tracteur. Null s'il manque un relevé ou si l'écart est incohérent.
  */
 export function odometerKm(from: Stop, to: Stop): number | null {
-  const start = [...from.events].reverse().find((e) => e.odometer_km != null);
-  const end = to.events.find((e) => e.odometer_km != null);
-  if (!start || !end || plateKey(start.tractor_plate) !== plateKey(end.tractor_plate)) return null;
-  const km = end.odometer_km! - start.odometer_km!;
+  // Un changement de camion : le camion rendu termine le tronçon d'avant, le camion pris commence le suivant.
+  const start = from.events.flatMap(odometerReadings).at(-1);
+  const end = to.events.flatMap(odometerReadings)[0];
+  if (!start || !end || plateKey(start.plate) !== plateKey(end.plate)) return null;
+  const km = end.km - start.km;
   return km > 0 && km <= MAX_JUMP_KM ? km : null;
 }
 

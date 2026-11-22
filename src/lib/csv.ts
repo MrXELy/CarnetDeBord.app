@@ -54,6 +54,9 @@ export function eventsToCsv(events: TripEvent[], waybills: Waybill[] = []): stri
     ['Plein complet', (e) => (e.type === 'carburant' ? (isFullTank(e) ? 'Oui' : 'Non') : null)],
     ['AdBlue (L)', (e) => e.adblue_l],
     ['Heure de fin', (e) => (e.finished_at ? hour(e.finished_at) : null)],
+    ['Tracteur rendu', (e) => e.prev_tractor_plate ?? null],
+    ['Remorque rendue', (e) => e.prev_trailer_plate ?? null],
+    ['Kilométrage camion rendu', (e) => e.prev_odometer_km ?? null],
     ['Remarques', (e) => e.notes],
   ];
   return toCsv(

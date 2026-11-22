@@ -27,6 +27,7 @@ import {
   isDayBoundary,
   newWaybill,
   type EventType,
+  plateKey,
   type Place,
   type Station,
   type TripEvent,
@@ -45,7 +46,8 @@ interface Props {
   onClose: () => void;
 }
 
-type KmReading = { state: 'busy' | 'done' | 'error'; message: string } | null;
+/** Lecture du km en photo ; `prev` : compteur du camion rendu (changement de camion). */
+type KmReading = { state: 'busy' | 'done' | 'error'; message: string; prev: boolean } | null;
 
 type Editing = { waybill: Waybill; isNew: boolean; side: 'load' | 'delivery'; photo?: Blob } | null;
 
@@ -58,6 +60,7 @@ export default function EventForm({ event, onClose }: Props) {
   const isNew = !event;
   const [eventId] = useState(() => event?.id ?? crypto.randomUUID());
   const [plates] = useState(() => store.lastPlates());
+  const [recent] = useState(() => store.recentPlates());
 
   const [type, setType] = useState<EventType | null>(event?.type ?? null);
   const [tractor, setTractor] = useState(event?.tractor_plate ?? plates.tractor);
@@ -65,6 +68,10 @@ export default function EventForm({ event, onClose }: Props) {
   // Plaques repliées sur une ligne (elles changent rarement), ouvertes d'office si le tracteur est inconnu.
   const [editPlates, setEditPlates] = useState(() => !(event?.tractor_plate ?? plates.tractor));
   const [km, setKm] = useState(event?.odometer_km?.toString() ?? '');
+  // Changement de camion : camion rendu (le camion pris est dans tractor, trailer et km).
+  const [prevTractor, setPrevTractor] = useState(event?.prev_tractor_plate ?? plates.tractor);
+  const [prevTrailer, setPrevTrailer] = useState(event?.prev_trailer_plate ?? plates.trailer);
+  const [prevKm, setPrevKm] = useState(event?.prev_odometer_km?.toString() ?? '');
   const [place, setPlace] = useState<Place>(event ?? EMPTY_PLACE);
   const [when, setWhen] = useState(toLocalInput(event ? parseISO(event.occurred_at) : new Date()));
   const [finished, setFinished] = useState(event?.finished_at ? toLocalInput(parseISO(event.finished_at)) : '');
@@ -96,6 +103,8 @@ export default function EventForm({ event, onClose }: Props) {
   const savedLoads = useRef(new Set<string>());
   const scanInput = useRef<HTMLInputElement>(null);
   const kmCamera = useRef<HTMLInputElement>(null);
+  // Compteur visé par la photo : celui du camion rendu (changement de camion) ou le compteur habituel.
+  const kmTarget = useRef(false);
   const [kmReading, setKmReading] = useState<KmReading>(null);
 
   const sheet = useSheet(onClose);
@@ -106,6 +115,9 @@ export default function EventForm({ event, onClose }: Props) {
   const lastKm = whenIso ? store.lastOdometer(tractor.trim(), at, event?.id) : null;
   const kmValue = parseNum(km);
   const isFuel = type === 'carburant';
+  const isChange = type === 'changement_camion';
+  const prevLastKm = isChange && whenIso ? store.lastOdometer(prevTractor.trim(), at, event?.id) : null;
+  const prevKmValue = parseNum(prevKm);
   // Fin d'un chargement ou d'une livraison : facultative. Pas encore saisie : le champ montre l'heure d'arrivée,
   // mais rien n'est enregistré (le bouton « Fin » de l'accueil reste proposé).
   const withEnd = type != null && hasEnd(type);
@@ -173,6 +185,10 @@ export default function EventForm({ event, onClose }: Props) {
     if (!place.city.trim()) return setError('Indique le lieu.');
     if (isFuel && !station) return setError('Choisis la station.');
     if (onSite != null && onSite < 0) return setError('La fin est avant l’arrivée.');
+    if (isChange && !tractor.trim()) return setError('Indique le tracteur que tu prends.');
+    if (isChange && plateKey(tractor) === plateKey(prevTractor) && plateKey(trailer) === plateKey(prevTrailer)) {
+      return setError('Le camion pris est le même que le camion rendu.');
+    }
 
     const now = new Date().toISOString();
     const changes = waybillChanges(now);
@@ -199,6 +215,12 @@ export default function EventForm({ event, onClose }: Props) {
         adblue_l: isFuel ? parseNum(adblue) : null,
         full_tank: isFuel ? fullTank : null,
         finished_at: finishedIso,
+        // Seulement sur un changement de camion : les autres étapes n'envoient pas ces colonnes.
+        ...(isChange && {
+          prev_tractor_plate: prevTractor.trim(),
+          prev_trailer_plate: prevTrailer.trim(),
+          prev_odometer_km: prevKmValue,
+        }),
         updated_at: '',
         deleted_at: null,
       },
@@ -209,25 +231,19 @@ export default function EventForm({ event, onClose }: Props) {
   }
 
   /** Lit le kilométrage sur une photo du chrono ou du compteur, puis remplit le champ (à vérifier). */
-  async function readKm(file: File) {
-    if (demo) return setKmReading({ state: 'error', message: 'Lecture indisponible en mode démo.' });
-    if (!navigator.onLine) {
-      return setKmReading({ state: 'error', message: 'Pas de réseau : saisis le kilométrage à la main.' });
-    }
-    setKmReading({ state: 'busy', message: 'Lecture du kilométrage…' });
+  async function readKm(file: File, prev: boolean) {
+    const show = (state: 'busy' | 'done' | 'error', message: string) => setKmReading({ state, message, prev });
+    if (demo) return show('error', 'Lecture indisponible en mode démo.');
+    if (!navigator.onLine) return show('error', 'Pas de réseau : saisis le kilométrage à la main.');
+    show('busy', 'Lecture du kilométrage…');
     try {
       const read = await readOdometerPhoto(file);
-      if (read == null) {
-        return setKmReading({
-          state: 'error',
-          message: 'Kilométrage illisible : reprends la photo de plus près, ou saisis-le.',
-        });
-      }
-      setKm(String(read));
-      const { text, suspect } = odometerMessage(read, lastKm);
-      setKmReading({ state: suspect ? 'error' : 'done', message: text });
+      if (read == null) return show('error', 'Kilométrage illisible : reprends la photo de plus près, ou saisis-le.');
+      (prev ? setPrevKm : setKm)(String(read));
+      const { text, suspect } = odometerMessage(read, prev ? prevLastKm : lastKm);
+      show(suspect ? 'error' : 'done', text);
     } catch (err) {
-      setKmReading({ state: 'error', message: err instanceof Error ? err.message : 'Lecture impossible' });
+      show('error', err instanceof Error ? err.message : 'Lecture impossible');
     }
   }
 
@@ -256,6 +272,18 @@ export default function EventForm({ event, onClose }: Props) {
   function chooseType(value: EventType) {
     setType(value);
     if (isNew && value === 'chargement' && loads.length === 0) setLoads([newWaybill()]);
+    // Changement de camion : le camion actuel est rendu ; on garde la remorque, le tracteur pris reste à choisir.
+    if (isNew && type === 'changement_camion' && value !== 'changement_camion') {
+      setTractor(plates.tractor);
+      setTrailer(plates.trailer);
+    }
+    if (isNew && value === 'changement_camion') {
+      setPrevTractor(plates.tractor);
+      setPrevTrailer(plates.trailer);
+      setTractor('');
+      setTrailer(plates.trailer);
+      setKm('');
+    }
     if (!isNew || value !== 'debut_journee') return;
     const end = whenIso ? store.lastDayEnd(at) : null;
     if (!end) return;
@@ -414,6 +442,92 @@ export default function EventForm({ event, onClose }: Props) {
       </button>
     </div>
   );
+
+  /** Ligne « Compteur » avec lecture en photo ; `prev` : compteur du camion rendu, à l'arrivée au dépôt. */
+  const kmRow = (prev: boolean) => {
+    const value = prev ? prevKm : km;
+    const last = prev ? prevLastKm : lastKm;
+    const n = prev ? prevKmValue : kmValue;
+    const reading = kmReading?.prev === prev ? kmReading : null;
+    return (
+      <div className="field-stack">
+        <div className="field-row">
+          <label htmlFor={prev ? 'prev-km-field' : 'km-field'} className="field-name">
+            {prev ? 'Compteur à l’arrivée' : isChange ? 'Compteur au départ' : 'Compteur'}
+          </label>
+          <input
+            id={prev ? 'prev-km-field' : 'km-field'}
+            type="text"
+            inputMode="numeric"
+            // Milliers séparés à l'affichage (« 123 456 ») ; seuls les chiffres sont gardés.
+            value={value && Number(value).toLocaleString('fr-FR')}
+            onChange={(e) => (prev ? setPrevKm : setKm)(e.target.value.replace(/\D/g, ''))}
+            placeholder="km"
+          />
+          <button
+            type="button"
+            className="btn-secondary row-icon-btn"
+            onClick={() => {
+              kmTarget.current = prev;
+              kmCamera.current?.click();
+            }}
+            disabled={kmReading?.state === 'busy'}
+            aria-label="Lire le km sur le chrono"
+            title="Lire le km sur le chrono"
+          >
+            {reading?.state === 'busy' ? <LoaderCircle size={20} className="spin" /> : <Camera size={20} />}
+          </button>
+        </div>
+        {reading && (
+          <span className={`reading reading-${reading.state}`}>
+            {reading.state === 'busy' && <LoaderCircle size={16} className="spin" />}
+            {reading.message}
+          </span>
+        )}
+        {/* Seulement en cas d'erreur de saisie probable : km plus bas que le relevé précédent. */}
+        {last != null && n != null && n < last && (
+          <strong className="hint hint-err">Plus bas que le dernier relevé ({last.toLocaleString('fr-FR')} km)</strong>
+        )}
+      </div>
+    );
+  };
+
+  /** Plaque à saisir, avec les derniers camions conduits en un toucher. */
+  const plateRow = (
+    label: string,
+    value: string,
+    set: (v: string) => void,
+    choices: string[],
+    example: string,
+    // Plaque à ne pas proposer : le tracteur rendu n'est jamais celui qu'on prend.
+    exclude = '',
+  ) => {
+    const others = choices.filter((p) => plateKey(p) !== plateKey(value) && plateKey(p) !== plateKey(exclude));
+    const row = (
+      <label className="field-row">
+        {label}
+        <input
+          className="plate"
+          value={value}
+          onChange={(e) => set(e.target.value.toUpperCase())}
+          placeholder={example}
+        />
+      </label>
+    );
+    if (!others.length) return row;
+    return (
+      <div className="field-stack">
+        {row}
+        <div className="plate-choices">
+          {others.map((p) => (
+            <button type="button" key={p} className="pill plate" onClick={() => set(p)}>
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -595,58 +709,18 @@ export default function EventForm({ event, onClose }: Props) {
                 </button>
               )}
 
-              <div className="field-stack">
-                <div className="field-row">
-                  <label htmlFor="km-field" className="field-name">
-                    Compteur
-                  </label>
-                  <input
-                    id="km-field"
-                    type="text"
-                    inputMode="numeric"
-                    // Milliers séparés à l'affichage (« 123 456 ») ; seuls les chiffres sont gardés.
-                    value={km && Number(km).toLocaleString('fr-FR')}
-                    onChange={(e) => setKm(e.target.value.replace(/\D/g, ''))}
-                    placeholder="km"
-                  />
-                  <button
-                    type="button"
-                    className="btn-secondary row-icon-btn"
-                    onClick={() => kmCamera.current?.click()}
-                    disabled={kmReading?.state === 'busy'}
-                    aria-label="Lire le km sur le chrono"
-                    title="Lire le km sur le chrono"
-                  >
-                    {kmReading?.state === 'busy' ? <LoaderCircle size={20} className="spin" /> : <Camera size={20} />}
-                  </button>
-                </div>
-                <input
-                  ref={kmCamera}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  hidden
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = '';
-                    if (file) void readKm(file);
-                  }}
-                />
-                {kmReading && (
-                  <span className={`reading reading-${kmReading.state}`}>
-                    {kmReading.state === 'busy' && <LoaderCircle size={16} className="spin" />}
-                    {kmReading.message}
-                  </span>
-                )}
-                {/* Seulement en cas d'erreur de saisie probable : km plus bas que le relevé précédent. */}
-                {lastKm != null && kmValue != null && kmValue < lastKm && (
-                  <strong className="hint hint-err">
-                    Plus bas que le dernier relevé ({lastKm.toLocaleString('fr-FR')} km)
-                  </strong>
-                )}
-              </div>
+              {isChange && (
+                <>
+                  <span className="field-subtitle">Camion rendu</span>
+                  {plateRow('Tracteur', prevTractor, setPrevTractor, recent.tractors, 'AB-123-CD')}
+                  {plateRow('Remorque', prevTrailer, setPrevTrailer, recent.trailers, 'EF-456-GH')}
+                  {kmRow(true)}
+                  <span className="field-subtitle">Camion pris</span>
+                </>
+              )}
+              {!isChange && kmRow(false)}
 
-              {isNew && !editPlates ? (
+              {isNew && !editPlates && !isChange ? (
                 <button type="button" className="field-row plates-summary" onClick={() => setEditPlates(true)}>
                   <span className="field-name">Camion</span>
                   <span className="plates-values">
@@ -658,26 +732,23 @@ export default function EventForm({ event, onClose }: Props) {
                 </button>
               ) : (
                 <>
-                  <label className="field-row">
-                    Tracteur
-                    <input
-                      className="plate"
-                      value={tractor}
-                      onChange={(e) => setTractor(e.target.value.toUpperCase())}
-                      placeholder="AB-123-CD"
-                    />
-                  </label>
-                  <label className="field-row">
-                    Remorque
-                    <input
-                      className="plate"
-                      value={trailer}
-                      onChange={(e) => setTrailer(e.target.value.toUpperCase())}
-                      placeholder="EF-456-GH"
-                    />
-                  </label>
+                  {plateRow('Tracteur', tractor, setTractor, recent.tractors, 'AB-123-CD', isChange ? prevTractor : '')}
+                  {plateRow('Remorque', trailer, setTrailer, recent.trailers, 'EF-456-GH')}
                 </>
               )}
+              {isChange && kmRow(false)}
+              <input
+                ref={kmCamera}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                hidden
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (file) void readKm(file, kmTarget.current);
+                }}
+              />
             </div>
             {restCheck && <RestNotice check={restCheck} icon={type === 'fin_journee' ? AlarmClock : undefined} />}
 

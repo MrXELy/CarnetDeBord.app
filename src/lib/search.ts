@@ -36,6 +36,10 @@ function eventText(e: TripEvent): string {
       compact(e.tractor_plate),
       e.trailer_plate,
       compact(e.trailer_plate),
+      e.prev_tractor_plate,
+      compact(e.prev_tractor_plate ?? ''),
+      e.prev_trailer_plate,
+      compact(e.prev_trailer_plate ?? ''),
       e.odometer_km?.toString(),
     ]
       .filter(Boolean)

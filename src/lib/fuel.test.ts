@@ -166,3 +166,17 @@ describe('isDoumenCity', () => {
     expect(isDoumenCity('')).toBe(false);
   });
 });
+
+describe('changement de camion', () => {
+  it('écarte la conso d’un camion rendu puis repris entre deux pleins', () => {
+    const handover = (at: string, extra: Partial<TripEvent>) =>
+      ev(at, { type: 'changement_camion', odometer_km: 1, ...extra });
+    const events = [
+      plein('2026-10-12T08:00', 100_000, 400),
+      handover('2026-10-13T08:00', { prev_tractor_plate: 'AA-111-AA', tractor_plate: 'BB-222-BB' }),
+      handover('2026-10-15T08:00', { prev_tractor_plate: 'BB-222-BB', tractor_plate: 'AA-111-AA' }),
+      plein('2026-10-16T08:00', 101_000, 300),
+    ];
+    expect(fuelIntervals(events)[0].problem).toBe('camion changé entre les deux pleins');
+  });
+});

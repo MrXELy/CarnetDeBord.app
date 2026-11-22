@@ -31,6 +31,7 @@
 .tone-chargement { --tone: #cfe0ff; --tone-bg: #233a5c; --tone-sub: #9fb6da; }
 .tone-livraison { --tone: #c6f0da; --tone-bg: #22432f; --tone-sub: #9cc9b0; }
 .tone-carburant { --tone: #ffe2ad; --tone-bg: #4a3613; --tone-sub: #d4b886; }
+.tone-changement_camion { --tone: #e4d4ff; --tone-bg: #3a2c5c; --tone-sub: #b8a6da; }
 
 * { box-sizing: border-box; }
 
@@ -771,16 +772,18 @@ legend { margin-bottom: 6px; }
 
 .plate { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
 
-/* Types d'étape : chargement, livraison et carburant en grandes cases, début et fin empilés dans la 4e */
+/* Types d'étape : chargement, livraison et carburant en grandes cases, début et fin empilés dans la 4e,
+   changement de camion en petite case sur toute la largeur */
 .type-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(4, minmax(44px, auto));
+  grid-template-rows: repeat(5, minmax(44px, auto));
   grid-template-areas:
     'chargement livraison'
     'chargement livraison'
     'carburant debut'
-    'carburant fin';
+    'carburant fin'
+    'changement changement';
   gap: 10px;
 }
 .type-chargement { grid-area: chargement; }
@@ -788,6 +791,7 @@ legend { margin-bottom: 6px; }
 .type-carburant { grid-area: carburant; }
 .type-debut_journee { grid-area: debut; }
 .type-fin_journee { grid-area: fin; }
+.type-changement_camion { grid-area: changement; }
 
 .type-btn {
   display: flex;
@@ -808,9 +812,10 @@ legend { margin-bottom: 6px; }
   transition: transform 0.12s ease, border-color 0.2s ease;
 }
 
-/* Début et fin de journée : petites cases, texte centré */
+/* Début et fin de journée, changement de camion : petites cases, texte centré */
 .type-debut_journee,
-.type-fin_journee {
+.type-fin_journee,
+.type-changement_camion {
   min-height: 44px;
   justify-content: center;
   align-items: center;
@@ -821,6 +826,7 @@ legend { margin-bottom: 6px; }
   text-align: center;
 }
 
+.type-changement_camion { flex-direction: row; gap: 8px; }
 .type-btn .event-icon { color: inherit; }
 .type-btn:active { transform: scale(0.96); }
 .type-btn.selected { border-color: var(--tone); }
@@ -2168,6 +2174,19 @@ button.st-kv-item:active { transform: scale(0.97); }
   cursor: pointer;
 }
 .plates-summary .field-name { margin-right: auto; }
+/* Derniers camions conduits, sous une plaque : un toucher la remplit */
+.plate-choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.plate-choices .pill { border: 1px solid #434857; }
+/* Changement de camion : « Camion rendu », « Camion pris » */
+.field-subtitle {
+  display: block;
+  padding: 14px 0 2px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 .plates-values { display: flex; gap: 10px; }
 .plates-summary svg { color: var(--muted); flex: none; }
 

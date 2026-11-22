@@ -1,10 +1,12 @@
-export type EventType = 'debut_journee' | 'chargement' | 'livraison' | 'carburant' | 'fin_journee';
+export type EventType =
+  'debut_journee' | 'chargement' | 'livraison' | 'carburant' | 'changement_camion' | 'fin_journee';
 
 export const EVENT_TYPES: { value: EventType; label: string; short: string }[] = [
   { value: 'debut_journee', label: 'Début de journée', short: 'Début' },
   { value: 'chargement', label: 'Chargement', short: 'Chargement' },
   { value: 'livraison', label: 'Livraison', short: 'Livraison' },
   { value: 'carburant', label: 'Carburant', short: 'Carburant' },
+  { value: 'changement_camion', label: 'Changement de camion', short: 'Changement' },
   { value: 'fin_journee', label: 'Fin de journée', short: 'Fin' },
 ];
 
@@ -35,6 +37,10 @@ export interface TripEvent extends Place {
   full_tank?: boolean | null;
   /** Fin d'un chargement ou d'une livraison (bouton « Fin du chargement ») ; l'heure de l'étape est l'arrivée. */
   finished_at?: string | null;
+  /** Changement de camion : camion rendu (plaques et compteur à l'arrivée) ; le camion pris est dans les champs habituels. */
+  prev_tractor_plate?: string | null;
+  prev_trailer_plate?: string | null;
+  prev_odometer_km?: number | null;
   updated_at: string;
   deleted_at: string | null;
 }
@@ -99,6 +105,19 @@ export function eventTypeInfo(type: EventType) {
 }
 
 export const isDayBoundary = (type: EventType) => type === 'debut_journee' || type === 'fin_journee';
+
+/**
+ * Relevés de compteur d'une étape, dans l'ordre : un changement de camion en donne deux
+ * (camion rendu, puis camion pris), les autres étapes un seul (ou aucun sans km).
+ */
+export function odometerReadings(e: TripEvent): { plate: string; km: number }[] {
+  const readings: { plate: string; km: number }[] = [];
+  if (e.type === 'changement_camion' && e.prev_odometer_km != null) {
+    readings.push({ plate: e.prev_tractor_plate ?? '', km: e.prev_odometer_km });
+  }
+  if (e.odometer_km != null) readings.push({ plate: e.tractor_plate, km: e.odometer_km });
+  return readings;
+}
 
 /** Plaque comparable : sans tirets, espaces ni minuscules (« ab-123 cd » = « AB123CD »). */
 export const plateKey = (plate: string | null | undefined) => (plate ?? '').toUpperCase().replace(/[\s-]/g, '');

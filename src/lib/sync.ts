@@ -1,4 +1,12 @@
-import { isInTruck, plateKey, type Place, type TripEvent, type Waybill, type WeekMap } from '../types';
+import {
+  isInTruck,
+  odometerReadings,
+  plateKey,
+  type Place,
+  type TripEvent,
+  type Waybill,
+  type WeekMap,
+} from '../types';
 import { DEFAULT_ALLOWANCE_SETTINGS, computeAllowances, type Allowance, type AllowanceSettings } from './allowances';
 import { kmTimeline, type KmTimeline } from './emptyKm';
 import { fuelIntervals, type FuelInterval } from './fuel';
@@ -514,14 +522,33 @@ export class EventStore {
     return timeline;
   }
 
+  /** Derniers tracteurs et remorques conduits, du plus récent au plus ancien (choix rapide des plaques). */
+  recentPlates(count = 4): { tractors: string[]; trailers: string[] } {
+    const pick = (plates: (string | null | undefined)[]) => {
+      const seen = new Map<string, string>();
+      for (const p of plates) if (p?.trim() && !seen.has(plateKey(p))) seen.set(plateKey(p), p.trim());
+      return [...seen.values()].slice(0, count);
+    };
+    const live = this.state.events.filter((e) => !e.deleted_at);
+    return {
+      tractors: pick(live.flatMap((e) => [e.tractor_plate, e.prev_tractor_plate])),
+      trailers: pick(live.flatMap((e) => [e.trailer_plate, e.prev_trailer_plate])),
+    };
+  }
+
   /** Dernier kilométrage relevé pour ce tracteur avant cette date (plaque comparée sans tirets ni espaces). */
   lastOdometer(tractor: string, before: Date, excludeId?: string): number | null {
     const iso = before.toISOString();
     const key = plateKey(tractor);
-    const e = this.state.events.find(
-      (e) => e.id !== excludeId && plateKey(e.tractor_plate) === key && e.odometer_km != null && e.occurred_at <= iso,
-    );
-    return e?.odometer_km ?? null;
+    for (const e of this.state.events) {
+      if (e.id === excludeId || e.occurred_at > iso) continue;
+      // Les derniers relevés d'abord : sur un changement de camion, le camion pris avant le camion rendu.
+      const reading = odometerReadings(e)
+        .reverse()
+        .find((r) => plateKey(r.plate) === key);
+      if (reading) return reading.km;
+    }
+    return null;
   }
 
   /** Dernière « fin de journée » avant cette date : point de départ de la journée suivante. */

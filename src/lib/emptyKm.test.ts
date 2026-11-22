@@ -200,3 +200,37 @@ describe('km à vide', () => {
     expect(r).toMatchObject({ empty: 0, loaded: 0, share: null, incomplete: 1 });
   });
 });
+
+describe('changement de camion', () => {
+  // Livraison avec AA, passage au dépôt (AA rendu à 1150, BB pris à 50 000), chargement avec BB.
+  const change = (km: number | null) =>
+    ev('changement_camion', '2026-10-13T09:00', 50_000, {
+      tractor_plate: 'BB-222-BB',
+      prev_tractor_plate: 'AA-111-AA',
+      prev_odometer_km: km,
+    });
+  const trip = (prevKm: number | null) => [
+    ev('livraison', '2026-10-13T07:00', 1100),
+    change(prevKm),
+    ev('chargement', '2026-10-13T11:00', 50_080, { tractor_plate: 'BB-222-BB' }),
+  ];
+
+  it('compte les km de chaque camion, sans trajet incomplet', () => {
+    const events = trip(1150);
+    const r = report(events, '2026-10-11T22:00', '2026-10-18T22:00');
+    expect(r.empty).toBe(130);
+    expect(r.incomplete).toBe(0);
+    expect(kmByTractor(events)).toEqual(
+      new Map([
+        ['AA-111-AA', 50],
+        ['BB-222-BB', 80],
+      ]),
+    );
+  });
+
+  it('sans le km du camion rendu : la partie avant le dépôt est inconnue', () => {
+    const r = report(trip(null), '2026-10-11T22:00', '2026-10-18T22:00');
+    expect(r.empty).toBe(80);
+    expect(r.incomplete).toBe(1);
+  });
+});

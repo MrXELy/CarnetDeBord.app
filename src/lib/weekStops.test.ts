@@ -138,6 +138,21 @@ describe('stopSegments', () => {
     ];
     expect(stopSegments(buildStops(events).stops).map((s) => s.odometerKm)).toEqual([null, null, null]);
   });
+
+  it('changement de camion : le camion rendu finit un tronçon, le camion pris commence le suivant', () => {
+    const events = [
+      ev('liv', '2026-01-30T08:00', NARBONNE, { type: 'livraison', tractor_plate: 'AA-111-AA', odometer_km: 1000 }),
+      ev('dep', '2026-01-30T10:00', CARCASSONNE, {
+        type: 'changement_camion',
+        prev_tractor_plate: 'AA-111-AA',
+        prev_odometer_km: 1060,
+        tractor_plate: 'BB-222-BB',
+        odometer_km: 50_000,
+      }),
+      ev('cha', '2026-01-30T13:00', TOULOUSE, { tractor_plate: 'BB-222-BB', odometer_km: 50_095 }),
+    ];
+    expect(stopSegments(buildStops(events).stops).map((s) => s.odometerKm)).toEqual([60, 95]);
+  });
 });
 
 describe('closestRoute', () => {

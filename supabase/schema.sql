@@ -3,7 +3,7 @@
 create table if not exists public.events (
   id            uuid primary key,
   user_id       uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  type          text not null check (type in ('debut_journee', 'chargement', 'livraison', 'carburant', 'fin_journee')),
+  type          text not null check (type in ('debut_journee', 'chargement', 'livraison', 'carburant', 'changement_camion', 'fin_journee')),
   occurred_at   timestamptz not null,
   tractor_plate text not null default '',
   trailer_plate text not null default '',
@@ -20,6 +20,10 @@ create table if not exists public.events (
   adblue_l      numeric(7, 2),
   full_tank     boolean,
   finished_at   timestamptz,
+  -- Changement de camion : camion rendu (plaques et compteur à l'arrivée au dépôt).
+  prev_tractor_plate text,
+  prev_trailer_plate text,
+  prev_odometer_km   integer,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now(),
   deleted_at    timestamptz

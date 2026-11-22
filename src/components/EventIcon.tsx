@@ -1,4 +1,4 @@
-import { Fuel, PackageCheck, PackagePlus, Sunrise, Sunset, type LucideProps } from 'lucide-react';
+import { ArrowLeftRight, Fuel, PackageCheck, PackagePlus, Sunrise, Sunset, type LucideProps } from 'lucide-react';
 import type { EventType } from '../types';
 
 const ICONS = {
@@ -6,6 +6,7 @@ const ICONS = {
   chargement: PackagePlus,
   livraison: PackageCheck,
   carburant: Fuel,
+  changement_camion: ArrowLeftRight,
   fin_journee: Sunset,
 } satisfies Record<EventType, unknown>;
 
