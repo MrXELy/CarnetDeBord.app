@@ -256,33 +256,85 @@ function dayRows(events: TripEvent[], loaded: Map<string, Waybill[]>, delivered:
 
 const isTruckChange = (e: TripEvent) => e.type === 'changement_camion';
 
-/** Tracteurs de la semaine, dans l'ordre où ils ont été conduits (« AB 123 CD / EF 456 GH » après un changement). */
-function weekTractors(events: TripEvent[]): string {
+/** Tracteurs de la semaine, dans l'ordre où ils ont été conduits : plaque comparable → plaque écrite. */
+function weekTractors(events: TripEvent[]): Map<string, string> {
   const plates = new Map<string, string>();
   for (const e of events) {
-    for (const plate of [e.type === 'changement_camion' ? e.prev_tractor_plate : null, e.tractor_plate]) {
+    for (const plate of [isTruckChange(e) ? e.prev_tractor_plate : null, e.tractor_plate]) {
       if (plate?.trim() && !plates.has(plateKey(plate))) plates.set(plateKey(plate), sheetPlate(plate));
     }
   }
-  return [...plates.values()].join(' / ');
+  return plates;
 }
 
-/** Feuille de semaine de la semaine qui commence à `start` (dimanche 22h). */
-export function buildWeekSheet(
-  allEvents: TripEvent[],
-  waybills: Waybill[],
-  start: Date,
-  settings: SheetSettings,
-  allowances: Allowance[] = [],
-): WeekSheet {
+/**
+ * Étapes d'un tracteur (plaque comparable). Pour lui, un changement de camion est une fin de journée
+ * (camion rendu au dépôt) ou un début (camion pris) : un camion repris plus tard dans la semaine repart
+ * de son nouveau relevé, les km roulés par un autre entre-temps ne comptent pas.
+ * shortcut: les étapes sans plaque ne vont sur aucune feuille, à revoir si ça arrive.
+ */
+function truckEvents(events: TripEvent[], key: string): TripEvent[] {
+  return events.flatMap((e): TripEvent[] => {
+    if (!isTruckChange(e)) return plateKey(e.tractor_plate) === key ? [e] : [];
+    const own: TripEvent[] = [];
+    if (plateKey(e.prev_tractor_plate) === key) {
+      own.push({
+        ...e,
+        type: 'fin_journee',
+        tractor_plate: e.prev_tractor_plate ?? '',
+        trailer_plate: e.prev_trailer_plate ?? '',
+        odometer_km: e.prev_odometer_km ?? null,
+      });
+    }
+    if (plateKey(e.tractor_plate) === key) own.push({ ...e, type: 'debut_journee' });
+    return own;
+  });
+}
+
+/** Étapes de la semaine qui commence à `start`, dans l'ordre. */
+function weekEvents(allEvents: TripEvent[], start: Date): TripEvent[] {
   const end = addDays(start, 7);
-  const events = allEvents
+  return allEvents
     .filter((e) => {
       if (e.deleted_at) return false;
       const d = parseISO(e.occurred_at);
       return d >= start && d < end;
     })
     .sort((a, b) => a.occurred_at.localeCompare(b.occurred_at));
+}
+
+/**
+ * Une feuille par véhicule moteur conduit dans la semaine (une seule s'il n'y en a qu'un) ;
+ * la page de frais, commune, est la même sur chacune.
+ */
+export function buildWeekSheets(
+  allEvents: TripEvent[],
+  waybills: Waybill[],
+  start: Date,
+  settings: SheetSettings,
+  allowances: Allowance[] = [],
+): WeekSheet[] {
+  const tractors = [...weekTractors(weekEvents(allEvents, start)).keys()];
+  if (tractors.length <= 1) return [buildWeekSheet(allEvents, waybills, start, settings, allowances)];
+  return tractors.map((key) => buildWeekSheet(allEvents, waybills, start, settings, allowances, key));
+}
+
+/**
+ * Feuille de semaine de la semaine qui commence à `start` (dimanche 22h) ; `tractor` (plaque comparable) :
+ * pages 1 à 4 de ce tracteur seulement, la page de frais reste celle de toute la semaine.
+ */
+export function buildWeekSheet(
+  allEvents: TripEvent[],
+  waybills: Waybill[],
+  start: Date,
+  settings: SheetSettings,
+  allowances: Allowance[] = [],
+  tractor?: string,
+): WeekSheet {
+  const end = addDays(start, 7);
+  const events = weekEvents(allEvents, start);
+  // Pages 1 à 4 : les étapes du tracteur de la feuille, ou toutes.
+  const own = tractor == null ? events : truckEvents(events, tractor);
   const monday = startOfDay(addHours(start, 2));
 
   const loaded = new Map<string, Waybill[]>();
@@ -295,7 +347,7 @@ export function buildWeekSheet(
 
   // Page 1 : premier début de journée de chaque jour ; un départ le dimanche soir va sur la ligne Dimanche.
   const departures: (Departure | null)[] = Array(7).fill(null);
-  for (const e of events) {
+  for (const e of own) {
     if (e.type !== 'debut_journee') continue;
     const date = parseISO(e.occurred_at);
     const i = getDay(date);
@@ -306,7 +358,7 @@ export function buildWeekSheet(
   const byDay: TripEvent[][] = Array.from({ length: 6 }, () => []);
   // Page 4 : Lundi … Dimanche.
   const fuel: FuelLine[][] = Array.from({ length: 7 }, () => []);
-  for (const e of events) {
+  for (const e of own) {
     const weekday = getDay(workDay(parseISO(e.occurred_at)));
     if (e.type === 'chargement' || e.type === 'livraison') byDay[weekday === 0 ? 5 : weekday - 1].push(e);
     if (e.type === 'carburant' && (e.diesel_l != null || e.adblue_l != null)) {
@@ -322,8 +374,9 @@ export function buildWeekSheet(
     }
   }
 
-  const first = events.find((e) => e.type === 'debut_journee');
-  const last = [...events].reverse().find((e) => e.type === 'fin_journee');
+  const first = own.find((e) => e.type === 'debut_journee');
+  const last = [...own].reverse().find((e) => e.type === 'fin_journee');
+  const lastOfWeek = [...events].reverse().find((e) => e.type === 'fin_journee');
   // Page 5 : chaque journée sur la ligne du jour où elle finit (départ la veille au soir compris).
   const expenseDays: (ExpenseDay | null)[] = Array(7).fill(null);
   let dayStart: TripEvent | null = null;
@@ -353,14 +406,19 @@ export function buildWeekSheet(
 
   const startKm = first?.odometer_km ?? null;
   const endKm = last?.odometer_km ?? null;
-  // Plusieurs tracteurs : jamais la différence de deux compteurs, mais la somme des tronçons de chacun.
+  // Plusieurs tracteurs, ou un tracteur rendu puis repris : jamais la différence de deux compteurs,
+  // mais la somme des tronçons de chacun.
   const oneTractor =
-    first && last && plateKey(first.tractor_plate) === plateKey(last.tractor_plate) && !events.some(isTruckChange);
+    tractor == null &&
+    first &&
+    last &&
+    plateKey(first.tractor_plate) === plateKey(last.tractor_plate) &&
+    !events.some(isTruckChange);
   const totalKm = oneTractor
     ? startKm != null && endKm != null && endKm >= startKm
       ? endKm - startKm
       : null
-    : kmSegments(events).reduce((sum, s) => sum + s.km, 0) || null;
+    : kmSegments(own).reduce((sum, s) => sum + s.km, 0) || null;
 
   return {
     week: getISOWeek(monday),
@@ -368,7 +426,7 @@ export function buildWeekSheet(
     saturday: addDays(monday, 5),
     driver: settings.driver.trim(),
     agency: settings.agency.trim(),
-    tractor: weekTractors(events),
+    tractor: [...weekTractors(own).values()].join(' / '),
     departures,
     operations: byDay.map((list) => dayRows(list, loaded, delivered)),
     startPlace: first ? sheetPlace(first) : '',
@@ -384,6 +442,6 @@ export function buildWeekSheet(
     expenseDays,
     expenses,
     expenseTotal: Math.round(expenses.reduce((s, x) => s + x.amount, 0) * 100) / 100,
-    signedOn: last ? parseISO(last.occurred_at) : null,
+    signedOn: lastOfWeek ? parseISO(lastOfWeek.occurred_at) : null,
   };
 }

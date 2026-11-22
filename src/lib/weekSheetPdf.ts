@@ -514,17 +514,23 @@ function page5(s: Sheet, w: WeekSheet) {
   );
 }
 
-/** Les 4 pages de la feuille de semaine, puis la feuille de remboursement de frais, en PDF. */
-export function weekSheetPdf(w: WeekSheet): Blob {
+/**
+ * Les 4 pages de la feuille de semaine de chaque véhicule moteur, l'une après l'autre,
+ * puis une seule feuille de remboursement de frais, en PDF.
+ */
+export function weekSheetPdf(sheets: WeekSheet[]): Blob {
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-  doc.setProperties({ title: `Feuille de semaine ${w.week}` });
+  doc.setProperties({ title: `Feuille de semaine ${sheets[0].week}` });
   const s = new Sheet(doc);
-  page1(s, w);
-  doc.addPage('a3', 'landscape');
-  page23(s, w);
-  doc.addPage('a4', 'landscape');
-  page4(s, w);
+  sheets.forEach((w, i) => {
+    if (i > 0) doc.addPage('a4', 'portrait');
+    page1(s, w);
+    doc.addPage('a3', 'landscape');
+    page23(s, w);
+    doc.addPage('a4', 'landscape');
+    page4(s, w);
+  });
   doc.addPage('a4', 'portrait');
-  page5(s, w);
+  page5(s, sheets[0]);
   return doc.output('blob');
 }

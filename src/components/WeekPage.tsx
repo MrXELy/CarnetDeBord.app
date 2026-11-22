@@ -17,7 +17,7 @@ import { shareFile } from '../lib/share';
 import { useEvents } from '../lib/useEvents';
 import { useSheet } from '../lib/useSheet';
 import { useSwipe } from '../lib/useSwipe';
-import { buildWeekSheet } from '../lib/weekSheet';
+import { buildWeekSheets } from '../lib/weekSheet';
 import { isDayBoundary, type TripEvent } from '../types';
 import DaySection from './DaySection';
 import Km from './Km';
@@ -205,9 +205,11 @@ export function useWeekSheet(start: Date) {
     try {
       // Le dessin du PDF (et sa bibliothèque) n'est chargé qu'ici.
       const { weekSheetPdf } = await import('../lib/weekSheetPdf');
-      const built = buildWeekSheet(events, waybills, start, sheetSettings, store.allowances());
-      const name = `feuille-semaine-${built.week}-${built.monday.getFullYear()}.pdf`;
-      await shareFile(weekSheetPdf(built), name, `Feuille de semaine ${built.week}`);
+      // Une feuille par véhicule moteur, toutes dans le même PDF.
+      const sheets = buildWeekSheets(events, waybills, start, sheetSettings, store.allowances());
+      const { week, monday } = sheets[0];
+      const name = `feuille-semaine-${week}-${monday.getFullYear()}.pdf`;
+      await shareFile(weekSheetPdf(sheets), name, `Feuille de semaine ${week}`);
     } catch (err) {
       if (!(err instanceof Error && err.name === 'AbortError')) {
         alert(`Feuille de semaine impossible : ${err instanceof Error ? err.message : String(err)}`);

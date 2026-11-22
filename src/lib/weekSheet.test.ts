@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { newWaybill, type TripEvent, type Waybill } from '../types';
 import { weekStart } from './dates';
 import { computeAllowances, DEFAULT_RATES } from './allowances';
-import { buildWeekSheet, fuelColumn, sheetPlace, sheetPlate, type SheetSettings } from './weekSheet';
+import { buildWeekSheet, buildWeekSheets, fuelColumn, sheetPlace, sheetPlate, type SheetSettings } from './weekSheet';
 
 let n = 0;
 function ev(
@@ -281,5 +281,54 @@ describe('buildWeekSheet avec un changement de camion', () => {
     const sheet = buildWeekSheet(events, [], start, settings);
     expect(sheet.tractor).toBe('AA 111 AA / CC 333 CC');
     expect(sheet.totalKm).toBe(450);
+  });
+});
+
+describe('buildWeekSheets : une feuille par véhicule moteur', () => {
+  // AA lundi matin, rendu au dépôt pour CC, puis AA repris mardi (un autre chauffeur a roulé 500 km avec).
+  const change = (local: string, from: [string, number], to: [string, number]) =>
+    ev('changement_camion', local, 'Toulouse', '31', to[1], {
+      prev_tractor_plate: from[0],
+      prev_odometer_km: from[1],
+      tractor_plate: to[0],
+    });
+  const events = [
+    ev('debut_journee', '2026-03-02T06:00', 'Narbonne', '11', 100_000),
+    change('2026-03-02T10:00', ['AA-111-AA', 100_150], ['CC-333-CC', 20_000]),
+    ev('carburant', '2026-03-02T12:00', 'Blagnac', '31', 20_050, {
+      tractor_plate: 'CC-333-CC',
+      station: 'AS24',
+      diesel_l: 100,
+    }),
+    ev('fin_journee', '2026-03-02T18:00', 'Toulouse', '31', 20_300, { tractor_plate: 'CC-333-CC' }),
+    ev('debut_journee', '2026-03-03T06:00', 'Toulouse', '31', 20_300, { tractor_plate: 'CC-333-CC' }),
+    change('2026-03-03T08:00', ['CC-333-CC', 20_400], ['AA-111-AA', 100_650]),
+    ev('fin_journee', '2026-03-03T18:00', 'Narbonne', '11', 100_900),
+  ];
+
+  it('regroupe tout ce qui a été fait avec chaque tracteur, dépôt compris', () => {
+    const [aa, cc] = buildWeekSheets(events, [], start, settings);
+    expect(aa.tractor).toBe('AA 111 AA');
+    expect(aa.departures[1]).toMatchObject({ place: 'Narbonne (11)', km: 100_000 });
+    // Repris au dépôt mardi : départ du dépôt, avec son nouveau relevé.
+    expect(aa.departures[2]).toMatchObject({ place: 'Toulouse (31)', km: 100_650 });
+    // 150 km lundi + 250 km mardi, sans les 500 km de l'autre chauffeur.
+    expect(aa.totalKm).toBe(400);
+    expect(aa.fuel.flat()).toEqual([]);
+
+    expect(cc.tractor).toBe('CC 333 CC');
+    expect(cc.departures[1]).toMatchObject({ place: 'Toulouse (31)', km: 20_000 });
+    expect(cc).toMatchObject({ startKm: 20_000, endPlace: 'Toulouse (31)', endKm: 20_400, totalKm: 400 });
+    expect(cc.fuel.flat()).toEqual([expect.objectContaining({ litres: 100 })]);
+  });
+
+  it('garde la page de frais de toute la semaine sur chaque feuille', () => {
+    const [aa, cc] = buildWeekSheets(events, [], start, settings);
+    expect(aa.expenseDays).toEqual(cc.expenseDays);
+    expect(aa.expenseDays.filter(Boolean)).toHaveLength(2);
+  });
+
+  it('une seule feuille avec un seul tracteur', () => {
+    expect(buildWeekSheets(events.slice(0, 1), [], start, settings)).toHaveLength(1);
   });
 });
