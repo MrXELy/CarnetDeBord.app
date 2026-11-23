@@ -535,14 +535,14 @@ export default function EventForm({ event, onClose }: Props) {
   return (
     <>
       <div className="modal-backdrop" ref={sheet.ref} onClick={sheet.close}>
-        {reading && event && typeInfo ? (
+        {reading && event ? (
           <div className="modal step-view" onClick={(e) => e.stopPropagation()}>
             <header className="modal-header" {...sheet.handle}>
               <span className={`card-icon tone-${event.type}`} aria-hidden>
                 <EventIcon type={event.type} size={22} strokeWidth={2} className="event-icon" />
               </span>
               <div className="form-title">
-                <h2>{typeInfo.label}</h2>
+                <h2>{eventTypeInfo(event.type).label}</h2>
                 <span>{format(parseISO(event.occurred_at), 'EEEE d MMMM', { locale: fr })}</span>
               </div>
               <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
@@ -552,10 +552,10 @@ export default function EventForm({ event, onClose }: Props) {
             <div className="modal-body">
               <StepDetails
                 event={event}
-                waybills={type === 'chargement' ? loads : candidates.filter((w) => checked.has(w.id))}
+                waybills={event.type === 'chargement' ? loads : candidates.filter((w) => checked.has(w.id))}
                 lvTile={(w) =>
                   lvTile(w, () =>
-                    setEditing({ waybill: w, isNew: false, side: type === 'chargement' ? 'load' : 'delivery' }),
+                    setEditing({ waybill: w, isNew: false, side: event.type === 'chargement' ? 'load' : 'delivery' }),
                   )
                 }
                 rest={

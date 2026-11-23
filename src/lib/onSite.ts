@@ -83,6 +83,20 @@ export function onSiteTimes(all: TripEvent[], waybills: Waybill[], range: Range,
   return { average: count ? Math.round(total / count) : null, count, clients };
 }
 
+/**
+ * Temps moyen sur place chez ce client, sur toutes les autres étapes (`step` exclue), noms regroupés comme dans les
+ * statistiques. Null s'il n'y a pas au moins 2 passages avec une fin : une seule fois ne fait pas une habitude.
+ */
+export function usualOnSite(all: TripEvent[], waybills: Waybill[], step: TripEvent, client: string): number | null {
+  const alive = waybills.filter((w) => !w.deleted_at);
+  const name = clientGrouper(alive.flatMap((w) => [w.shipper, w.consignee]))(client);
+  const others = all.filter((e) => e.id !== step.id && e.type === step.type);
+  // Dates comparées en texte ISO : une fin au-delà de l'an 9999 s'écrirait « +275760… » et ne marcherait pas.
+  const range = { start: new Date(0), end: new Date('9999-12-31T00:00:00Z') };
+  const found = onSiteTimes(others, waybills, range, Infinity).clients.find((c) => c.name === name);
+  return found && found.count >= 2 ? found.average : null;
+}
+
 /** Au-delà de cet écart avec la dernière étape, on suppose un repos journalier (9 h minimum en RSE). */
 const NEW_DAY_GAP_MIN = 9 * 60;
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { newWaybill, type TripEvent } from '../types';
-import { onSiteMinutes, onSiteTimes, suggestedType, unfinishedStep, endFromTime } from './onSite';
+import { onSiteMinutes, onSiteTimes, suggestedType, unfinishedStep, endFromTime, usualOnSite } from './onSite';
 
 let n = 0;
 function ev(type: TripEvent['type'], occurred: string, finished?: string, extra: Partial<TripEvent> = {}): TripEvent {
@@ -76,6 +76,21 @@ describe('onSiteTimes', () => {
         { name: 'Client A', average: 45, count: 2 },
       ],
     });
+  });
+});
+
+describe('usualOnSite', () => {
+  it('moyenne des autres passages chez le client, à partir de 2', () => {
+    const a = ev('chargement', '2026-10-20T08:00', '2026-10-20T09:00');
+    const b = ev('chargement', '2026-10-21T08:00', '2026-10-21T08:30');
+    const c = ev('chargement', '2026-10-22T08:00', '2026-10-22T10:00');
+    const waybills = [
+      newWaybill({ loading_event_id: a.id, shipper: 'Client A' }),
+      newWaybill({ loading_event_id: b.id, shipper: 'Usine Client A' }),
+      newWaybill({ loading_event_id: c.id, shipper: 'Client A' }),
+    ];
+    expect(usualOnSite([a, b, c], waybills, c, 'Client A')).toBe(45);
+    expect(usualOnSite([a, c], waybills, c, 'Client A')).toBeNull();
   });
 });
 

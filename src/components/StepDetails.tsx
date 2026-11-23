@@ -3,7 +3,8 @@ import type { ReactNode } from 'react';
 import { durationLabel, timeLabel } from '../lib/dates';
 import { isFullTank } from '../lib/fuel';
 import { formatPlace } from '../lib/geo';
-import { hasEnd, onSiteMinutes } from '../lib/onSite';
+import { hasEnd, onSiteMinutes, usualOnSite } from '../lib/onSite';
+import { useEvents } from '../lib/useEvents';
 import { namesOf } from '../lib/waybills';
 import type { TripEvent, Waybill } from '../types';
 
@@ -30,6 +31,12 @@ export default function StepDetails({
   const onSite = onSiteMinutes(e);
   const clients = withEnd ? namesOf(waybills, e.type === 'chargement' ? 'shipper' : 'consignee') : '';
   const place = formatPlace(e) || 'Lieu non renseigné';
+  const { events, waybills: allWaybills } = useEvents();
+  // Plusieurs clients : on compare au premier.
+  const client = clients.split(', ')[0];
+  const usual = client ? usualOnSite(events, allWaybills, e, client) : null;
+  const note = [onSite ? `${durationLabel(onSite)} sur place` : 'Fin pas encore notée'];
+  if (usual) note.push(`${durationLabel(usual)} d’habitude chez ce client`);
 
   return (
     <>
@@ -47,9 +54,7 @@ export default function StepDetails({
                 <b>{e.finished_at ? timeLabel(e.finished_at) : '—'}</b>
               </span>
             </div>
-            <span className="step-hero-note">
-              {onSite ? `${durationLabel(onSite)} sur place` : 'Fin pas encore notée'}
-            </span>
+            <span className="step-hero-note">{note.join(' · ')}</span>
           </>
         ) : (
           <div className="step-times">
