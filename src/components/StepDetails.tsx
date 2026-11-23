@@ -11,6 +11,20 @@ import type { TripEvent, Waybill } from '../types';
 const kmText = (km: number | null | undefined) => (km == null ? '—' : `${km.toLocaleString('fr-FR')} km`);
 const litres = (n: number) => `${n.toLocaleString('fr-FR')} L`;
 
+/** Changement de camion : un camion (rendu ou pris) sur toute la largeur, plaques puis compteur. */
+const truckTile = (label: string, tractor?: string | null, trailer?: string | null, km?: number | null) => (
+  <div className="step-tile step-wide">
+    <div>
+      <small>{label}</small>
+      <b>
+        <span className="plate">{tractor || '—'}</span>
+        {trailer && <> · {trailer}</>}
+      </b>
+      <span>{kmText(km)}</span>
+    </div>
+  </div>
+);
+
 /**
  * Fiche d'une étape en lecture seule (maquette « Tuiles ») : heures en grand, client et lieu, compteur, camion,
  * lettres de voiture et remarque. Tout doit tenir sur un écran de téléphone.
@@ -96,28 +110,24 @@ export default function StepDetails({
           </>
         )}
 
-        {e.type === 'changement_camion' && (
-          <div className="step-tile step-wide">
-            <div>
-              <small>Camion rendu</small>
-              <b>
-                <span className="plate">{e.prev_tractor_plate || '—'}</span>
-                {e.prev_trailer_plate && <> · {e.prev_trailer_plate}</>}
-              </b>
-              <span>{kmText(e.prev_odometer_km)}</span>
+        {e.type === 'changement_camion' ? (
+          <>
+            {truckTile('Camion rendu', e.prev_tractor_plate, e.prev_trailer_plate, e.prev_odometer_km)}
+            {truckTile('Camion pris', e.tractor_plate, e.trailer_plate, e.odometer_km)}
+          </>
+        ) : (
+          <>
+            <div className="step-tile">
+              <small>Compteur</small>
+              <b>{kmText(e.odometer_km)}</b>
             </div>
-          </div>
+            <div className="step-tile">
+              <small>Camion</small>
+              <b className="plate">{e.tractor_plate || '—'}</b>
+              {e.trailer_plate && <span className="plate">{e.trailer_plate}</span>}
+            </div>
+          </>
         )}
-
-        <div className="step-tile">
-          <small>Compteur</small>
-          <b>{kmText(e.odometer_km)}</b>
-        </div>
-        <div className="step-tile">
-          <small>{e.type === 'changement_camion' ? 'Camion pris' : 'Camion'}</small>
-          <b className="plate">{e.tractor_plate || '—'}</b>
-          {e.trailer_plate && <span className="plate">{e.trailer_plate}</span>}
-        </div>
       </div>
 
       {rest}
