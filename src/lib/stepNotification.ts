@@ -5,6 +5,7 @@ import { formatPlace } from './geo';
 import {
   FINISH_ACTION,
   FINISH_MESSAGE,
+  SKIP_ACTION,
   STEP_TAG,
   takeFinishes,
   type NotifiedFinish,
@@ -53,7 +54,11 @@ async function updateStepNotice(step: TripEvent | null, enabled: boolean) {
   const { title, body, action } = stepNotice(step);
   // Déjà affichée telle quelle : pas de nouvelle (sinon elle remonterait à chaque changement de l'appli).
   if (shown.some((n) => (n.data as StepNoticeData | null)?.eventId === step.id && n.body === body)) return;
-  const data: StepNoticeData = { eventId: step.id, type: step.type as StepNoticeData['type'] };
+  const data: StepNoticeData = {
+    eventId: step.id,
+    type: step.type as StepNoticeData['type'],
+    arrivedAt: step.occurred_at,
+  };
   await registration.showNotification(title, {
     body,
     tag: STEP_TAG,
@@ -62,7 +67,10 @@ async function updateStepNotice(step: TripEvent | null, enabled: boolean) {
     // Notée en arrivant, appli ouverte : pas de sonnerie ; reste affichée jusqu'à la fin (PC compris).
     silent: true,
     requireInteraction: true,
-    actions: [{ action: FINISH_ACTION, title: action }],
+    actions: [
+      { action: FINISH_ACTION, title: action },
+      { action: SKIP_ACTION, title: 'Pas de temps sur place' },
+    ],
   } as NotificationOptions);
 }
 

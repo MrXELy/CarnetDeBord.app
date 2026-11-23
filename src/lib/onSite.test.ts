@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { newWaybill, type TripEvent } from '../types';
-import { onSiteMinutes, onSiteTimes, suggestedType, unfinishedStep, endFromTime, usualOnSite } from './onSite';
+import { noStay, onSiteMinutes, onSiteTimes, suggestedType, unfinishedStep, endFromTime, usualOnSite } from './onSite';
 
 let n = 0;
 function ev(type: TripEvent['type'], occurred: string, finished?: string, extra: Partial<TripEvent> = {}): TripEvent {
@@ -53,6 +53,15 @@ describe('onSiteMinutes', () => {
     expect(onSiteMinutes(ev('chargement', '2026-10-20T08:12', '2026-10-20T08:12'))).toBeNull();
     expect(onSiteMinutes(ev('chargement', '2026-10-20T08:12', '2026-10-22T08:00'))).toBeNull();
     expect(onSiteMinutes(ev('chargement', '2026-10-20T08:12'))).toBeNull();
+  });
+});
+
+describe('noStay', () => {
+  it('vrai seulement pour une fin à la même minute que l’arrivée', () => {
+    expect(noStay(ev('chargement', '2026-10-20T08:12', '2026-10-20T08:12'))).toBe(true);
+    expect(noStay(ev('livraison', '2026-10-20T08:12', '2026-10-20T08:13'))).toBe(false);
+    expect(noStay(ev('chargement', '2026-10-20T08:12'))).toBe(false);
+    expect(noStay(ev('carburant', '2026-10-20T08:12', '2026-10-20T08:12'))).toBe(false);
   });
 });
 

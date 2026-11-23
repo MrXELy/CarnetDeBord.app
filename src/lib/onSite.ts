@@ -35,6 +35,13 @@ export function onSiteMinutes(e: TripEvent): number | null {
   return minutes > 0 && minutes <= MAX_ON_SITE_MIN ? minutes : null;
 }
 
+/** Pas de temps sur place : fin notée à la même minute que l'arrivée (remorque déjà chargée, simple passage). */
+export function noStay(e: TripEvent): boolean {
+  return (
+    hasEnd(e.type) && !!e.finished_at && differenceInMinutes(parseISO(e.finished_at), parseISO(e.occurred_at)) === 0
+  );
+}
+
 export interface ClientTime {
   name: string;
   /** Temps moyen sur place, en minutes. */

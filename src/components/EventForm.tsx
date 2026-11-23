@@ -5,7 +5,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent, t
 import { durationLabel, toLocalInput } from '../lib/dates';
 import { isDoumenCity, isFullTank } from '../lib/fuel';
 import { numText, parseNum } from '../lib/numbers';
-import { endFromTime, hasEnd, suggestedType } from '../lib/onSite';
+import { endFromTime, hasEnd, noStay, suggestedType } from '../lib/onSite';
 import { odometerMessage, readOdometerPhoto } from '../lib/odometer';
 import { restartAdvice, restChecks } from '../lib/rest';
 import {
@@ -76,6 +76,8 @@ export default function EventForm({ event, onClose }: Props) {
   const [place, setPlace] = useState<Place>(event ?? EMPTY_PLACE);
   const [when, setWhen] = useState(toLocalInput(event ? parseISO(event.occurred_at) : new Date()));
   const [finished, setFinished] = useState(event?.finished_at ? toLocalInput(parseISO(event.finished_at)) : '');
+  // « Pas de temps sur place » : fin enregistrée à l'heure d'arrivée, le bouton « Fin » de l'accueil n'apparaît pas.
+  const [skipStay, setSkipStay] = useState(() => !!event && noStay(event));
   const [station, setStation] = useState<Station | null>(event?.station ?? null);
   const [diesel, setDiesel] = useState(numText(event?.diesel_l ?? null));
   const [adblue, setAdblue] = useState(numText(event?.adblue_l ?? null));
@@ -125,8 +127,8 @@ export default function EventForm({ event, onClose }: Props) {
   // mais rien n'est enregistré (le bouton « Fin » de l'accueil reste proposé).
   const withEnd = type != null && hasEnd(type);
   // Seule l'heure de fin compte : son jour suit toujours celui de l'arrivée (le lendemain si plus tôt).
-  const end = withEnd && finished ? endFromTime(when, finished.slice(11, 16)) : null;
-  const finishedIso = end ? end.toISOString() : null;
+  const end = withEnd && finished && !skipStay ? endFromTime(when, finished.slice(11, 16)) : null;
+  const finishedIso = withEnd && skipStay ? whenIso : end ? end.toISOString() : null;
   const onSite = end && whenIso ? Math.round((end.getTime() - at.getTime()) / 60000) : null;
 
   // LV livrables ici : celles du camion à cette heure, celles déjà livrées ici, et celles créées ici.
@@ -636,14 +638,21 @@ export default function EventForm({ event, onClose }: Props) {
                   </label>
                   <label>
                     {type === 'chargement' ? 'Fin du chargement' : 'Fin de la livraison'}
-                    <input type="time" value={finishedTime} onChange={(e) => setFinishedTime(e.target.value)} />
+                    <input
+                      type="time"
+                      value={finishedTime}
+                      onChange={(e) => setFinishedTime(e.target.value)}
+                      disabled={skipStay}
+                    />
                   </label>
                   <span className="time-tile-note">
-                    {!onSite
-                      ? 'Fin facultative : le bouton « Fin » de l’accueil la remplit.'
-                      : onSite < 0
-                        ? 'Fin avant l’arrivée'
-                        : `${durationLabel(onSite)} sur place`}
+                    {skipStay
+                      ? 'Pas de temps sur place'
+                      : !onSite
+                        ? 'Fin facultative : le bouton « Fin » de l’accueil la remplit.'
+                        : onSite < 0
+                          ? 'Fin avant l’arrivée'
+                          : `${durationLabel(onSite)} sur place`}
                   </span>
                 </div>
               )}
@@ -737,6 +746,18 @@ export default function EventForm({ event, onClose }: Props) {
                       value={whenTime}
                       onChange={(e) => setWhen(`${whenDay}T${e.target.value}`)}
                       required
+                    />
+                  </label>
+                )}
+                {withEnd && (
+                  <label className="field-row">
+                    Pas de temps sur place
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      className="switch"
+                      checked={skipStay}
+                      onChange={(e) => setSkipStay(e.target.checked)}
                     />
                   </label>
                 )}

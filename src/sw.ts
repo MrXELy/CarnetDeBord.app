@@ -8,6 +8,7 @@ import {
   FINISH_ACTION,
   FINISH_MESSAGE,
   finishedText,
+  SKIP_ACTION,
   type StepNoticeData,
 } from './lib/notifiedFinishes';
 
@@ -35,16 +36,20 @@ self.addEventListener('notificationclick', (event) => {
   const data = notification.data as StepNoticeData | null;
   notification.close();
   if (event.action === FINISH_ACTION && data?.eventId) event.waitUntil(finish(data));
+  else if (event.action === SKIP_ACTION && data?.eventId && data.arrivedAt) event.waitUntil(finish(data, true));
   else event.waitUntil(openApp());
 });
 
-/** Bouton de la notification : garde l'heure du toucher, prévient l'appli si elle est ouverte, puis confirme. */
-async function finish(data: StepNoticeData) {
+/**
+ * Bouton de la notification : garde l'heure du toucher (ou l'arrivée pour « Pas de temps sur place »),
+ * prévient l'appli si elle est ouverte, puis confirme.
+ */
+async function finish(data: StepNoticeData, skip = false) {
   const at = new Date();
-  await addFinish({ eventId: data.eventId, finishedAt: at.toISOString() });
+  await addFinish({ eventId: data.eventId, finishedAt: skip && data.arrivedAt ? data.arrivedAt : at.toISOString() });
   const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
   windows.forEach((w) => w.postMessage({ type: FINISH_MESSAGE }));
-  await self.registration.showNotification(finishedText(data.type, at), { tag: DONE_TAG, icon, silent: true });
+  await self.registration.showNotification(finishedText(data.type, at, skip), { tag: DONE_TAG, icon, silent: true });
   // Confirmation retirée après quelques secondes.
   await new Promise((resolve) => setTimeout(resolve, 4000));
   (await self.registration.getNotifications({ tag: DONE_TAG })).forEach((n) => n.close());

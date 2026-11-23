@@ -11,6 +11,8 @@ export const STEP_TAG = 'step';
 export const DONE_TAG = 'step-done';
 /** Bouton « Fin du chargement / de la livraison » de la notification. */
 export const FINISH_ACTION = 'finish';
+/** Bouton « Pas de temps sur place » de la notification : fin = arrivée. */
+export const SKIP_ACTION = 'skip';
 /** Message du service worker aux fenêtres ouvertes : une fin attend d'être appliquée. */
 export const FINISH_MESSAGE = 'step-finished';
 
@@ -18,6 +20,8 @@ export const FINISH_MESSAGE = 'step-finished';
 export interface StepNoticeData {
   eventId: string;
   type: 'chargement' | 'livraison';
+  /** Heure d'arrivée (ISO), pour « Pas de temps sur place ». Absente des notifications d'avant. */
+  arrivedAt?: string;
 }
 
 export interface NotifiedFinish {
@@ -26,8 +30,9 @@ export interface NotifiedFinish {
   finishedAt: string;
 }
 
-/** Texte de la confirmation : « Fin du chargement notée à 15:20 ». */
-export function finishedText(type: StepNoticeData['type'], at: Date): string {
+/** Texte de la confirmation : « Fin du chargement notée à 15:20 », ou « Pas de temps sur place noté ». */
+export function finishedText(type: StepNoticeData['type'], at: Date, skip = false): string {
+  if (skip) return 'Pas de temps sur place noté';
   return `${type === 'chargement' ? 'Fin du chargement' : 'Fin de la livraison'} notée à ${format(at, 'HH:mm')}`;
 }
 
