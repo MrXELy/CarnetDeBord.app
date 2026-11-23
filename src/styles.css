@@ -2549,3 +2549,32 @@ button.st-kv-item:active { transform: scale(0.97); }
 .st-we-time small { font-size: 0.7rem; font-weight: 700; color: var(--we); }
 .st-we-axis { padding: 0 6px; font-size: 0.7rem; font-weight: 600; color: var(--muted); }
 .st-we-axis div { grid-column: 2; display: flex; justify-content: space-between; }
+
+/* Fiche d'une étape en lecture seule (StepDetails, maquette « Tuiles ») : le panneau prend la hauteur de son contenu,
+   posé en bas de l'écran, et tout tient sans défiler sur un téléphone. */
+.modal.step-view { height: auto; max-height: calc(100dvh - 10px - env(safe-area-inset-top, 0px)); margin-top: auto; }
+@media (min-width: 640px) {
+  .modal.step-view { margin-top: 0; max-height: calc(100dvh - 48px); }
+}
+.step-view .modal-body { gap: 12px; padding-bottom: 4px; }
+.step-view .form-footer .btn-primary { justify-content: center; }
+.step-hero { display: grid; gap: 6px; padding: 14px 18px; border-radius: 22px; background: var(--tone-bg); color: var(--tone); }
+.step-times { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.step-times > span { display: grid; gap: 2px; }
+.step-times .step-end { text-align: right; }
+.step-times small,
+.step-hero-note { color: var(--tone-sub); font-size: 0.85rem; font-weight: 600; }
+.step-times b { font-size: 2.6rem; font-weight: 800; line-height: 1; }
+.step-times > svg { flex: none; margin-bottom: 6px; color: var(--tone-sub); }
+.step-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.step-tile { display: grid; align-content: start; gap: 2px; min-width: 0; padding: 12px 14px; border-radius: 18px; background: var(--glass); }
+.step-tile small { color: var(--muted); font-size: 0.82rem; font-weight: 600; }
+.step-tile b { font-size: 1.1rem; font-weight: 700; overflow-wrap: anywhere; }
+.step-tile span { color: var(--muted); font-size: 0.85rem; }
+.step-tile b .plate { color: inherit; font-size: inherit; }
+.step-wide { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; }
+.step-wide > div { display: grid; gap: 2px; min-width: 0; }
+.step-wide > div > b { font-size: 1.2rem; }
+.step-place-icon { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--tone-bg); color: var(--tone); }
+.step-notes { display: flex; gap: 10px; margin: 0; padding: 12px 14px; border-radius: 18px; background: var(--glass); line-height: 1.35; white-space: pre-wrap; }
+.step-notes svg { flex: none; margin-top: 2px; color: var(--muted); }

@@ -36,6 +36,7 @@ import {
 import EventIcon from './EventIcon';
 import PlaceField, { EMPTY_PLACE } from './PlaceField';
 import RestNotice from './RestNotice';
+import StepDetails from './StepDetails';
 import WaybillForm from './WaybillForm';
 
 // Leaflet et la carte : chargés seulement quand on veut replacer le point.
@@ -89,6 +90,8 @@ export default function EventForm({ event, onClose }: Props) {
   const [showDay, setShowDay] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [placeOnMap, setPlaceOnMap] = useState(false);
+  // Étape déjà enregistrée : fiche en lecture seule à l'ouverture (comme les LV) ; « Modifier » ouvre la saisie.
+  const [reading, setReading] = useState(!isNew);
 
   // Lettres de voiture : tout reste en brouillon jusqu'à « Enregistrer ».
   const [originalLoads] = useState(() => (event ? store.loadedAt(event.id) : []));
@@ -532,235 +535,266 @@ export default function EventForm({ event, onClose }: Props) {
   return (
     <>
       <div className="modal-backdrop" ref={sheet.ref} onClick={sheet.close}>
-        <form className="modal" onSubmit={submit} onClick={(e) => e.stopPropagation()}>
-          <header className="modal-header" {...sheet.handle}>
-            <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
-              <X size={22} />
-            </button>
-            {type && !pickType && (
-              <span className={`card-icon tone-${type}`} aria-hidden>
-                <EventIcon type={type} size={22} strokeWidth={2} className="event-icon" />
+        {reading && event && typeInfo ? (
+          <div className="modal step-view" onClick={(e) => e.stopPropagation()}>
+            <header className="modal-header" {...sheet.handle}>
+              <span className={`card-icon tone-${event.type}`} aria-hidden>
+                <EventIcon type={event.type} size={22} strokeWidth={2} className="event-icon" />
               </span>
-            )}
-            <div className="form-title">
-              <h2>{pickType ? 'Que fais-tu ?' : isNew ? typeInfo?.label : 'Modifier l’étape'}</h2>
-              {!isNew && typeInfo && (
-                <span>
-                  {typeInfo.label} · {format(parseISO(event.occurred_at), 'EEEE d', { locale: fr })}
+              <div className="form-title">
+                <h2>{typeInfo.label}</h2>
+                <span>{format(parseISO(event.occurred_at), 'EEEE d MMMM', { locale: fr })}</span>
+              </div>
+              <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
+                <X size={22} />
+              </button>
+            </header>
+            <div className="modal-body">
+              <StepDetails
+                event={event}
+                waybills={type === 'chargement' ? loads : candidates.filter((w) => checked.has(w.id))}
+                lvTile={(w) =>
+                  lvTile(w, () =>
+                    setEditing({ waybill: w, isNew: false, side: type === 'chargement' ? 'load' : 'delivery' }),
+                  )
+                }
+                rest={
+                  restCheck && <RestNotice check={restCheck} icon={type === 'fin_journee' ? AlarmClock : undefined} />
+                }
+              />
+            </div>
+            <div className="form-footer">
+              <button type="button" className="btn-primary btn-icon" onClick={() => setReading(false)}>
+                <Pencil size={20} aria-hidden />
+                Modifier
+              </button>
+            </div>
+          </div>
+        ) : (
+          <form className="modal" onSubmit={submit} onClick={(e) => e.stopPropagation()}>
+            <header className="modal-header" {...sheet.handle}>
+              <button type="button" className="icon-btn" onClick={sheet.close} aria-label="Fermer">
+                <X size={22} />
+              </button>
+              {type && !pickType && (
+                <span className={`card-icon tone-${type}`} aria-hidden>
+                  <EventIcon type={type} size={22} strokeWidth={2} className="event-icon" />
                 </span>
               )}
-            </div>
-            {!pickType && (
-              <button type="button" className="btn-secondary btn-small" onClick={() => setPickType(true)}>
-                Changer
-              </button>
-            )}
-          </header>
-
-          <div className="modal-body">
-            {pickType && (
-              <fieldset>
-                <legend className="sr-only">Type d’opération</legend>
-                <div className="type-grid">
-                  {EVENT_TYPES.map((t) => (
-                    <button
-                      type="button"
-                      key={t.value}
-                      className={`type-btn type-${t.value} tone-${t.value}${type === t.value ? ' selected' : ''}`}
-                      aria-pressed={type === t.value}
-                      onClick={() => {
-                        chooseType(t.value);
-                        setPickType(false);
-                      }}
-                    >
-                      {!isDayBoundary(t.value) && (
-                        <EventIcon type={t.value} size={26} strokeWidth={2} className="event-icon" />
-                      )}
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
-            )}
-
-            {/* Modifier un chargement ou une livraison : arrivée et fin côte à côte, temps sur place dessous. */}
-            {withEnd && !isNew && (
-              <div className={`time-tile tone-${type}`}>
-                <label>
-                  Arrivée
-                  <input
-                    type="time"
-                    value={whenTime}
-                    onChange={(e) => setWhen(`${whenDay}T${e.target.value}`)}
-                    required
-                  />
-                </label>
-                <label>
-                  {type === 'chargement' ? 'Fin du chargement' : 'Fin de la livraison'}
-                  <input type="time" value={finishedTime} onChange={(e) => setFinishedTime(e.target.value)} />
-                </label>
-                <span className="time-tile-note">
-                  {!onSite
-                    ? 'Fin facultative : le bouton « Fin » de l’accueil la remplit.'
-                    : onSite < 0
-                      ? 'Fin avant l’arrivée'
-                      : `${durationLabel(onSite)} sur place`}
-                </span>
+              <div className="form-title">
+                <h2>{pickType ? 'Que fais-tu ?' : isNew ? typeInfo?.label : 'Modifier l’étape'}</h2>
+                {!isNew && typeInfo && (
+                  <span>
+                    {typeInfo.label} · {format(parseISO(event.occurred_at), 'EEEE d', { locale: fr })}
+                  </span>
+                )}
               </div>
-            )}
+              {!pickType && (
+                <button type="button" className="btn-secondary btn-small" onClick={() => setPickType(true)}>
+                  Changer
+                </button>
+              )}
+            </header>
 
-            {isFuel && (
-              <>
+            <div className="modal-body">
+              {pickType && (
                 <fieldset>
-                  <legend>Station</legend>
-                  <div className="station-grid">
-                    {STATIONS.map((s) => (
+                  <legend className="sr-only">Type d’opération</legend>
+                  <div className="type-grid">
+                    {EVENT_TYPES.map((t) => (
                       <button
                         type="button"
-                        key={s}
-                        className={station === s ? 'selected' : ''}
-                        aria-pressed={station === s}
-                        onClick={() => chooseStation(s)}
+                        key={t.value}
+                        className={`type-btn type-${t.value} tone-${t.value}${type === t.value ? ' selected' : ''}`}
+                        aria-pressed={type === t.value}
+                        onClick={() => {
+                          chooseType(t.value);
+                          setPickType(false);
+                        }}
                       >
-                        {s}
+                        {!isDayBoundary(t.value) && (
+                          <EventIcon type={t.value} size={26} strokeWidth={2} className="event-icon" />
+                        )}
+                        {t.label}
                       </button>
                     ))}
                   </div>
                 </fieldset>
-                <fieldset>
-                  <legend>Réservoir</legend>
-                  <div className="station-grid tank-choice">
-                    <button
-                      type="button"
-                      className={fullTank ? 'selected' : ''}
-                      aria-pressed={fullTank}
-                      onClick={() => setFullTank(true)}
-                    >
-                      Plein complet
-                      <small>sert à la consommation</small>
-                    </button>
-                    <button
-                      type="button"
-                      className={fullTank ? '' : 'selected'}
-                      aria-pressed={!fullTank}
-                      onClick={() => setFullTank(false)}
-                    >
-                      Complément
-                      <small>simple appoint</small>
-                    </button>
-                  </div>
-                </fieldset>
-                <div className="row">
-                  <label className="big-field">
-                    Litres
-                    <input type="text" inputMode="decimal" value={diesel} onChange={(e) => setDiesel(e.target.value)} />
+              )}
+
+              {/* Modifier un chargement ou une livraison : arrivée et fin côte à côte, temps sur place dessous. */}
+              {withEnd && !isNew && (
+                <div className={`time-tile tone-${type}`}>
+                  <label>
+                    Arrivée
+                    <input
+                      type="time"
+                      value={whenTime}
+                      onChange={(e) => setWhen(`${whenDay}T${e.target.value}`)}
+                      required
+                    />
                   </label>
-                  <label className="big-field">
-                    AdBlue
-                    <input type="text" inputMode="decimal" value={adblue} onChange={(e) => setAdblue(e.target.value)} />
+                  <label>
+                    {type === 'chargement' ? 'Fin du chargement' : 'Fin de la livraison'}
+                    <input type="time" value={finishedTime} onChange={(e) => setFinishedTime(e.target.value)} />
                   </label>
-                </div>
-              </>
-            )}
-
-            <div className="field-group">
-              <div className="field-row place-row">
-                <span className="field-name">Lieu</span>
-                <PlaceField
-                  key={placeKey}
-                  value={place}
-                  onChange={setPlace}
-                  autoLocate={isNew && placeKey === 0}
-                  compact
-                  onMap={() =>
-                    navigator.onLine
-                      ? setPlaceOnMap(true)
-                      : setError('Pas de réseau : la carte ne peut pas s’afficher.')
-                  }
-                />
-              </div>
-
-              {(isNew || !withEnd) && (
-                <label className="field-row">
-                  {withEnd ? 'Arrivée' : 'Heure'}
-                  <input
-                    type="time"
-                    value={whenTime}
-                    onChange={(e) => setWhen(`${whenDay}T${e.target.value}`)}
-                    required
-                  />
-                </label>
-              )}
-              {shownDay ? (
-                <label className="field-row">
-                  Jour
-                  <input
-                    type="date"
-                    value={whenDay}
-                    onChange={(e) => setWhen(`${e.target.value}T${whenTime}`)}
-                    required
-                  />
-                </label>
-              ) : (
-                <button type="button" className="field-row options-link" onClick={() => setShowDay(true)}>
-                  <span className="field-name">Jour</span>
-                  <span className="field-value">Aujourd’hui</span>
-                  <ChevronRight size={18} aria-hidden />
-                </button>
-              )}
-
-              {isChange && (
-                <>
-                  <span className="field-subtitle">Camion rendu</span>
-                  {plateRow('Tracteur', prevTractor, setPrevTractor, recent.tractors, 'AB-123-CD')}
-                  {plateRow('Remorque', prevTrailer, setPrevTrailer, recent.trailers, 'EF-456-GH')}
-                  {kmRow(true)}
-                  <span className="field-subtitle">Camion pris</span>
-                </>
-              )}
-              {!isChange && kmRow(false)}
-
-              {isNew && !editPlates && !isChange ? (
-                <button type="button" className="field-row plates-summary" onClick={() => setEditPlates(true)}>
-                  <span className="field-name">Camion</span>
-                  <span className="plates-values">
-                    <span className="plate">{tractor}</span>
-                    {trailer && <span className="plate">{trailer}</span>}
+                  <span className="time-tile-note">
+                    {!onSite
+                      ? 'Fin facultative : le bouton « Fin » de l’accueil la remplit.'
+                      : onSite < 0
+                        ? 'Fin avant l’arrivée'
+                        : `${durationLabel(onSite)} sur place`}
                   </span>
-                  <Pencil size={16} aria-hidden />
-                  <span className="sr-only">Modifier les immatriculations</span>
-                </button>
-              ) : (
+                </div>
+              )}
+
+              {isFuel && (
                 <>
-                  {plateRow('Tracteur', tractor, setTractor, recent.tractors, 'AB-123-CD', isChange ? prevTractor : '')}
-                  {plateRow('Remorque', trailer, setTrailer, recent.trailers, 'EF-456-GH')}
+                  <fieldset>
+                    <legend>Station</legend>
+                    <div className="station-grid">
+                      {STATIONS.map((s) => (
+                        <button
+                          type="button"
+                          key={s}
+                          className={station === s ? 'selected' : ''}
+                          aria-pressed={station === s}
+                          onClick={() => chooseStation(s)}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+                  <fieldset>
+                    <legend>Réservoir</legend>
+                    <div className="station-grid tank-choice">
+                      <button
+                        type="button"
+                        className={fullTank ? 'selected' : ''}
+                        aria-pressed={fullTank}
+                        onClick={() => setFullTank(true)}
+                      >
+                        Plein complet
+                        <small>sert à la consommation</small>
+                      </button>
+                      <button
+                        type="button"
+                        className={fullTank ? '' : 'selected'}
+                        aria-pressed={!fullTank}
+                        onClick={() => setFullTank(false)}
+                      >
+                        Complément
+                        <small>simple appoint</small>
+                      </button>
+                    </div>
+                  </fieldset>
+                  <div className="row">
+                    <label className="big-field">
+                      Litres
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={diesel}
+                        onChange={(e) => setDiesel(e.target.value)}
+                      />
+                    </label>
+                    <label className="big-field">
+                      AdBlue
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={adblue}
+                        onChange={(e) => setAdblue(e.target.value)}
+                      />
+                    </label>
+                  </div>
                 </>
               )}
-              {isChange && kmRow(false)}
-              <input
-                ref={kmCamera}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                hidden
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  e.target.value = '';
-                  if (file) void readKm(file, kmTarget.current);
-                }}
-              />
-            </div>
-            {restCheck && <RestNotice check={restCheck} icon={type === 'fin_journee' ? AlarmClock : undefined} />}
 
-            {type === 'chargement' && (
-              <div className="lv-group">
-                {loads.map((w) => lvTile(w, () => setEditing({ waybill: w, isNew: false, side: 'load' })))}
-                <button type="button" className="btn-link lv-manual" onClick={() => editLoad()}>
-                  <Plus size={16} aria-hidden />
-                  Ajouter une lettre de voiture
-                </button>
+              <div className="field-group">
+                <div className="field-row place-row">
+                  <span className="field-name">Lieu</span>
+                  <PlaceField
+                    key={placeKey}
+                    value={place}
+                    onChange={setPlace}
+                    autoLocate={isNew && placeKey === 0}
+                    compact
+                    onMap={() =>
+                      navigator.onLine
+                        ? setPlaceOnMap(true)
+                        : setError('Pas de réseau : la carte ne peut pas s’afficher.')
+                    }
+                  />
+                </div>
+
+                {(isNew || !withEnd) && (
+                  <label className="field-row">
+                    {withEnd ? 'Arrivée' : 'Heure'}
+                    <input
+                      type="time"
+                      value={whenTime}
+                      onChange={(e) => setWhen(`${whenDay}T${e.target.value}`)}
+                      required
+                    />
+                  </label>
+                )}
+                {shownDay ? (
+                  <label className="field-row">
+                    Jour
+                    <input
+                      type="date"
+                      value={whenDay}
+                      onChange={(e) => setWhen(`${e.target.value}T${whenTime}`)}
+                      required
+                    />
+                  </label>
+                ) : (
+                  <button type="button" className="field-row options-link" onClick={() => setShowDay(true)}>
+                    <span className="field-name">Jour</span>
+                    <span className="field-value">Aujourd’hui</span>
+                    <ChevronRight size={18} aria-hidden />
+                  </button>
+                )}
+
+                {isChange && (
+                  <>
+                    <span className="field-subtitle">Camion rendu</span>
+                    {plateRow('Tracteur', prevTractor, setPrevTractor, recent.tractors, 'AB-123-CD')}
+                    {plateRow('Remorque', prevTrailer, setPrevTrailer, recent.trailers, 'EF-456-GH')}
+                    {kmRow(true)}
+                    <span className="field-subtitle">Camion pris</span>
+                  </>
+                )}
+                {!isChange && kmRow(false)}
+
+                {isNew && !editPlates && !isChange ? (
+                  <button type="button" className="field-row plates-summary" onClick={() => setEditPlates(true)}>
+                    <span className="field-name">Camion</span>
+                    <span className="plates-values">
+                      <span className="plate">{tractor}</span>
+                      {trailer && <span className="plate">{trailer}</span>}
+                    </span>
+                    <Pencil size={16} aria-hidden />
+                    <span className="sr-only">Modifier les immatriculations</span>
+                  </button>
+                ) : (
+                  <>
+                    {plateRow(
+                      'Tracteur',
+                      tractor,
+                      setTractor,
+                      recent.tractors,
+                      'AB-123-CD',
+                      isChange ? prevTractor : '',
+                    )}
+                    {plateRow('Remorque', trailer, setTrailer, recent.trailers, 'EF-456-GH')}
+                  </>
+                )}
+                {isChange && kmRow(false)}
                 <input
-                  ref={scanInput}
+                  ref={kmCamera}
                   type="file"
                   accept="image/*"
                   capture="environment"
@@ -768,84 +802,107 @@ export default function EventForm({ event, onClose }: Props) {
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     e.target.value = '';
-                    if (file) editLoad(file);
+                    if (file) void readKm(file, kmTarget.current);
                   }}
                 />
               </div>
-            )}
+              {restCheck && <RestNotice check={restCheck} icon={type === 'fin_journee' ? AlarmClock : undefined} />}
 
-            {type === 'livraison' && (
-              <div className="lv-group">
-                <span className="field-name">Lettres livrées ici</span>
-                {candidates.length === 0 && <span className="hint">Aucune lettre de voiture dans le camion.</span>}
-                {candidates.map((w) =>
-                  lvTile(
-                    w,
-                    () => setEditing({ waybill: w, isNew: false, side: 'delivery' }),
-                    <button
-                      type="button"
-                      className="lv-check-btn"
-                      role="checkbox"
-                      aria-checked={checked.has(w.id)}
-                      aria-label={`Livrée : ${w.consignee ?? w.number ?? 'lettre'}`}
-                      onClick={() => toggle(w.id)}
-                    >
-                      {checked.has(w.id) && <Check size={18} strokeWidth={3} />}
-                    </button>,
-                  ),
-                )}
+              {type === 'chargement' && (
+                <div className="lv-group">
+                  {loads.map((w) => lvTile(w, () => setEditing({ waybill: w, isNew: false, side: 'load' })))}
+                  <button type="button" className="btn-link lv-manual" onClick={() => editLoad()}>
+                    <Plus size={16} aria-hidden />
+                    Ajouter une lettre de voiture
+                  </button>
+                  <input
+                    ref={scanInput}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    hidden
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (file) editLoad(file);
+                    }}
+                  />
+                </div>
+              )}
+
+              {type === 'livraison' && (
+                <div className="lv-group">
+                  <span className="field-name">Lettres livrées ici</span>
+                  {candidates.length === 0 && <span className="hint">Aucune lettre de voiture dans le camion.</span>}
+                  {candidates.map((w) =>
+                    lvTile(
+                      w,
+                      () => setEditing({ waybill: w, isNew: false, side: 'delivery' }),
+                      <button
+                        type="button"
+                        className="lv-check-btn"
+                        role="checkbox"
+                        aria-checked={checked.has(w.id)}
+                        aria-label={`Livrée : ${w.consignee ?? w.number ?? 'lettre'}`}
+                        onClick={() => toggle(w.id)}
+                      >
+                        {checked.has(w.id) && <Check size={18} strokeWidth={3} />}
+                      </button>,
+                    ),
+                  )}
+                  <button
+                    type="button"
+                    className="btn-link lv-manual"
+                    onClick={() => setEditing({ waybill: newWaybill(), isNew: true, side: 'delivery' })}
+                  >
+                    <Plus size={16} aria-hidden />
+                    Nouvelle lettre de voiture
+                  </button>
+                </div>
+              )}
+
+              {!isNew || notes || showNotes ? (
+                <label className="big-field notes-field">
+                  Remarques
+                  <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+                </label>
+              ) : (
+                <button type="button" className="btn-link lv-manual" onClick={() => setShowNotes(true)}>
+                  <Plus size={16} aria-hidden />
+                  Ajouter une remarque
+                </button>
+              )}
+
+              {error && <p className="form-message">{error}</p>}
+            </div>
+
+            {/* Toujours visible en bas du panneau, même dans un long formulaire. */}
+            <div className="form-footer">
+              {!isNew && (
                 <button
                   type="button"
-                  className="btn-link lv-manual"
-                  onClick={() => setEditing({ waybill: newWaybill(), isNew: true, side: 'delivery' })}
+                  className="btn-danger footer-delete"
+                  onClick={remove}
+                  aria-label="Supprimer cette étape"
                 >
-                  <Plus size={16} aria-hidden />
-                  Nouvelle lettre de voiture
+                  <Trash2 size={22} />
                 </button>
-              </div>
-            )}
-
-            {!isNew || notes || showNotes ? (
-              <label className="big-field notes-field">
-                Remarques
-                <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
-              </label>
-            ) : (
-              <button type="button" className="btn-link lv-manual" onClick={() => setShowNotes(true)}>
-                <Plus size={16} aria-hidden />
-                Ajouter une remarque
-              </button>
-            )}
-
-            {error && <p className="form-message">{error}</p>}
-          </div>
-
-          {/* Toujours visible en bas du panneau, même dans un long formulaire. */}
-          <div className="form-footer">
-            {!isNew && (
-              <button
-                type="button"
-                className="btn-danger footer-delete"
-                onClick={remove}
-                aria-label="Supprimer cette étape"
-              >
-                <Trash2 size={22} />
-              </button>
-            )}
-            {type === 'chargement' && (
-              <button
-                type="button"
-                className="btn-secondary footer-delete"
-                onClick={() => scanInput.current?.click()}
-                aria-label="Photographier la lettre de voiture"
-                title="Photographier la lettre de voiture"
-              >
-                <Camera size={24} />
-              </button>
-            )}
-            <button className="btn-primary">Enregistrer</button>
-          </div>
-        </form>
+              )}
+              {type === 'chargement' && (
+                <button
+                  type="button"
+                  className="btn-secondary footer-delete"
+                  onClick={() => scanInput.current?.click()}
+                  aria-label="Photographier la lettre de voiture"
+                  title="Photographier la lettre de voiture"
+                >
+                  <Camera size={24} />
+                </button>
+              )}
+              <button className="btn-primary">Enregistrer</button>
+            </div>
+          </form>
+        )}
       </div>
 
       {editing && (
@@ -857,8 +914,18 @@ export default function EventForm({ event, onClose }: Props) {
           onSave={(w, changes) => {
             saveEditing(w);
             editingSteps()?.apply(changes);
+            // Depuis la fiche en lecture : un changement de l'étape (lieu, heure…) attend « Enregistrer ».
+            if (Object.values(changes).some((v) => v != null)) setReading(false);
           }}
-          onDelete={editing.isNew ? undefined : deleteEditing}
+          onDelete={
+            editing.isNew
+              ? undefined
+              : (w) => {
+                  deleteEditing(w);
+                  // La suppression se fait à l'enregistrement de l'étape : on passe en saisie.
+                  setReading(false);
+                }
+          }
           onClose={() => setEditing(null)}
         />
       )}
