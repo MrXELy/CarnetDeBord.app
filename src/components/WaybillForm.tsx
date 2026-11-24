@@ -534,6 +534,7 @@ export default function WaybillForm(props: Props) {
                 <input
                   type="text"
                   inputMode="decimal"
+                  autoComplete="off"
                   value={weight}
                   onChange={(e) => setWeight(e.target.value)}
                   placeholder="À compléter"

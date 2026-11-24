@@ -498,6 +498,8 @@ function StepSheet({ event, slide, sheet, onNavigate }: StepSheetProps) {
             id={prev ? 'prev-km-field' : 'km-field'}
             type="text"
             inputMode="numeric"
+            // Pas de suggestions du navigateur (anciens km saisis) : elles n'ont aucun sens ici.
+            autoComplete="off"
             // Milliers séparés à l'affichage (« 123 456 ») ; seuls les chiffres sont gardés.
             value={value && Number(value).toLocaleString('fr-FR')}
             onChange={(e) => (prev ? setPrevKm : setKm)(e.target.value.replace(/\D/g, ''))}
@@ -738,6 +740,7 @@ function StepSheet({ event, slide, sheet, onNavigate }: StepSheetProps) {
                       <input
                         type="text"
                         inputMode="decimal"
+                        autoComplete="off"
                         value={diesel}
                         onChange={(e) => setDiesel(e.target.value)}
                       />
@@ -747,6 +750,7 @@ function StepSheet({ event, slide, sheet, onNavigate }: StepSheetProps) {
                       <input
                         type="text"
                         inputMode="decimal"
+                        autoComplete="off"
                         value={adblue}
                         onChange={(e) => setAdblue(e.target.value)}
                       />
