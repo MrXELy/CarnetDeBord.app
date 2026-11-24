@@ -120,3 +120,16 @@ export function suggestedType(events: TripEvent[], now: Date, loaded: boolean): 
   if (last.type === 'fin_journee') return 'debut_journee';
   return last.type === 'chargement' || loaded ? 'livraison' : 'chargement';
 }
+
+/**
+ * Étape voisine dans l'ordre des heures, pour passer d'une fiche à l'autre en glissant : `-1` celle d'avant, `1` celle
+ * d'après ; null au bout (pas de boucle). Toutes les étapes comptent, d'un jour ou d'une semaine à l'autre.
+ */
+export function neighborStep(events: TripEvent[], current: TripEvent, direction: -1 | 1): TripEvent | null {
+  const sorted = events
+    .filter((e) => !e.deleted_at)
+    // Dates comparées en temps (le serveur et l'appli n'écrivent pas toujours le fuseau pareil).
+    .sort((a, b) => Date.parse(a.occurred_at) - Date.parse(b.occurred_at) || a.id.localeCompare(b.id));
+  const index = sorted.findIndex((e) => e.id === current.id);
+  return index < 0 ? null : (sorted[index + direction] ?? null);
+}

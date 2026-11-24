@@ -3,6 +3,7 @@ import { ArrowRight, Camera } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { formatPlace } from '../lib/geo';
 import { useStore } from '../lib/useEvents';
+import { waybillContent } from '../lib/waybills';
 import type { Waybill } from '../types';
 
 /** Lieu et date d'une étape, tels qu'affichés sur une fiche. */
@@ -51,6 +52,7 @@ export default function WaybillLine({ waybill: w, loading, onClick, leading, tra
     at: loadingEvent?.occurred_at ?? null,
   };
   const toPlace = deliveryEvent ? formatPlace(deliveryEvent) : w.planned_city;
+  const content = waybillContent(w);
 
   return (
     <div className={`lv-row${selected ? ' selected' : ''}`}>
@@ -67,7 +69,12 @@ export default function WaybillLine({ waybill: w, loading, onClick, leading, tra
         </span>
         <Pair from={w.shipper} to={w.consignee} />
         <Pair from={from.place} to={toPlace} />
-        <Pair from={date(from.at)} to={deliveryEvent ? date(deliveryEvent.occurred_at) : 'à livrer'} toMuted={!deliveryEvent} />
+        {content && <span className="lv-goods">{content}</span>}
+        <Pair
+          from={date(from.at)}
+          to={deliveryEvent ? date(deliveryEvent.occurred_at) : 'à livrer'}
+          toMuted={!deliveryEvent}
+        />
       </button>
       {trailing}
     </div>

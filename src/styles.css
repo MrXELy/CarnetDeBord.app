@@ -612,6 +612,10 @@ textarea.auto-grow { display: block; resize: none; overflow: hidden; }
   transition: background-color 0.26s ease, backdrop-filter 0.26s ease, -webkit-backdrop-filter 0.26s ease;
 }
 
+/* Passage d'une étape à l'autre en glissant : le panneau reste en place, seul son contenu glisse de côté. */
+.modal-backdrop.no-enter,
+.no-enter > .modal { animation: none; }
+
 /* Fermeture (useSheet) : le fond s'éclaircit pendant que le panneau redescend. */
 .modal-backdrop.closing {
   background-color: transparent;
@@ -1363,6 +1367,7 @@ legend { margin-bottom: 6px; }
 .lv-pair + .lv-pair { color: var(--muted); }
 .lv-pair:last-child { font-size: 0.82rem; font-variant-numeric: tabular-nums; }
 .lv-arrow { flex: none; color: var(--muted); }
+.lv-goods { font-size: 0.88rem; color: var(--muted); }
 
 /* ---------- Photos des lettres de voiture ---------- */
 .lv-title { display: flex; align-items: center; gap: 8px; }

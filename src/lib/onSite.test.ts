@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { newWaybill, type TripEvent } from '../types';
-import { noStay, onSiteMinutes, onSiteTimes, suggestedType, unfinishedStep, endFromTime, usualOnSite } from './onSite';
+import {
+  neighborStep,
+  noStay,
+  onSiteMinutes,
+  onSiteTimes,
+  suggestedType,
+  unfinishedStep,
+  endFromTime,
+  usualOnSite,
+} from './onSite';
 
 let n = 0;
 function ev(type: TripEvent['type'], occurred: string, finished?: string, extra: Partial<TripEvent> = {}): TripEvent {
@@ -139,5 +148,23 @@ describe('endFromTime', () => {
   it('rien si l’arrivée ou l’heure est incomplète', () => {
     expect(endFromTime('2026-10-21T', '15:20')).toBeNull();
     expect(endFromTime('2026-10-21T14:35', '')).toBeNull();
+  });
+});
+
+describe('neighborStep', () => {
+  const a = ev('debut_journee', '2026-11-23T06:00');
+  const b = ev('chargement', '2026-11-23T08:00');
+  const gone = ev('livraison', '2026-11-23T09:00', undefined, { deleted_at: '2026-11-23T10:00:00Z' });
+  const c = ev('fin_journee', '2026-11-24T18:00');
+  // Liste dans l'ordre de l'appli : le plus récent en premier.
+  const events = [c, gone, b, a];
+
+  it("passe à l'étape d'avant ou d'après, d'un jour à l'autre, sans les supprimées", () => {
+    expect(neighborStep(events, b, -1)).toBe(a);
+    expect(neighborStep(events, b, 1)).toBe(c);
+  });
+  it('rien au bout', () => {
+    expect(neighborStep(events, a, -1)).toBeNull();
+    expect(neighborStep(events, c, 1)).toBeNull();
   });
 });

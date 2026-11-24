@@ -5,7 +5,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent, t
 import { durationLabel, toLocalInput } from '../lib/dates';
 import { isDoumenCity, isFullTank } from '../lib/fuel';
 import { numText, parseNum } from '../lib/numbers';
-import { endFromTime, hasEnd, noStay, suggestedType } from '../lib/onSite';
+import { endFromTime, hasEnd, neighborStep, noStay, suggestedType } from '../lib/onSite';
 import { odometerMessage, readOdometerPhoto } from '../lib/odometer';
 import { restartAdvice, restChecks } from '../lib/rest';
 import {
@@ -18,8 +18,9 @@ import {
   type StepChanges,
 } from '../lib/places';
 import { useSheet } from '../lib/useSheet';
+import { useSwipe } from '../lib/useSwipe';
 import { useEvents } from '../lib/useEvents';
-import { isBlankWaybill } from '../lib/waybills';
+import { isBlankWaybill, waybillContent } from '../lib/waybills';
 import {
   EVENT_TYPES,
   STATIONS,
@@ -56,7 +57,33 @@ type Editing = { waybill: Waybill; isNew: boolean; side: 'load' | 'delivery'; ph
 const sameWaybill = (a: Waybill, b: Waybill | undefined) =>
   !!b && JSON.stringify({ ...a, updated_at: '' }) === JSON.stringify({ ...b, updated_at: '' });
 
+/**
+ * Fenêtre d'une étape. Le panneau (`useSheet`, une seule entrée d'historique) reste ouvert quand on glisse d'une fiche
+ * à l'autre ; seul son contenu (`StepSheet`) est refait pour l'étape affichée, d'où la `key`.
+ */
 export default function EventForm({ event, onClose }: Props) {
+  const sheet = useSheet(onClose);
+  const [shown, setShown] = useState<{ event: TripEvent | null; slide: -1 | 0 | 1 }>({ event, slide: 0 });
+  return (
+    <StepSheet
+      key={shown.event?.id ?? 'new'}
+      event={shown.event}
+      slide={shown.slide}
+      sheet={sheet}
+      onNavigate={(next, slide) => setShown({ event: next, slide })}
+    />
+  );
+}
+
+interface StepSheetProps {
+  event: TripEvent | null;
+  /** Arrivée par un glissement : -1 depuis l'étape d'après, 1 depuis celle d'avant ; 0 à l'ouverture. */
+  slide: -1 | 0 | 1;
+  sheet: ReturnType<typeof useSheet>;
+  onNavigate: (event: TripEvent, slide: -1 | 1) => void;
+}
+
+function StepSheet({ event, slide, sheet, onNavigate }: StepSheetProps) {
   const { store, demo, events } = useEvents();
   const isNew = !event;
   const [eventId] = useState(() => event?.id ?? crypto.randomUUID());
@@ -112,7 +139,12 @@ export default function EventForm({ event, onClose }: Props) {
   const kmTarget = useRef(false);
   const [kmReading, setKmReading] = useState<KmReading>(null);
 
-  const sheet = useSheet(onClose);
+  // Fiche en lecture : glisser le doigt vers la droite montre l'étape d'avant, vers la gauche celle d'après.
+  const swipe = useSwipe((direction) => {
+    const next = event && neighborStep(events, event, direction);
+    if (next) onNavigate(next, direction);
+  });
+  const slideClass = slide < 0 ? ' slide-prev' : slide > 0 ? ' slide-next' : '';
 
   // Date vide ou incomplète (champ effacé) : null, pour ne pas planter les calculs qui suivent.
   const at = new Date(when);
@@ -430,23 +462,25 @@ export default function EventForm({ event, onClose }: Props) {
   const setFinishedTime = (time: string) => setFinished(time ? `${whenDay}T${time}` : '');
   const typeInfo = type ? eventTypeInfo(type) : null;
 
-  // Une LV en tuile : son numéro (ou « à remplir »), le trajet et la marchandise ; touchée, sa fiche s'ouvre.
-  const lvTile = (w: Waybill, open: () => void, leading?: ReactNode) => (
-    <div key={w.id} className={`lv-tile${leading && checked.has(w.id) ? ' selected' : ''}`}>
-      {leading}
-      <button type="button" className="lv-tile-main" onClick={open}>
-        <FileText size={22} aria-hidden />
-        <span className="lv-tile-text">
-          <b>{isBlankWaybill(w) ? 'Remplir la lettre' : w.number ? `LV ${w.number}` : 'Voir la lettre'}</b>
-          <span>
-            {[[w.shipper, w.consignee].filter(Boolean).join(' → '), w.goods].filter(Boolean).join(' · ') ||
-              'Pas encore remplie'}
+  // Une LV en tuile : son numéro (ou « à remplir »), le trajet, puis le contenu ; touchée, sa fiche s'ouvre.
+  const lvTile = (w: Waybill, open: () => void, leading?: ReactNode) => {
+    const route = [w.shipper, w.consignee].filter(Boolean).join(' → ');
+    const content = waybillContent(w);
+    return (
+      <div key={w.id} className={`lv-tile${leading && checked.has(w.id) ? ' selected' : ''}`}>
+        {leading}
+        <button type="button" className="lv-tile-main" onClick={open}>
+          <FileText size={22} aria-hidden />
+          <span className="lv-tile-text">
+            <b>{isBlankWaybill(w) ? 'Remplir la lettre' : w.number ? `LV ${w.number}` : 'Voir la lettre'}</b>
+            {(route || !content) && <span>{route || 'Pas encore remplie'}</span>}
+            {content && <span>{content}</span>}
           </span>
-        </span>
-        <ChevronRight size={20} aria-hidden />
-      </button>
-    </div>
-  );
+          <ChevronRight size={20} aria-hidden />
+        </button>
+      </div>
+    );
+  };
 
   /** Ligne « Compteur » avec lecture en photo ; `prev` : compteur du camion rendu, à l'arrivée au dépôt. */
   const kmRow = (prev: boolean) => {
@@ -536,10 +570,10 @@ export default function EventForm({ event, onClose }: Props) {
 
   return (
     <>
-      <div className="modal-backdrop" ref={sheet.ref} onClick={sheet.close}>
+      <div className={`modal-backdrop${slide ? ' no-enter' : ''}`} ref={sheet.ref} onClick={sheet.close}>
         {reading && event ? (
-          <div className="modal step-view" onClick={(e) => e.stopPropagation()}>
-            <header className="modal-header" {...sheet.handle}>
+          <div className="modal step-view" onClick={(e) => e.stopPropagation()} {...swipe}>
+            <header className={`modal-header${slideClass}`} {...sheet.handle}>
               <span className={`card-icon tone-${event.type}`} aria-hidden>
                 <EventIcon type={event.type} size={22} strokeWidth={2} className="event-icon" />
               </span>
@@ -551,7 +585,7 @@ export default function EventForm({ event, onClose }: Props) {
                 <X size={22} />
               </button>
             </header>
-            <div className="modal-body">
+            <div className={`modal-body${slideClass}`}>
               <StepDetails
                 event={event}
                 waybills={event.type === 'chargement' ? loads : candidates.filter((w) => checked.has(w.id))}

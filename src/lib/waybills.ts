@@ -23,3 +23,10 @@ export function waybillTitle(w: Waybill): string {
 export function namesOf(waybills: Waybill[], side: 'shipper' | 'consignee'): string {
   return [...new Set(waybills.map((w) => w[side]?.trim()).filter(Boolean))].join(', ');
 }
+
+/** Contenu d'une LV : « 26 pal bouteilles (18,7t) », poids en tonnes à 0,1 près ; vide si rien n'est saisi. */
+export function waybillContent(w: Waybill): string {
+  const tonnes = w.weight_kg ? `${(w.weight_kg / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })}t` : '';
+  const goods = w.goods?.trim();
+  return goods && tonnes ? `${goods} (${tonnes})` : goods || tonnes;
+}
